@@ -1,53 +1,45 @@
-﻿# ReferenceMiner
+# ReferenceMiner
 
-**ReferenceMiner** is a local-first research assistant agent designed to perform **deep, evidence-grounded analysis** over a curated set of references you provide.
+ReferenceMiner is a local-first research assistant designed to deliver deep, evidence-grounded analysis over a curated set of references you provide.
 
-Instead of crawling the web (which introduces legal, ethical, and reproducibility issues), ReferenceMiner operates **exclusively on a local `references/` folder** containing PDFs, DOCX files, images, charts, and other research artifacts. Every claim it produces is traceable to a specific file, page, section, or figure.
+Instead of crawling the web (which introduces legal, ethical, and reproducibility issues), ReferenceMiner operates exclusively on a local `references/` folder containing PDFs, DOCX files, images, charts, and other research artifacts. Every claim it produces is traceable to a specific file, page, section, or figure.
 
-> **Principle:** If it鈥檚 not in `references/`, it doesn鈥檛 exist.
+Principle: If it is not in `references/`, it does not exist.
 
 ---
 
 ## Core Capabilities
 
-ReferenceMiner is built to behave like a meticulous research assistant:
+ReferenceMiner behaves like a meticulous research assistant:
 
-- 馃搨 **Folder Awareness**  
-  Knows exactly what files exist in `references/`, their types, structure, and metadata.
+- Folder awareness
+  - Knows exactly what files exist in `references/`, their types, structure, and metadata.
+- Document understanding
+  - Extracts titles, abstracts, sections, and full text from PDFs and DOCX files.
+  - Tracks page numbers and section boundaries.
+- Chart and figure interpretation
+  - Uses surrounding text and captions by default (cheap and reliable).
+  - Can fall back to vision-based analysis on demand.
+- Hybrid retrieval
+  - Combines keyword search (BM25) and semantic search (embeddings).
+- Deep analytical responses
+  - Breaks questions into sub-questions.
+  - Synthesizes across multiple sources.
+  - Identifies agreements, contradictions, and gaps.
+  - Produces structured, citation-backed answers.
+- Strict grounding
+  - Every factual statement is backed by an explicit citation:
 
-- 馃搫 **Document Understanding**  
-  - Extracts titles, abstracts, sections, and full text from PDFs and DOCX files  
-  - Detects and indexes figures, tables, and captions  
-  - Tracks page numbers and section boundaries
-
-- 馃搳 **Chart & Figure Interpretation**  
-  - Uses surrounding text and captions by default (cheap & reliable)  
-  - Falls back to vision-based analysis *on demand* for graphs and diagrams  
-  - Associates insights with exact figures/pages
-
-- 馃攳 **Hybrid Retrieval**  
-  Combines keyword search (BM25) and semantic search (embeddings) for robust evidence discovery.
-
-- 馃 **Deep Analytical Responses**  
-  - Breaks questions into sub-questions  
-  - Synthesizes across multiple sources  
-  - Identifies agreements, contradictions, and gaps  
-  - Produces structured, citation-backed answers
-
-- 馃搶 **Strict Grounding**  
-  Every factual statement is backed by an explicit citation:
 ```
-
 (paper1.pdf p.7, Fig.2)
-(survey.docx 搂3.1)
-
+(survey.docx 3.1)
 ```
 
 ---
 
 ## Non-Goals (By Design)
 
-ReferenceMiner intentionally does **not**:
+ReferenceMiner intentionally does not:
 - Crawl the web
 - Query external APIs for content
 - Hallucinate missing sources
@@ -60,95 +52,141 @@ This keeps the system legally safe, auditable, and suitable for academic or prof
 ## Project Structure
 
 ```
-// yet to be replenished after implementation
+ReferenceMiner/
+  references/
+  src/
+    refminer/
+      analyze/
+      ingest/
+      index/
+      render/
+      retrieve/
+      utils/
+  .index/
+    manifest.json
+    chunks.jsonl
+    bm25.pkl
+    vectors.faiss
+  frontend/
+    src/
+  requirements.txt
 ```
+
+---
+
+## Startup Guide
+
+### 1) Python backend setup
+
+Create and activate a virtual environment (optional but recommended), then install dependencies:
+
+```
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### 2) Ingest references
+
+Place your documents in `references/`, then build the manifest and indexes:
+
+```
+python referenceminer.py ingest
+```
+
+Tip: If you want to skip vector indexing, run:
+
+```
+python referenceminer.py ingest --no-vectors
+```
+
+### 3) Start the API server
+
+Run the FastAPI backend on port 8000:
+
+```
+python -m uvicorn refminer.server:app --reload --app-dir src --port 8000
+```
+
+API endpoints:
+- `GET /manifest`
+- `GET /status`
+- `POST /ask`
+
+### 4) Start the Vue frontend
+
+From the project root:
+
+```
+cd frontend
+npm install
+```
+
+Create `frontend/.env` (or copy from `frontend/.env.example`) and set the API URL:
+
+```
+VITE_API_URL=http://localhost:8000
+```
+
+Run the dev server:
+
+```
+npm run dev
+```
+
+Open the UI at `http://localhost:5173`.
 
 ---
 
 ## How It Works (High Level)
 
-1. **Ingest**  
-   ReferenceMiner scans `references/`, detects file types, extracts text/figures, and builds a structured manifest.
-
-2. **Index**  
-   Content is chunked and indexed using:
-   - BM25 (exact / keyword matching)
-   - Vector embeddings (semantic matching)
-
-3. **Retrieve**  
-   For a query, both indexes are queried and merged to identify the most relevant evidence.
-
-4. **Analyze**  
-   The agent:
-   - Decomposes the question
-   - Reads relevant text and figures
-   - Cross-checks sources
-   - Identifies consensus and disagreement
-
-5. **Respond**  
-   Produces a structured answer with explicit citations and limitations.
+1. Ingest
+   - Scans `references/`, detects file types, extracts text and metadata, and builds a structured manifest.
+2. Index
+   - Content is chunked and indexed using BM25 and optional vector embeddings.
+3. Retrieve
+   - For a query, both indexes are queried and merged to identify relevant evidence.
+4. Analyze
+   - Decomposes the question, reads evidence, cross-checks sources, and identifies gaps.
+5. Respond
+   - Produces a structured answer with explicit citations and limitations.
 
 ---
 
-## Usage (Planned Interfaces)
+## Usage (CLI)
 
-### CLI (minimal, recommended first)
-```bash
-referenceminer ingest
-referenceminer list
-referenceminer ask "What evidence supports method X?"
 ```
-
-### API (optional)
-
-A lightweight FastAPI service can expose:
-
-* `/manifest`
-* `/query`
-* `/document/{id}`
-* `/figure/{id}`
-
----
-
-## Design Philosophy
-
-* **Minimal construction, maximal output**
-* Expensive operations are cached
-* Vision analysis is on-demand, not upfront
-* Text-first whenever possible
-* Transparency over cleverness
-
-ReferenceMiner is not a chatbot鈥攊t is an **evidence engine**.
+python referenceminer.py list
+python referenceminer.py ask "What evidence supports method X?"
+```
 
 ---
 
 ## Example Queries
 
-* 鈥淪ummarize the consensus and disagreements across these papers.鈥?
-* 鈥淲hich figures support the claim that X improves Y?鈥?
-* 鈥淐ompare the methodologies used in papers A, B, and C.鈥?
-* 鈥淲hat assumptions are shared across all sources?鈥?
-* 鈥淲hat evidence contradicts hypothesis H?鈥?
+- "Summarize the consensus and disagreements across these papers."
+- "Which figures support the claim that X improves Y?"
+- "Compare the methodologies used in papers A, B, and C."
+- "What assumptions are shared across all sources?"
+- "What evidence contradicts hypothesis H?"
 
 ---
 
 ## Intended Use Cases
 
-* Literature reviews
-* Research validation
-* Technical due diligence
-* Academic writing support
-* Internal knowledge audits
+- Literature reviews
+- Research validation
+- Technical due diligence
+- Academic writing support
+- Internal knowledge audits
 
 ---
 
 ## Status
 
-馃毀 **Early development**
-The initial focus is on robust ingestion, grounding, and retrieval.
-Multi-agent orchestration and advanced evaluation workflows may be added later.
+Early development. The current focus is robust ingestion, grounding, and retrieval. Multi-agent orchestration and advanced evaluation workflows may be added later.
 
 ---
 
-> **ReferenceMiner**
-> *If it鈥檚 not cited, it doesn鈥檛 count.*
+> ReferenceMiner
+> If it is not cited, it does not count.
