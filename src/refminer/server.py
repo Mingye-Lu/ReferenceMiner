@@ -129,6 +129,7 @@ def ask(request: AskRequest) -> dict[str, Any]:
     return {
         "question": request.question,
         "scope": analysis.get("scope", []),
+        "keywords": analysis.get("keywords", []),
         "evidence": evidence_payload,
         "answer": answer_blocks,
         "crosscheck": analysis.get("crosscheck", ""),

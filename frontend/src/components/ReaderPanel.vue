@@ -1,7 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue"
 import type { EvidenceChunk } from "../types"
+import { highlightTerms } from "../utils"
 
-defineProps<{ focused: EvidenceChunk | null; citation: string | null }>()
+const props = defineProps<{ 
+  focused: EvidenceChunk | null
+  citation: string | null 
+  highlights?: string[] 
+}>()
+
+const focusedText = computed(() => {
+  if (!props.focused) return ""
+  return highlightTerms(props.focused.text, props.highlights ?? [])
+})
 </script>
 
 <template>
@@ -23,7 +34,7 @@ defineProps<{ focused: EvidenceChunk | null; citation: string | null }>()
           <span v-if="focused.page">p.{{ focused.page }}</span>
           <span v-if="focused.section">{{ focused.section }}</span>
         </div>
-        <p>{{ focused.text }}</p>
+        <p v-html="focusedText"></p>
       </div>
 
       <div v-else class="empty-state">

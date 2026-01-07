@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
+import { onMounted, ref, computed } from "vue"
 import CorpusSidebar from "./components/CorpusSidebar.vue"
 import IndexStatusBanner from "./components/IndexStatusBanner.vue"
 import QuestionPanel from "./components/QuestionPanel.vue"
@@ -18,6 +18,16 @@ const focusedCitation = ref<string | null>(null)
 const loading = ref(false)
 const mode = ref<"hybrid" | "text" | "visual">("hybrid")
 const errorMessage = ref<string | null>(null)
+const keywords = ref<string[]>([])
+const selectedChunkIds = ref<Set<string>>(new Set())
+
+const evidenceCounts = computed(() => {
+  const counts: Record<string, number> = {}
+  for (const item of evidence.value) {
+    counts[item.path] = (counts[item.path] || 0) + 1
+  }
+  return counts
+})
 
 async function loadManifest() {
   try {
@@ -34,11 +44,13 @@ async function loadManifest() {
 async function runAsk(input: string) {
   loading.value = true
   focusedCitation.value = null
+  selectedChunkIds.value.clear()
   try {
     errorMessage.value = null
     const response = await askQuestion(input)
     question.value = response.question
     scope.value = response.scope
+    keywords.value = response.keywords
     evidence.value = response.evidence
     answer.value = response.answer
     focusedEvidence.value = response.evidence[0] ?? null
@@ -48,6 +60,15 @@ async function runAsk(input: string) {
   } finally {
     loading.value = false
   }
+}
+
+function toggleSelection(item: EvidenceChunk) {
+  if (selectedChunkIds.value.has(item.chunkId)) {
+    selectedChunkIds.value.delete(item.chunkId)
+  } else {
+    selectedChunkIds.value.add(item.chunkId)
+  }
+  selectedChunkIds.value = new Set(selectedChunkIds.value)
 }
 
 function updateScope(next: string[]) {
@@ -87,7 +108,10 @@ onMounted(() => {
     </div>
 
     <main class="grid">
-      <CorpusSidebar :manifest="manifest" />
+      <CorpusSidebar 
+        :manifest="manifest" 
+        :counts="evidenceCounts" 
+      />
 
       <QuestionPanel
         :question="question"
@@ -95,13 +119,20 @@ onMounted(() => {
         :evidence="evidence"
         :answer="answer"
         :loading="loading"
+        :highlights="keywords"
+        :selected-ids="selectedChunkIds" 
         @ask="runAsk"
         @scope="updateScope"
         @focus="focusEvidence"
         @cite="focusCitation"
+        @toggle-select="toggleSelection"
       />
 
-      <ReaderPanel :focused="focusedEvidence" :citation="focusedCitation" />
+      <ReaderPanel 
+        :focused="focusedEvidence" 
+        :citation="focusedCitation" 
+        :highlights="keywords"
+      />
     </main>
   </div>
 </template>

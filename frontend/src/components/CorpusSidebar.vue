@@ -2,7 +2,10 @@
 import { computed, ref } from "vue"
 import type { ManifestEntry } from "../types"
 
-const props = defineProps<{ manifest: ManifestEntry[] }>()
+const props = defineProps<{ 
+  manifest: ManifestEntry[]
+  counts?: Record<string, number>
+}>()
 
 const query = ref("")
 const filter = ref<"all" | "pdf" | "docx" | "image" | "table" | "text">("all")
@@ -51,7 +54,12 @@ const filtered = computed(() => {
       </div>
       <article v-for="item in filtered" :key="item.relPath" class="corpus-item">
         <div class="corpus-title">
-          <span class="file-name">{{ item.relPath }}</span>
+          <div class="title-left">
+            <span v-if="(counts?.[item.relPath] ?? 0) > 0" class="hit-badge">
+              {{ counts?.[item.relPath] }}
+            </span>
+            <span class="file-name">{{ item.relPath }}</span>
+          </div>
           <span class="file-type">{{ item.fileType }}</span>
         </div>
         <div class="corpus-meta">

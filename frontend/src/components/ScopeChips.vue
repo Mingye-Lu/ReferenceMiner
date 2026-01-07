@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
 
-defineProps<{ scope: string[] }>()
+const props = defineProps<{ scope: string[] }>()
 
 const emit = defineEmits<{ (event: "update", scope: string[]): void }>()
 const local = ref<string[]>([])
 
 watch(
-  () => scope,
+  () => props.scope,
   (next) => {
     local.value = [...next]
   },
@@ -33,7 +33,7 @@ function emitUpdate() {
   <div class="scope-chips">
     <div v-for="(item, index) in local" :key="index" class="scope-chip">
       <input v-model="local[index]" @blur="emitUpdate" />
-      <button class="chip-remove" @click="removeChip(index)">?</button>
+      <button class="chip-remove" @click="removeChip(index)">x</button>
     </div>
     <button class="chip-add" @click="addChip">+ Add scope</button>
   </div>

@@ -4,6 +4,7 @@ import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+import jieba
 
 from rank_bm25 import BM25Okapi
 
@@ -15,7 +16,7 @@ class BM25Index:
 
 
 def tokenize(text: str) -> list[str]:
-    return [token.lower() for token in text.split() if token]
+    return list(jieba.cut_for_search(text.lower()))
 
 
 def build_bm25(chunks: Iterable[tuple[str, str]]) -> BM25Index:

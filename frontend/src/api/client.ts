@@ -65,6 +65,7 @@ export async function askQuestion(question: string): Promise<AskResponse> {
   return {
     question: data.question ?? question,
     scope: data.scope ?? [],
+    keywords: data.keywords ?? [],
     evidence: (data.evidence ?? []).map(mapEvidence),
     answer: (data.answer ?? []).map(mapAnswerBlock),
     crosscheck: data.crosscheck ?? "",

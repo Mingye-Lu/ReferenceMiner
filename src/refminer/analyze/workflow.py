@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import jieba.analyse
 
 
 @dataclass
@@ -34,13 +35,24 @@ def cross_check(evidence: list[EvidenceChunk]) -> str:
     return "No explicit contradictions detected in the top evidence snippets."
 
 
+def extract_keywords(question: str) -> list[str]:
+    tags = jieba.analyse.extract_tags(question, topK=5)
+    if not tags:
+        tags = list(jieba.cut(question))
+    return [w for w in tags if len(w.strip()) > 1]
+
+
 def analyze(question: str, evidence: list[EvidenceChunk]) -> dict:
     scope = derive_scope(question)
+    keywords = extract_keywords(question)
+    
     synthesis = synthesize(question, evidence)
     crosscheck = cross_check(evidence)
+    
     return {
         "question": question,
         "scope": scope,
+        "keywords": keywords,
         "evidence": evidence,
         "synthesis": synthesis,
         "crosscheck": crosscheck,

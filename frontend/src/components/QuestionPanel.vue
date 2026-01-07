@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { ref, computed } from "vue"
 import type { AnswerBlock, EvidenceChunk } from "../types"
 import EvidenceCard from "./EvidenceCard.vue"
 import AnswerBlockView from "./AnswerBlock.vue"
@@ -8,9 +8,11 @@ import ScopeChips from "./ScopeChips.vue"
 defineProps<{ 
   question: string
   scope: string[]
+  highlights?: string[]
   evidence: EvidenceChunk[]
   answer: AnswerBlock[]
   loading: boolean
+  selectedIds?: Set<string> 
 }>()
 
 const emit = defineEmits<{ 
@@ -18,6 +20,7 @@ const emit = defineEmits<{
   (event: "scope", scope: string[]): void
   (event: "focus", evidence: EvidenceChunk): void
   (event: "cite", citation: string): void
+  (event: "toggle-select", evidence: EvidenceChunk): void 
 }>()
 
 const draft = ref("")
@@ -57,7 +60,12 @@ function submit() {
     <div class="evidence-section">
       <div class="section-head">
         <h4>Evidence stream</h4>
-        <span>{{ evidence.length }} snippets</span>
+        <div class="evidence-stats">
+          <span v-if="selectedIds && selectedIds.size > 0" class="selection-count">
+            {{ selectedIds.size }} pinned
+          </span>
+          <span>{{ evidence.length }} snippets</span>
+        </div>
       </div>
       <div v-if="evidence.length === 0" class="empty-state">
         Evidence will appear here once you ask a question.
@@ -66,7 +74,10 @@ function submit() {
         v-for="item in evidence"
         :key="item.chunkId"
         :item="item"
+        :highlights="highlights"
+        :selected="selectedIds?.has(item.chunkId) ?? false"
         @focus="emit('focus', item)"
+        @toggle="emit('toggle-select', item)"
       />
     </div>
 
