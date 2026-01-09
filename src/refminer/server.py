@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze
 from refminer.ingest.pipeline import ingest_all
+from refminer.llm.deepseek import generate_answer
 from refminer.retrieve.search import retrieve
 from refminer.utils.paths import get_index_dir
 
@@ -80,6 +81,22 @@ def _ensure_index() -> None:
     ingest_all(build_vectors_index=True)
 
 
+def _fallback_answer(analysis: dict, evidence: list) -> list[dict[str, Any]]:
+    citations = [_format_citation(item.path, item.page, item.section) for item in evidence]
+    return [
+        {
+            "heading": "Synthesis",
+            "body": analysis.get("synthesis", ""),
+            "citations": citations[:4],
+        },
+        {
+            "heading": "Cross-check",
+            "body": analysis.get("crosscheck", ""),
+            "citations": [],
+        },
+    ]
+
+
 @app.get("/manifest")
 def manifest() -> list[dict[str, Any]]:
     if not _manifest_path().exists():
@@ -111,26 +128,25 @@ def ask(request: AskRequest) -> dict[str, Any]:
     analysis = analyze(request.question, evidence)
 
     evidence_payload = [asdict(item) for item in evidence]
-    citations = [_format_citation(item.path, item.page, item.section) for item in evidence]
 
-    answer_blocks = [
-        {
-            "heading": "Synthesis",
-            "body": analysis.get("synthesis", ""),
-            "citations": citations[:4],
-        },
-        {
-            "heading": "Cross-check",
-            "body": analysis.get("crosscheck", ""),
-            "citations": [],
-        },
-    ]
+    answer_blocks = None
+    try:
+        answer_blocks = generate_answer(request.question, evidence, analysis.get("keywords", []))
+    except Exception:
+        answer_blocks = None
+
+    if answer_blocks:
+        answer_payload = [
+            {"heading": block.heading, "body": block.body, "citations": block.citations}
+            for block in answer_blocks
+        ]
+    else:
+        answer_payload = _fallback_answer(analysis, evidence)
 
     return {
         "question": request.question,
         "scope": analysis.get("scope", []),
-        "keywords": analysis.get("keywords", []),
         "evidence": evidence_payload,
-        "answer": answer_blocks,
+        "answer": answer_payload,
         "crosscheck": analysis.get("crosscheck", ""),
     }

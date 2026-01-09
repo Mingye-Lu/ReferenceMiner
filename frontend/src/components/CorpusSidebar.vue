@@ -20,6 +20,14 @@ const filtered = computed(() => {
     return matchesQuery && matchesType
   })
 })
+
+const ABSTRACT_MAX_CHARS = 4000
+
+const displayAbstract = (text: string | null | undefined) => {
+  if (!text) return ""
+  if (text.length <= ABSTRACT_MAX_CHARS) return text
+  return `${text.slice(0, ABSTRACT_MAX_CHARS)}…`
+}
 </script>
 
 <template>
@@ -66,7 +74,7 @@ const filtered = computed(() => {
           <span v-if="item.pageCount">{{ item.pageCount }} pages</span>
           <span v-if="item.sizeBytes">{{ Math.round(item.sizeBytes / 1024) }} KB</span>
         </div>
-        <p class="corpus-abstract" v-if="item.abstract">{{ item.abstract }}</p>
+        <p class="corpus-abstract" v-if="item.abstract">{{ displayAbstract(item.abstract) }}</p>
         <p class="corpus-abstract muted" v-else>No abstract detected.</p>
       </article>
     </div>

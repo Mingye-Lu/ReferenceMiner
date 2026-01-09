@@ -4,8 +4,19 @@ import re
 from typing import Iterable
 
 
-ABSTRACT_RE = re.compile(r"^\s*abstract\s*$", re.IGNORECASE)
-INTRO_RE = re.compile(r"^\s*(introduction|1\.\s*introduction|keywords)\s*$", re.IGNORECASE)
+ABSTRACT_RE = re.compile(
+    r"^\s*(?:abstract|摘要|摘\s*要)\s*[:：\-–—]?\s*(.*)$",
+    re.IGNORECASE,
+)
+SECTION_BREAK_RE = re.compile(
+    r"^\s*(?:"
+    r"(?:\d+\s*[\.、]?\s*)?introduction|"
+    r"(?:\d+\s*[\.、]?\s*)?(?:引言|绪论|前言)|"
+    r"keywords?|key\s*words|index\s*terms|"
+    r"(?:关键词|关键字|主题词)"
+    r")\s*[:：]?\s*.*$",
+    re.IGNORECASE,
+)
 
 
 def normalize_text(text: str) -> str:
@@ -19,10 +30,14 @@ def detect_abstract(lines: Iterable[str]) -> str | None:
     collecting = False
     collected: list[str] = []
     for line in lines:
-        if ABSTRACT_RE.match(line):
+        header_match = ABSTRACT_RE.match(line)
+        if header_match:
             collecting = True
+            trailing = header_match.group(1).strip()
+            if trailing:
+                collected.append(trailing)
             continue
-        if collecting and INTRO_RE.match(line):
+        if collecting and SECTION_BREAK_RE.match(line):
             break
         if collecting:
             collected.append(line)

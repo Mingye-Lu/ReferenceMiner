@@ -1,4 +1,4 @@
-# ReferenceMiner
+﻿# ReferenceMiner
 
 ReferenceMiner is a local-first research assistant designed to deliver deep, evidence-grounded analysis over a curated set of references you provide.
 
@@ -86,7 +86,18 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2) Ingest references
+### 2) Configure DeepSeek (LLM)
+
+Create a `.env` file in the project root (or export environment variables) with your DeepSeek credentials:
+
+```
+DEEPSEEK_API_KEY=your_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+If `DEEPSEEK_API_KEY` is not set, the backend will fall back to local synthesis.
+### 3) Ingest references
 
 Place your documents in `references/`, then build the manifest and indexes:
 
@@ -100,7 +111,7 @@ Tip: If you want to skip vector indexing, run:
 python referenceminer.py ingest --no-vectors
 ```
 
-### 3) Start the API server
+### 4) Start the API server
 
 Run the FastAPI backend on port 8000:
 
@@ -113,7 +124,7 @@ API endpoints:
 - `GET /status`
 - `POST /ask`
 
-### 4) Start the Vue frontend
+### 5) Start the Vue frontend
 
 From the project root:
 
@@ -190,3 +201,5 @@ Early development. The current focus is robust ingestion, grounding, and retriev
 
 > ReferenceMiner
 > If it is not cited, it does not count.
+
+
