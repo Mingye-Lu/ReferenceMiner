@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from "vue"
+import { onMounted, ref } from "vue"
 import CorpusSidebar from "./components/CorpusSidebar.vue"
 import IndexStatusBanner from "./components/IndexStatusBanner.vue"
 import QuestionPanel from "./components/QuestionPanel.vue"
 import ReaderPanel from "./components/ReaderPanel.vue"
-import { askQuestion, fetchIndexStatus, fetchManifest } from "./api/client"
+import { fetchIndexStatus, fetchManifest, streamAsk } from "./api/client"
 import type { AnswerBlock, EvidenceChunk, IndexStatus, ManifestEntry } from "./types"
+
+type TimelineEvent = {
+  phase: string
+  message: string
+  timestamp: string
+}
 
 const manifest = ref<ManifestEntry[]>([])
 const status = ref<IndexStatus | null>(null)
@@ -18,16 +24,8 @@ const focusedCitation = ref<string | null>(null)
 const loading = ref(false)
 const mode = ref<"hybrid" | "text" | "visual">("hybrid")
 const errorMessage = ref<string | null>(null)
-const keywords = ref<string[]>([])
-const selectedChunkIds = ref<Set<string>>(new Set())
-
-const evidenceCounts = computed(() => {
-  const counts: Record<string, number> = {}
-  for (const item of evidence.value) {
-    counts[item.path] = (counts[item.path] || 0) + 1
-  }
-  return counts
-})
+const timeline = ref<TimelineEvent[]>([])
+const draft = ref("")
 
 async function loadManifest() {
   try {
@@ -41,34 +39,67 @@ async function loadManifest() {
   }
 }
 
+function pushTimeline(phase: string, message: string) {
+  timeline.value.push({ phase, message, timestamp: new Date().toLocaleTimeString() })
+}
+
 async function runAsk(input: string) {
   loading.value = true
   focusedCitation.value = null
-  selectedChunkIds.value.clear()
+  question.value = input
+  scope.value = []
+  evidence.value = []
+  answer.value = []
+  draft.value = ""
+  timeline.value = []
+
   try {
     errorMessage.value = null
-    const response = await askQuestion(input)
-    question.value = response.question
-    scope.value = response.scope
-    keywords.value = response.keywords
-    evidence.value = response.evidence
-    answer.value = response.answer
-    focusedEvidence.value = response.evidence[0] ?? null
+    pushTimeline("ask", "Question received")
+
+    await streamAsk(input, (event, payload) => {
+      if (event === "status") {
+        pushTimeline(payload.phase ?? "status", payload.message ?? "Working")
+      }
+      if (event === "analysis") {
+        scope.value = payload.scope ?? []
+        if ((payload.keywords ?? []).length) {
+          pushTimeline("analysis", `Keywords: ${payload.keywords.join(", ")}`)
+        }
+      }
+      if (event === "evidence") {
+        evidence.value = (payload ?? []).map((item: any) => ({
+          chunkId: item.chunk_id ?? item.chunkId ?? "",
+          path: item.path ?? item.rel_path ?? "",
+          page: item.page ?? null,
+          section: item.section ?? null,
+          text: item.text ?? "",
+          score: item.score ?? 0,
+        }))
+        focusedEvidence.value = evidence.value[0] ?? null
+        pushTimeline("retrieve", `Selected ${evidence.value.length} evidence chunks`)
+      }
+      if (event === "llm_delta") {
+        draft.value += payload.delta ?? ""
+      }
+      if (event === "answer_done") {
+        answer.value = (payload ?? []).map((block: any) => ({
+          heading: block.heading ?? "Answer",
+          body: block.body ?? "",
+          citations: block.citations ?? [],
+        }))
+        pushTimeline("final", "Answer ready")
+      }
+      if (event === "error") {
+        errorMessage.value = payload.message ?? "Streaming error"
+      }
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to run analysis."
     errorMessage.value = message
   } finally {
     loading.value = false
   }
-}
-
-function toggleSelection(item: EvidenceChunk) {
-  if (selectedChunkIds.value.has(item.chunkId)) {
-    selectedChunkIds.value.delete(item.chunkId)
-  } else {
-    selectedChunkIds.value.add(item.chunkId)
-  }
-  selectedChunkIds.value = new Set(selectedChunkIds.value)
 }
 
 function updateScope(next: string[]) {
@@ -108,10 +139,7 @@ onMounted(() => {
     </div>
 
     <main class="grid">
-      <CorpusSidebar 
-        :manifest="manifest" 
-        :counts="evidenceCounts" 
-      />
+      <CorpusSidebar :manifest="manifest" />
 
       <QuestionPanel
         :question="question"
@@ -119,20 +147,15 @@ onMounted(() => {
         :evidence="evidence"
         :answer="answer"
         :loading="loading"
-        :highlights="keywords"
-        :selected-ids="selectedChunkIds" 
+        :timeline="timeline"
+        :draft="draft"
         @ask="runAsk"
         @scope="updateScope"
         @focus="focusEvidence"
         @cite="focusCitation"
-        @toggle-select="toggleSelection"
       />
 
-      <ReaderPanel 
-        :focused="focusedEvidence" 
-        :citation="focusedCitation" 
-        :highlights="keywords"
-      />
+      <ReaderPanel :focused="focusedEvidence" :citation="focusedCitation" />
     </main>
   </div>
 </template>

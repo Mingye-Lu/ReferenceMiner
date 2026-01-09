@@ -65,9 +65,58 @@ export async function askQuestion(question: string): Promise<AskResponse> {
   return {
     question: data.question ?? question,
     scope: data.scope ?? [],
-    keywords: data.keywords ?? [],
     evidence: (data.evidence ?? []).map(mapEvidence),
     answer: (data.answer ?? []).map(mapAnswerBlock),
     crosscheck: data.crosscheck ?? "",
+  }
+}
+
+export type StreamEventHandler = (event: string, payload: any) => void
+
+export async function streamAsk(question: string, onEvent: StreamEventHandler): Promise<void> {
+  const response = await fetch(`${API_BASE}/ask/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  })
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text()
+    throw new Error(`API ${response.status}: ${detail || "Stream failed"}`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      let event = "message"
+      let data = ""
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim()
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim()
+        }
+      }
+
+      if (data) {
+        try {
+          onEvent(event, JSON.parse(data))
+        } catch {
+          onEvent(event, data)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
   }
 }

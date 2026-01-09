@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze
 from refminer.ingest.pipeline import ingest_all
-from refminer.llm.deepseek import generate_answer
+from refminer.llm.deepseek import generate_answer, parse_answer_text, stream_answer
 from refminer.retrieve.search import retrieve
 from refminer.utils.paths import get_index_dir
 
@@ -97,6 +99,55 @@ def _fallback_answer(analysis: dict, evidence: list) -> list[dict[str, Any]]:
     ]
 
 
+def _sse(event: str, payload: Any) -> str:
+    data = json.dumps(payload, ensure_ascii=False)
+    return f"event: {event}\ndata: {data}\n\n"
+
+
+def _stream_rag(question: str) -> Iterator[str]:
+    yield _sse("status", {"phase": "ingest", "message": "Checking index"})
+    _ensure_index()
+
+    if not _bm25_path().exists():
+        yield _sse("error", {"message": "Indexes not found. Run ingest first."})
+        return
+
+    yield _sse("status", {"phase": "retrieve", "message": "Retrieving evidence"})
+    evidence = retrieve(question, k=8)
+    analysis = analyze(question, evidence)
+
+    yield _sse(
+        "analysis",
+        {
+            "scope": analysis.get("scope", []),
+            "keywords": analysis.get("keywords", []),
+        },
+    )
+
+    yield _sse("evidence", [asdict(item) for item in evidence])
+
+    llm_stream = stream_answer(question, evidence, analysis.get("keywords", []))
+    if not llm_stream:
+        yield _sse("status", {"phase": "llm", "message": "LLM unavailable, using fallback"})
+        yield _sse("answer_done", _fallback_answer(analysis, evidence))
+        return
+
+    stream_iter, citations = llm_stream
+    yield _sse("status", {"phase": "llm", "message": "Drafting answer"})
+
+    full_text = ""
+    for delta in stream_iter:
+        full_text += delta
+        yield _sse("llm_delta", {"delta": delta})
+
+    answer_blocks = parse_answer_text(full_text, citations)
+    answer_payload = [
+        {"heading": block.heading, "body": block.body, "citations": block.citations}
+        for block in answer_blocks
+    ]
+    yield _sse("answer_done", answer_payload)
+
+
 @app.get("/manifest")
 def manifest() -> list[dict[str, Any]]:
     if not _manifest_path().exists():
@@ -150,3 +201,9 @@ def ask(request: AskRequest) -> dict[str, Any]:
         "answer": answer_payload,
         "crosscheck": analysis.get("crosscheck", ""),
     }
+
+
+@app.post("/ask/stream")
+def ask_stream(request: AskRequest) -> StreamingResponse:
+    generator = _stream_rag(request.question)
+    return StreamingResponse(generator, media_type="text/event-stream")

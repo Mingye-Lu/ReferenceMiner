@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Iterator
 
 import httpx
 
@@ -57,6 +57,31 @@ class DeepSeekClient:
             response.raise_for_status()
             data = response.json()
         return data["choices"][0]["message"]["content"].strip()
+
+    def stream_chat(self, messages: list[dict]) -> Iterator[str]:
+        url = f"{self._config.base_url.rstrip('/')}/chat/completions"
+        payload = {
+            "model": self._config.model,
+            "messages": messages,
+            "stream": True,
+        }
+        headers = {
+            "Authorization": f"Bearer {self._config.api_key}",
+            "Content-Type": "application/json",
+        }
+        with httpx.Client(timeout=self._config.timeout) as client:
+            with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    payload_text = line.replace("data:", "", 1).strip()
+                    if payload_text == "[DONE]":
+                        break
+                    data = httpx.Response(200, content=payload_text).json()
+                    delta = data.get("choices", [{}])[0].get("delta", {}).get("content")
+                    if delta:
+                        yield delta
 
 
 def _contains_cjk(text: str) -> bool:
@@ -155,6 +180,19 @@ def _load_config() -> DeepSeekConfig | None:
     return DeepSeekConfig(api_key=api_key, base_url=base_url, model=model)
 
 
+def blocks_to_markdown(blocks: Iterable[AnswerBlock]) -> str:
+    parts: list[str] = []
+    for block in blocks:
+        parts.append(f"## {block.heading}")
+        parts.append(block.body.strip())
+        if block.citations:
+            cite = ", ".join(f"`{item}`" for item in block.citations)
+            parts.append("")
+            parts.append(f"Citations: {cite}")
+        parts.append("")
+    return "\n".join(parts).strip()
+
+
 def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str]) -> list[AnswerBlock] | None:
     config = _load_config()
     if not config:
@@ -164,3 +202,17 @@ def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list
     response = client.chat(messages)
     _, citations = _format_evidence(evidence)
     return _parse_sections(response, citations)
+
+
+def stream_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str]) -> tuple[Iterator[str], dict[int, str]] | None:
+    config = _load_config()
+    if not config:
+        return None
+    client = DeepSeekClient(config)
+    messages = _build_messages(question, evidence, keywords)
+    _, citations = _format_evidence(evidence)
+    return client.stream_chat(messages), citations
+
+
+def parse_answer_text(text: str, citations: dict[int, str]) -> list[AnswerBlock]:
+    return _parse_sections(text, citations)

@@ -550,3 +550,53 @@ button.ghost {
   border: 1px solid var(--bg-border);
   font-size: 14px;
 }
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-panel-alt);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--bg-border);
+}
+
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 80px 1fr 90px;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--bg-ink-soft);
+}
+
+.timeline-phase {
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--bg-ink);
+}
+
+.timeline-message {
+  color: var(--bg-ink-soft);
+}
+
+.timeline-time {
+  text-align: right;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.answer-block.streaming {
+  background: var(--bg-highlight);
+  border: 1px dashed var(--bg-border);
+}
+
+.answer-block.streaming p {
+  white-space: pre-wrap;
+}
