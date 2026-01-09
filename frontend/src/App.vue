@@ -13,12 +13,15 @@ type TimelineEvent = {
   timestamp: string
 }
 
+type TabKey = "corpus" | "workspace"
+
 const manifest = ref<ManifestEntry[]>([])
 const status = ref<IndexStatus | null>(null)
 const question = ref("")
 const scope = ref<string[]>([])
 const evidence = ref<EvidenceChunk[]>([])
 const answer = ref<AnswerBlock[]>([])
+const answerMarkdown = ref("")
 const focusedEvidence = ref<EvidenceChunk | null>(null)
 const focusedCitation = ref<string | null>(null)
 const loading = ref(false)
@@ -26,6 +29,7 @@ const mode = ref<"hybrid" | "text" | "visual">("hybrid")
 const errorMessage = ref<string | null>(null)
 const timeline = ref<TimelineEvent[]>([])
 const draft = ref("")
+const activeTab = ref<TabKey>("workspace")
 
 async function loadManifest() {
   try {
@@ -50,8 +54,10 @@ async function runAsk(input: string) {
   scope.value = []
   evidence.value = []
   answer.value = []
+  answerMarkdown.value = ""
   draft.value = ""
   timeline.value = []
+  activeTab.value = "workspace"
 
   try {
     errorMessage.value = null
@@ -83,11 +89,14 @@ async function runAsk(input: string) {
         draft.value += payload.delta ?? ""
       }
       if (event === "answer_done") {
-        answer.value = (payload ?? []).map((block: any) => ({
+        const blocks = payload.blocks ?? payload
+        answer.value = (blocks ?? []).map((block: any) => ({
           heading: block.heading ?? "Answer",
           body: block.body ?? "",
           citations: block.citations ?? [],
         }))
+        answerMarkdown.value = payload.markdown ?? ""
+        draft.value = ""
         pushTimeline("final", "Answer ready")
       }
       if (event === "error") {
@@ -138,14 +147,34 @@ onMounted(() => {
       {{ errorMessage }}
     </div>
 
-    <main class="grid">
-      <CorpusSidebar :manifest="manifest" />
+    <nav class="tab-bar">
+      <button
+        class="tab"
+        :class="{ active: activeTab === 'workspace' }"
+        @click="activeTab = 'workspace'"
+      >
+        Ask + Reader
+      </button>
+      <button
+        class="tab"
+        :class="{ active: activeTab === 'corpus' }"
+        @click="activeTab = 'corpus'"
+      >
+        Corpus
+      </button>
+    </nav>
 
+    <main v-if="activeTab === 'corpus'" class="tab-grid single">
+      <CorpusSidebar :manifest="manifest" />
+    </main>
+
+    <main v-else class="tab-grid workspace">
       <QuestionPanel
         :question="question"
         :scope="scope"
         :evidence="evidence"
         :answer="answer"
+        :answer-markdown="answerMarkdown"
         :loading="loading"
         :timeline="timeline"
         :draft="draft"

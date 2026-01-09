@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, inject } from "vue"
+import { computed } from "vue"
 import type { EvidenceChunk } from "../types"
 import { highlightTerms } from "../utils"
+
+const MAX_PREVIEW = 240
 
 const props = defineProps<{ 
   item: EvidenceChunk
@@ -17,6 +19,12 @@ defineEmits<{
 const highlightedText = computed(() => {
   if (!props.highlights || props.highlights.length === 0) return props.item.text
   return highlightTerms(props.item.text, props.highlights)
+})
+
+const previewText = computed(() => {
+  const text = highlightedText.value
+  if (text.length <= MAX_PREVIEW) return text
+  return `${text.slice(0, MAX_PREVIEW)}...`
 })
 </script>
 
@@ -42,7 +50,7 @@ const highlightedText = computed(() => {
       </button>
     </div>
     
-    <p class="evidence-text" v-html="highlightedText"></p>
+    <p class="evidence-text" v-html="previewText"></p>
     
     <div class="evidence-meta">
       <span v-if="item.page">p.{{ item.page }}</span>

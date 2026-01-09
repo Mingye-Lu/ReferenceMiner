@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze
 from refminer.ingest.pipeline import ingest_all
-from refminer.llm.deepseek import generate_answer, parse_answer_text, stream_answer
+from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_answer_text, stream_answer
 from refminer.retrieve.search import retrieve
 from refminer.utils.paths import get_index_dir
 
@@ -83,9 +84,9 @@ def _ensure_index() -> None:
     ingest_all(build_vectors_index=True)
 
 
-def _fallback_answer(analysis: dict, evidence: list) -> list[dict[str, Any]]:
+def _fallback_answer(analysis: dict, evidence: list) -> tuple[list[dict[str, Any]], str]:
     citations = [_format_citation(item.path, item.page, item.section) for item in evidence]
-    return [
+    blocks = [
         {
             "heading": "Synthesis",
             "body": analysis.get("synthesis", ""),
@@ -97,6 +98,13 @@ def _fallback_answer(analysis: dict, evidence: list) -> list[dict[str, Any]]:
             "citations": [],
         },
     ]
+    markdown = "\n\n".join(
+        [
+            "## Synthesis\n" + analysis.get("synthesis", ""),
+            "## Cross-check\n" + analysis.get("crosscheck", ""),
+        ]
+    )
+    return blocks, markdown
 
 
 def _sse(event: str, payload: Any) -> str:
@@ -129,7 +137,8 @@ def _stream_rag(question: str) -> Iterator[str]:
     llm_stream = stream_answer(question, evidence, analysis.get("keywords", []))
     if not llm_stream:
         yield _sse("status", {"phase": "llm", "message": "LLM unavailable, using fallback"})
-        yield _sse("answer_done", _fallback_answer(analysis, evidence))
+        blocks, markdown = _fallback_answer(analysis, evidence)
+        yield _sse("answer_done", {"blocks": blocks, "markdown": markdown})
         return
 
     stream_iter, citations = llm_stream
@@ -145,7 +154,8 @@ def _stream_rag(question: str) -> Iterator[str]:
         {"heading": block.heading, "body": block.body, "citations": block.citations}
         for block in answer_blocks
     ]
-    yield _sse("answer_done", answer_payload)
+    markdown = blocks_to_markdown(answer_blocks)
+    yield _sse("answer_done", {"blocks": answer_payload, "markdown": markdown})
 
 
 @app.get("/manifest")
@@ -191,14 +201,16 @@ def ask(request: AskRequest) -> dict[str, Any]:
             {"heading": block.heading, "body": block.body, "citations": block.citations}
             for block in answer_blocks
         ]
+        answer_markdown = blocks_to_markdown(answer_blocks)
     else:
-        answer_payload = _fallback_answer(analysis, evidence)
+        answer_payload, answer_markdown = _fallback_answer(analysis, evidence)
 
     return {
         "question": request.question,
         "scope": analysis.get("scope", []),
         "evidence": evidence_payload,
         "answer": answer_payload,
+        "answer_markdown": answer_markdown,
         "crosscheck": analysis.get("crosscheck", ""),
     }
 

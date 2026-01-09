@@ -39,7 +39,8 @@
 
 body {
   min-height: 100vh;
-  background: radial-gradient(circle at top right, #fdf4da 0%, transparent 60%),
+  background:
+    radial-gradient(circle at top right, #fdf4da 0%, transparent 60%),
     radial-gradient(circle at bottom left, #e8f2e3 0%, transparent 55%),
     var(--bg-main);
 }
@@ -213,7 +214,9 @@ body {
   border-radius: var(--radius-md);
   background: var(--bg-panel-alt);
   border: 1px solid transparent;
-  transition: transform 0.2s ease, border 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    border 0.2s ease;
 }
 
 .corpus-item:hover {
@@ -364,7 +367,9 @@ button.ghost {
   padding: 12px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 0.2s ease, border 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    border 0.2s ease;
 }
 
 .evidence-card:hover {
@@ -420,7 +425,7 @@ button.ghost {
 .pin-btn.active {
   background: var(--bg-gold);
   color: var(--bg-ink);
-  border-color: rgba(0,0,0,0.1);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 .evidence-card.selected {
   border-color: var(--bg-gold);
@@ -595,8 +600,114 @@ button.ghost {
 .answer-block.streaming {
   background: var(--bg-highlight);
   border: 1px dashed var(--bg-border);
+
+  background: #e7f2dd;
 }
 
 .answer-block.streaming p {
   white-space: pre-wrap;
+}
+
+.answer-markdown {
+  background: #fff;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  border: 1px solid var(--bg-border);
+
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  border: 1px solid var(--bg-border);
+}
+
+.markdown h2 {
+  font-family: "EB Garamond", serif;
+  margin-bottom: 8px;
+}
+
+.markdown p {
+  margin-bottom: 10px;
+}
+
+.markdown code {
+  background: var(--bg-chip);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.markdown ul {
+  padding-left: 18px;
+  margin-bottom: 10px;
+}
+
+.tab-bar {
+  display: inline-flex;
+  gap: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-border);
+  border-radius: 999px;
+  padding: 6px;
+  width: fit-content;
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--bg-ink-soft);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--bg-chip-active);
+  color: var(--bg-ink);
+}
+
+.tab-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.tab-grid.single {
+  grid-template-columns: 1fr;
+}
+
+.tab-grid.workspace {
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.1fr);
+}
+
+@media (max-width: 1200px) {
+  .tab-grid.workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.citation-link {
+  border: none;
+  background: var(--bg-highlight);
+  color: var(--bg-ink);
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  cursor: pointer;
+
+  border: none;
+  background: var(--bg-gold);
+  color: var(--bg-ink);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(15, 42, 29, 0.12);
+}
+
+.citation-link:hover {
+  background: var(--bg-chip-active);
+
+  background: #f7d88a;
 }

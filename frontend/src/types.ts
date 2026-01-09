@@ -27,9 +27,9 @@ export interface AnswerBlock {
 export interface AskResponse {
   question: string
   scope: string[]
-  keywords: string[]
   evidence: EvidenceChunk[]
   answer: AnswerBlock[]
+  answerMarkdown?: string
   crosscheck: string
 }
 

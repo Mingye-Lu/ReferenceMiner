@@ -20,6 +20,7 @@ from refminer.analyze.workflow import EvidenceChunk
 
 CITATION_RE = re.compile(r"\[C(\d+)\]")
 SECTION_RE = re.compile(r"^(Summary|Evidence|Limitations|Open Questions|Cross-check):\s*", re.IGNORECASE)
+BODY_RE = re.compile(r"^body:\s*", re.IGNORECASE)
 
 
 @dataclass
@@ -113,6 +114,13 @@ def _extract_citation_ids(text: str) -> list[int]:
     return ordered
 
 
+def _normalize_line(line: str) -> str:
+    line = line.strip()
+    if BODY_RE.match(line):
+        return BODY_RE.sub("", line).strip()
+    return line
+
+
 def _parse_sections(text: str, citations: dict[int, str]) -> list[AnswerBlock]:
     blocks: list[AnswerBlock] = []
     current_heading = "Response"
@@ -134,17 +142,20 @@ def _parse_sections(text: str, citations: dict[int, str]) -> list[AnswerBlock]:
             flush()
             current_heading = match.group(1).title()
             line = SECTION_RE.sub("", line).strip()
+            line = _normalize_line(line)
             if line:
                 current_lines.append(line)
         else:
-            if line.strip():
+            line = _normalize_line(line)
+            if line:
                 current_lines.append(line)
     flush()
 
     if not blocks:
+        text = "\n".join(_normalize_line(line) for line in text.splitlines()).strip()
         citation_ids = _extract_citation_ids(text)
         block_citations = [citations[idx] for idx in citation_ids if idx in citations]
-        blocks.append(AnswerBlock(heading="Response", body=text.strip(), citations=block_citations))
+        blocks.append(AnswerBlock(heading="Answer", body=text.strip(), citations=block_citations))
 
     return blocks
 
@@ -157,6 +168,7 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
         "Every factual claim must cite evidence using [C#]. "
         "If evidence is insufficient, say so. "
         "Return sections labeled: Summary, Evidence, Limitations, Open Questions. "
+        "Do not add a 'Body:' label. "
         f"{language_hint}"
     )
     user = (
@@ -182,8 +194,11 @@ def _load_config() -> DeepSeekConfig | None:
 
 def blocks_to_markdown(blocks: Iterable[AnswerBlock]) -> str:
     parts: list[str] = []
-    for block in blocks:
-        parts.append(f"## {block.heading}")
+    block_list = list(blocks)
+    single_block = len(block_list) == 1
+    for block in block_list:
+        if not (single_block and block.heading.lower() in {"response", "answer"}):
+            parts.append(f"## {block.heading}")
         parts.append(block.body.strip())
         if block.citations:
             cite = ", ".join(f"`{item}`" for item in block.citations)
