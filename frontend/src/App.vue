@@ -1,190 +1,110 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
-import CorpusSidebar from "./components/CorpusSidebar.vue"
-import IndexStatusBanner from "./components/IndexStatusBanner.vue"
-import QuestionPanel from "./components/QuestionPanel.vue"
-import ReaderPanel from "./components/ReaderPanel.vue"
-import { fetchIndexStatus, fetchManifest, streamAsk } from "./api/client"
-import type { AnswerBlock, EvidenceChunk, IndexStatus, ManifestEntry } from "./types"
+import { ref, reactive, provide, onMounted, computed } from "vue"
+import SidePanel from "./components/SidePanel.vue"
+import ChatWindow from "./components/ChatWindow.vue"
+import RightDrawer from "./components/RightDrawer.vue"
+import FilePreviewModal from "./components/FilePreviewModal.vue"
+import { fetchManifest } from "./api/client"
+import type { ChatMessage, EvidenceChunk, ManifestEntry } from "./types"
 
-type TimelineEvent = {
-  phase: string
-  message: string
-  timestamp: string
-}
+// UI state
+const isDrawerOpen = ref(false)
+const drawerTab = ref<"reader" | "notebook">("reader")
+const activeEvidence = ref<EvidenceChunk | null>(null)
+const previewFile = ref<ManifestEntry | null>(null)
 
-type TabKey = "corpus" | "workspace"
-
+// Data state
 const manifest = ref<ManifestEntry[]>([])
-const status = ref<IndexStatus | null>(null)
-const question = ref("")
-const scope = ref<string[]>([])
-const evidence = ref<EvidenceChunk[]>([])
-const answer = ref<AnswerBlock[]>([])
-const answerMarkdown = ref("")
-const focusedEvidence = ref<EvidenceChunk | null>(null)
-const focusedCitation = ref<string | null>(null)
-const loading = ref(false)
-const mode = ref<"hybrid" | "text" | "visual">("hybrid")
-const errorMessage = ref<string | null>(null)
-const timeline = ref<TimelineEvent[]>([])
-const draft = ref("")
-const activeTab = ref<TabKey>("workspace")
+const selectedFiles = ref<Set<string>>(new Set())
 
-async function loadManifest() {
-  try {
-    errorMessage.value = null
-    manifest.value = await fetchManifest()
-    status.value = await fetchIndexStatus()
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to load manifest."
-    errorMessage.value = message
-    status.value = { indexed: false }
+// Chat + history store (supports switching)
+const currentChatId = ref("1")
+const chatStore = reactive<Record<string, ChatMessage[]>>({
+  "1": [],
+  "2": [
+    { id: "m1", role: "user", content: "What is the main purpose of the assignment?", timestamp: Date.now() - 100000 },
+    { id: "m2", role: "ai", content: "The assignment focuses on Object-Oriented Technology...", timestamp: Date.now() - 90000, sources: [] }
+  ]
+})
+
+const chatHistory = computed({
+  get: () => chatStore[currentChatId.value] || [],
+  set: (val: ChatMessage[]) => { chatStore[currentChatId.value] = val }
+})
+
+// Global pinning (notebook)
+const pinnedEvidenceMap = ref(new Map<string, EvidenceChunk>())
+
+function togglePin(item: EvidenceChunk) {
+  const map = pinnedEvidenceMap.value
+  if (map.has(item.chunkId)) {
+    map.delete(item.chunkId)
+  } else {
+    map.set(item.chunkId, item)
   }
 }
 
-function pushTimeline(phase: string, message: string) {
-  timeline.value.push({ phase, message, timestamp: new Date().toLocaleTimeString() })
+function isPinned(id: string) {
+  return pinnedEvidenceMap.value.has(id)
 }
 
-async function runAsk(input: string) {
-  loading.value = true
-  focusedCitation.value = null
-  question.value = input
-  scope.value = []
-  evidence.value = []
-  answer.value = []
-  answerMarkdown.value = ""
-  draft.value = ""
-  timeline.value = []
-  activeTab.value = "workspace"
-
-  try {
-    errorMessage.value = null
-    pushTimeline("ask", "Question received")
-
-    await streamAsk(input, (event, payload) => {
-      if (event === "status") {
-        pushTimeline(payload.phase ?? "status", payload.message ?? "Working")
-      }
-      if (event === "analysis") {
-        scope.value = payload.scope ?? []
-        if ((payload.keywords ?? []).length) {
-          pushTimeline("analysis", `Keywords: ${payload.keywords.join(", ")}`)
-        }
-      }
-      if (event === "evidence") {
-        evidence.value = (payload ?? []).map((item: any) => ({
-          chunkId: item.chunk_id ?? item.chunkId ?? "",
-          path: item.path ?? item.rel_path ?? "",
-          page: item.page ?? null,
-          section: item.section ?? null,
-          text: item.text ?? "",
-          score: item.score ?? 0,
-        }))
-        focusedEvidence.value = evidence.value[0] ?? null
-        pushTimeline("retrieve", `Selected ${evidence.value.length} evidence chunks`)
-      }
-      if (event === "llm_delta") {
-        draft.value += payload.delta ?? ""
-      }
-      if (event === "answer_done") {
-        const blocks = payload.blocks ?? payload
-        answer.value = (blocks ?? []).map((block: any) => ({
-          heading: block.heading ?? "Answer",
-          body: block.body ?? "",
-          citations: block.citations ?? [],
-        }))
-        answerMarkdown.value = payload.markdown ?? ""
-        draft.value = ""
-        pushTimeline("final", "Answer ready")
-      }
-      if (event === "error") {
-        errorMessage.value = payload.message ?? "Streaming error"
-      }
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to run analysis."
-    errorMessage.value = message
-  } finally {
-    loading.value = false
-  }
+// Actions
+function toggleDrawer(open?: boolean) {
+  isDrawerOpen.value = open ?? !isDrawerOpen.value
 }
 
-function updateScope(next: string[]) {
-  scope.value = next
+function openEvidence(item: EvidenceChunk) {
+  activeEvidence.value = item
+  drawerTab.value = "reader"
+  isDrawerOpen.value = true
 }
 
-function focusEvidence(item: EvidenceChunk) {
-  focusedEvidence.value = item
+function handleNewChat() {
+  const newId = Date.now().toString()
+  chatStore[newId] = []
+  currentChatId.value = newId
 }
 
-function focusCitation(citation: string) {
-  focusedCitation.value = citation
+function openPreview(file: ManifestEntry) {
+  previewFile.value = file
 }
 
-onMounted(() => {
-  loadManifest()
+function switchChat(id: string) {
+  if (!chatStore[id]) chatStore[id] = []
+  currentChatId.value = id
+}
+
+// Provide to children
+provide("openEvidence", openEvidence)
+provide("handleNewChat", handleNewChat)
+provide("toggleDrawer", toggleDrawer)
+provide("openPreview", openPreview)
+provide("togglePin", togglePin)
+provide("isPinned", isPinned)
+provide("pinnedEvidenceMap", pinnedEvidenceMap)
+provide("manifest", manifest)
+provide("selectedFiles", selectedFiles)
+
+onMounted(async () => {
+  try { manifest.value = await fetchManifest() } catch (e) { console.error(e) }
 })
 </script>
 
 <template>
-  <div class="app-shell">
-    <header class="top-bar">
-      <div class="brand">
-        <span class="brand-title">ReferenceMiner</span>
-        <span class="brand-subtitle">Local-first research cockpit</span>
-      </div>
-      <div class="mode-toggle">
-        <button :class="{ active: mode === 'text' }" @click="mode = 'text'">Text-first</button>
-        <button :class="{ active: mode === 'hybrid' }" @click="mode = 'hybrid'">Hybrid</button>
-        <button :class="{ active: mode === 'visual' }" @click="mode = 'visual'">Visual-first</button>
-      </div>
-    </header>
+  <div class="app-container">
+    <!-- Sidebar listens for preview and chat-select events -->
+    <SidePanel :active-chat-id="currentChatId" @preview="openPreview" @select-chat="switchChat"
+      @new-chat="handleNewChat" />
 
-    <IndexStatusBanner :status="status" />
-    <div v-if="errorMessage" class="error-banner">
-      {{ errorMessage }}
-    </div>
-
-    <nav class="tab-bar">
-      <button
-        class="tab"
-        :class="{ active: activeTab === 'workspace' }"
-        @click="activeTab = 'workspace'"
-      >
-        Ask + Reader
-      </button>
-      <button
-        class="tab"
-        :class="{ active: activeTab === 'corpus' }"
-        @click="activeTab = 'corpus'"
-      >
-        Corpus
-      </button>
-    </nav>
-
-    <main v-if="activeTab === 'corpus'" class="tab-grid single">
-      <CorpusSidebar :manifest="manifest" />
+    <main class="workspace-shell">
+      <ChatWindow v-model:history="chatHistory" />
     </main>
 
-    <main v-else class="tab-grid workspace">
-      <QuestionPanel
-        :question="question"
-        :scope="scope"
-        :evidence="evidence"
-        :answer="answer"
-        :answer-markdown="answerMarkdown"
-        :loading="loading"
-        :timeline="timeline"
-        :draft="draft"
-        @ask="runAsk"
-        @scope="updateScope"
-        @focus="focusEvidence"
-        @cite="focusCitation"
-      />
+    <div class="drawer-overlay" :class="{ open: isDrawerOpen }" @click="toggleDrawer(false)"></div>
+    <RightDrawer :class="{ open: isDrawerOpen }" :tab="drawerTab" :evidence="activeEvidence"
+      @close="toggleDrawer(false)" />
 
-      <ReaderPanel :focused="focusedEvidence" :citation="focusedCitation" />
-    </main>
+    <!-- File Preview Modal -->
+    <FilePreviewModal v-if="previewFile" :file="previewFile" @close="previewFile = null" />
   </div>
 </template>

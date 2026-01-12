@@ -24,13 +24,23 @@ export interface AnswerBlock {
   citations: string[]
 }
 
-export interface AskResponse {
-  question: string
-  scope: string[]
-  evidence: EvidenceChunk[]
-  answer: AnswerBlock[]
-  answerMarkdown?: string
-  crosscheck: string
+export interface ChatMessage {
+  id: string
+  role: "user" | "ai"
+  content: string
+  timestamp: number
+  timeline?: { phase: string; message: string; timestamp: string }[]
+  sources?: EvidenceChunk[]
+  keywords?: string[]
+  isStreaming?: boolean
+}
+
+export interface ChatSession {
+  id: string
+  title: string
+  lastActive: number
+  messageCount: number
+  preview: string
 }
 
 export interface IndexStatus {
