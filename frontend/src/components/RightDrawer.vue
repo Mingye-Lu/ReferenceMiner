@@ -19,11 +19,20 @@ watch(() => props.tab, (v) => currentTab.value = v)
 
 // Notebook Logic
 const notebookList = ref<EvidenceChunk[]>([])
+const isInternalUnpin = ref(false)
 
 function refreshNotebook() {
   if (pinnedEvidenceMap.value) {
     notebookList.value = Array.from(pinnedEvidenceMap.value.values())
   }
+}
+
+function handleNotebookUnpin(item: EvidenceChunk) {
+  isInternalUnpin.value = true
+  togglePin(item)
+  nextTick(() => {
+    isInternalUnpin.value = false
+  })
 }
 
 watch(currentTab, (val) => {
@@ -36,6 +45,10 @@ watch(pinnedEvidenceMap, (newMap) => {
     if (!currentIds.has(id)) {
       notebookList.value.unshift(item)
     }
+  }
+
+  if (!isInternalUnpin.value) {
+    notebookList.value = notebookList.value.filter(i => newMap.has(i.chunkId))
   }
 }, { deep: true })
 
@@ -164,7 +177,7 @@ function handleOpenDoc() {
         <div v-for="item in notebookList" :key="item.chunkId" class="note-item">
           <div class="note-header">
             <span class="note-source">{{ item.path.split('/').pop() }}</span>
-            <button class="unpin-btn" @click="togglePin(item)" title="Toggle Pin">
+            <button class="unpin-btn" @click="handleNotebookUnpin(item)" title="Toggle Pin">
               <svg v-if="isPinned(item.chunkId)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
                 viewBox="0 0 24 24" fill="currentColor" stroke="none">
                 <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
