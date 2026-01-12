@@ -1,4 +1,4 @@
-﻿# ReferenceMiner
+# ReferenceMiner
 
 ReferenceMiner is a local-first research assistant designed to deliver deep, evidence-grounded analysis over a curated set of references you provide.
 
@@ -97,6 +97,7 @@ DEEPSEEK_MODEL=deepseek-chat
 ```
 
 If `DEEPSEEK_API_KEY` is not set, the backend will fall back to local synthesis.
+
 ### 3) Ingest references
 
 Place your documents in `references/`, then build the manifest and indexes:
@@ -123,6 +124,7 @@ API endpoints:
 - `GET /manifest`
 - `GET /status`
 - `POST /ask`
+- `POST /ask/stream`
 
 ### 5) Start the Vue frontend
 
@@ -136,7 +138,7 @@ npm install
 Create `frontend/.env` (or copy from `frontend/.env.example`) and set the API URL:
 
 ```
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://127.0.0.1:8000
 ```
 
 Run the dev server:
@@ -146,6 +148,77 @@ npm run dev
 ```
 
 Open the UI at `http://localhost:5173`.
+
+---
+
+## Tauri Desktop Build
+
+### 1) Prerequisites
+
+- Node.js and npm
+- Rust toolchain (cargo)
+- Tauri CLI
+
+Install Rust:
+
+```
+winget install Rustlang.Rustup
+```
+
+Then open a new terminal and set the toolchain:
+
+```
+rustup default stable
+```
+
+### 2) Build the frontend
+
+```
+cd frontend
+npm install
+npm run build
+```
+
+### 3) Initialize Tauri (once)
+
+From `frontend/`:
+
+```
+npx tauri init
+```
+
+Suggested answers:
+- App name: ReferenceMiner
+- Window title: ReferenceMiner
+- Web assets: `../dist`
+- Dev server URL: `http://localhost:5173`
+- Dev command: `npm run dev`
+- Build command: `npm run build`
+
+### 4) Set a unique bundle identifier
+
+Edit `frontend/src-tauri/tauri.conf.json`:
+
+```
+"identifier": "com.referenceminer.app"
+```
+
+### 5) Configure production API URL
+
+Create `frontend/.env.production`:
+
+```
+VITE_API_URL=http://127.0.0.1:8000
+```
+
+### 6) Build the Tauri app
+
+```
+cd frontend
+npx tauri build
+```
+
+The packaged app will be under `frontend/src-tauri/target/release/bundle`.
 
 ---
 
@@ -199,7 +272,5 @@ Early development. The current focus is robust ingestion, grounding, and retriev
 
 ---
 
-> ReferenceMiner
-> If it is not cited, it does not count.
-
-
+ReferenceMiner
+If it is not cited, it does not count.

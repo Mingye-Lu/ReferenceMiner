@@ -11,6 +11,7 @@ from typing import Any, Iterator
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze
@@ -24,7 +25,15 @@ app = FastAPI(title="ReferenceMiner API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+        "tauri://localhost",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -219,3 +228,16 @@ def ask(request: AskRequest) -> dict[str, Any]:
 def ask_stream(request: AskRequest) -> StreamingResponse:
     generator = _stream_rag(request.question)
     return StreamingResponse(generator, media_type="text/event-stream")
+
+
+def _maybe_mount_frontend() -> None:
+    dist_env = os.getenv("FRONTEND_DIST")
+    if dist_env:
+        dist_path = Path(dist_env)
+    else:
+        dist_path = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if dist_path.exists():
+        app.mount("/", StaticFiles(directory=str(dist_path), html=True), name="frontend")
+
+
+_maybe_mount_frontend()

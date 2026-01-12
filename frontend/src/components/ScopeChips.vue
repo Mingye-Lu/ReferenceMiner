@@ -31,9 +31,9 @@ function emitUpdate() {
 
 <template>
   <div class="scope-chips">
-    <div v-for="(item, index) in local" :key="index" class="scope-chip">
+    <div v-for="(_, index) in local" :key="index" class="scope-chip">
       <input v-model="local[index]" @blur="emitUpdate" />
-      <button class="chip-remove" @click="removeChip(index)">x</button>
+      <button class="chip-remove" @click="removeChip(index)">?</button>
     </div>
     <button class="chip-add" @click="addChip">+ Add scope</button>
   </div>
