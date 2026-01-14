@@ -134,11 +134,59 @@ export async function streamAsk(
     }
   }
 }
-export async function fetchSummarize(messages: any[]): Promise<string> {
-  const data = await fetchJson<any>("/summarize", {
+export async function streamSummarize(
+  messages: any[],
+  onDelta: (delta: string) => void,
+  onDone: (title: string) => void
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/summarize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
   })
-  return data.title ?? "New Chat"
+
+  if (!response.ok || !response.body) {
+    onDone("New Chat")
+    return
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      let event = "message"
+      let data = ""
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim()
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim()
+        }
+      }
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data)
+          if (event === "title_delta") {
+            onDelta(payload.delta || "")
+          } else if (event === "title_done") {
+            onDone(payload.title || "New Chat")
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
 }

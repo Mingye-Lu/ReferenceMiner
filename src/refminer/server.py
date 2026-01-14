@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze, EvidenceChunk
 from refminer.ingest.pipeline import ingest_all
-from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_answer_text, stream_answer
+from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_answer_text, stream_answer, DeepSeekClient, _load_config
 from refminer.retrieve.search import retrieve
 from refminer.utils.paths import get_index_dir
 
@@ -282,17 +282,55 @@ class SummarizeRequest(BaseModel):
     messages: list[dict]
 
 
-@app.post("/summarize")
-def summarize(request: SummarizeRequest) -> dict[str, str]:
-    if not request.messages:
-        return {"title": "New Chat"}
-    
-    first_msg = next((m for m in request.messages if m.get("role") == "user"), None)
+def _generate_title_fallback(messages: list[dict]) -> str:
+    first_msg = next((m for m in messages if m.get("role") == "user"), None)
     if not first_msg:
-        return {"title": "New Chat"}
-        
-    # TODO: Use LLM for real summarization
+        return "New Chat"
     content = first_msg.get("content", "")
     if len(content) > 30:
-        return {"title": content[:30] + "..."}
-    return {"title": content}
+        return content[:30] + "..."
+    return content
+
+
+def _stream_summarize(messages: list[dict]) -> Iterator[str]:
+    config = _load_config()
+    if not config:
+        yield _sse("title_done", {"title": _generate_title_fallback(messages)})
+        return
+
+    conversation = "\n".join(
+        f"{m.get('role', 'user').upper()}: {m.get('content', '')[:200]}"
+        for m in messages[:4]
+    )
+
+    prompt_messages = [
+        {
+            "role": "system",
+            "content": "Generate a very short title (3-6 words) for this conversation. Reply with ONLY the title, no quotes or punctuation.",
+        },
+        {"role": "user", "content": conversation},
+    ]
+
+    try:
+        client = DeepSeekClient(config)
+        full_title = ""
+        for delta in client.stream_chat(prompt_messages):
+            for char in delta:
+                full_title += char
+                yield _sse("title_delta", {"delta": char})
+        title = full_title.strip().strip('"\'')
+        if len(title) > 50:
+            title = title[:50] + "..."
+        yield _sse("title_done", {"title": title or _generate_title_fallback(messages)})
+    except Exception:
+        yield _sse("title_done", {"title": _generate_title_fallback(messages)})
+
+
+@app.post("/summarize")
+def summarize(request: SummarizeRequest) -> StreamingResponse:
+    if not request.messages:
+        def empty_gen() -> Iterator[str]:
+            yield _sse("title_done", {"title": "New Chat"})
+        return StreamingResponse(empty_gen(), media_type="text/event-stream")
+
+    return StreamingResponse(_stream_summarize(request.messages), media_type="text/event-stream")

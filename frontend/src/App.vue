@@ -5,7 +5,7 @@ import ChatWindow from "./components/ChatWindow.vue"
 import RightDrawer from "./components/RightDrawer.vue"
 import FilePreviewModal from "./components/FilePreviewModal.vue"
 import ConfirmationModal from "./components/ConfirmationModal.vue"
-import { fetchManifest, fetchSummarize } from "./api/client"
+import { fetchManifest, streamSummarize } from "./api/client"
 import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession } from "./types"
 
 // UI state
@@ -120,6 +120,8 @@ function switchChat(id: string) {
 }
 
 // Auto-Title Generation Watcher
+const titleGeneratingFor = ref<string | null>(null)
+
 watch(chatStore, async (newStore) => {
   const currentId = currentChatId.value
   const messages = newStore[currentId]
@@ -131,15 +133,25 @@ watch(chatStore, async (newStore) => {
     session.preview = messages[messages.length - 1].content.slice(0, 50)
 
     // Generate title if it's the first interaction
-    if (messages.length >= 2 && session.title === "New Chat") {
+    if (messages.length >= 2 && session.title === "New Chat" && titleGeneratingFor.value !== currentId) {
       // Check if the second message (AI) is not empty/streaming done
       const aiMsg = messages.find(m => m.role === 'ai')
       if (aiMsg && !aiMsg.isStreaming && aiMsg.content.length > 10) {
+        titleGeneratingFor.value = currentId
+        session.title = ""
         try {
-          const title = await fetchSummarize(messages)
-          session.title = title
+          await streamSummarize(
+            messages,
+            (delta) => { session.title += delta },
+            (title) => {
+              session.title = title
+              titleGeneratingFor.value = null
+            }
+          )
         } catch (e) {
           console.error("Failed to generate title", e)
+          session.title = "New Chat"
+          titleGeneratingFor.value = null
         }
       }
     }
