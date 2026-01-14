@@ -8,16 +8,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from fastapi import FastAPI, HTTPException
+import shutil
+import tempfile
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze, EvidenceChunk
+from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
+from refminer.ingest.manifest import SUPPORTED_EXTENSIONS
 from refminer.ingest.pipeline import ingest_all
+from refminer.ingest.registry import check_duplicate, load_registry, save_registry
 from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_answer_text, stream_answer, DeepSeekClient, _load_config
 from refminer.retrieve.search import retrieve
-from refminer.utils.paths import get_index_dir
+from refminer.utils.hashing import sha256_file
+from refminer.utils.paths import get_index_dir, get_references_dir
 
 
 from fastapi.staticfiles import StaticFiles
@@ -334,3 +341,181 @@ def summarize(request: SummarizeRequest) -> StreamingResponse:
         return StreamingResponse(empty_gen(), media_type="text/event-stream")
 
     return StreamingResponse(_stream_summarize(request.messages), media_type="text/event-stream")
+
+
+# =============================================================================
+# File Upload Endpoints
+# =============================================================================
+
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+
+
+def _get_temp_dir() -> Path:
+    temp_dir = get_index_dir() / "temp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    return temp_dir
+
+
+def _stream_upload(
+    file: UploadFile,
+    replace_existing: bool = False,
+) -> Iterator[str]:
+    """Stream file upload with SSE progress events."""
+    # Check file extension
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in SUPPORTED_EXTENSIONS:
+        yield _sse("error", {"code": "UNSUPPORTED_TYPE", "message": f"Unsupported file type: {suffix}"})
+        return
+
+    temp_dir = _get_temp_dir()
+    temp_path = temp_dir / f"upload_{int(time.time() * 1000)}{suffix}"
+
+    try:
+        yield _sse("progress", {"phase": "uploading", "percent": 0})
+
+        # Stream file to temp location
+        total_size = 0
+        with temp_path.open("wb") as f:
+            while chunk := file.file.read(64 * 1024):  # 64KB chunks
+                total_size += len(chunk)
+                if total_size > MAX_FILE_SIZE:
+                    yield _sse("error", {"code": "FILE_TOO_LARGE", "message": f"File exceeds {MAX_FILE_SIZE // (1024*1024)}MB limit"})
+                    return
+                f.write(chunk)
+
+        yield _sse("progress", {"phase": "hashing", "percent": 50})
+
+        # Compute SHA256
+        file_hash = sha256_file(temp_path)
+
+        yield _sse("progress", {"phase": "checking_duplicate", "percent": 60})
+
+        # Check for duplicates
+        registry = load_registry()
+        existing_path = check_duplicate(file_hash, registry)
+
+        if existing_path and not replace_existing:
+            yield _sse("duplicate", {"sha256": file_hash, "existing_path": existing_path})
+            return
+
+        yield _sse("progress", {"phase": "storing", "percent": 70})
+
+        # Determine final path
+        references_dir = get_references_dir()
+        references_dir.mkdir(parents=True, exist_ok=True)
+        final_name = file.filename or f"file{suffix}"
+
+        # Handle name collisions (unless replacing)
+        if existing_path and replace_existing:
+            final_path = references_dir / existing_path
+            # Remove old file from index first
+            remove_file_from_index(existing_path)
+        else:
+            final_path = references_dir / final_name
+            counter = 1
+            while final_path.exists():
+                stem = Path(final_name).stem
+                final_path = references_dir / f"{stem}_{counter}{suffix}"
+                counter += 1
+
+        # Move file to references
+        shutil.move(str(temp_path), str(final_path))
+
+        yield _sse("progress", {"phase": "extracting", "percent": 80})
+
+        # Process the file
+        try:
+            entry = full_ingest_single_file(final_path, build_vectors=True)
+        except Exception as e:
+            # Clean up on processing failure
+            if final_path.exists():
+                final_path.unlink()
+            yield _sse("error", {"code": "EXTRACTION_ERROR", "message": str(e)})
+            return
+
+        yield _sse("progress", {"phase": "indexing", "percent": 95})
+
+        # Return complete response
+        manifest_entry = {
+            "rel_path": entry.rel_path,
+            "file_type": entry.file_type,
+            "title": entry.title,
+            "abstract": entry.abstract,
+            "page_count": entry.page_count,
+            "size_bytes": entry.size_bytes,
+        }
+
+        yield _sse("complete", {
+            "rel_path": entry.rel_path,
+            "sha256": entry.sha256,
+            "status": "replaced" if existing_path else "processed",
+            "manifest_entry": manifest_entry,
+        })
+
+    except Exception as e:
+        yield _sse("error", {"code": "UPLOAD_ERROR", "message": str(e)})
+    finally:
+        # Cleanup temp file
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+@app.post("/upload/stream")
+async def upload_stream(
+    file: UploadFile = File(...),
+    replace_existing: bool = Form(False),
+) -> StreamingResponse:
+    """Upload a file with SSE progress events."""
+    return StreamingResponse(
+        _stream_upload(file, replace_existing),
+        media_type="text/event-stream",
+    )
+
+
+@app.delete("/files/{rel_path:path}")
+def delete_file(rel_path: str) -> dict[str, Any]:
+    """Delete a file and remove it from the index."""
+    references_dir = get_references_dir()
+    file_path = references_dir / rel_path
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
+
+    # Remove from index
+    removed_chunks = remove_file_from_index(rel_path)
+
+    # Delete the actual file
+    file_path.unlink()
+
+    return {
+        "success": True,
+        "removed_chunks": removed_chunks,
+        "message": f"Deleted {rel_path} and removed {removed_chunks} chunks from index",
+    }
+
+
+@app.get("/files/check-duplicate")
+def check_duplicate_endpoint(sha256: str) -> dict[str, Any]:
+    """Check if a file with the given SHA256 hash already exists."""
+    registry = load_registry()
+    existing_path = check_duplicate(sha256, registry)
+
+    if existing_path:
+        # Load manifest to get full entry
+        try:
+            manifest = _load_manifest()
+            entry = next((e for e in manifest if e.get("rel_path") == existing_path), None)
+        except HTTPException:
+            entry = None
+
+        return {
+            "is_duplicate": True,
+            "existing_path": existing_path,
+            "existing_entry": entry,
+        }
+
+    return {
+        "is_duplicate": False,
+        "existing_path": None,
+        "existing_entry": None,
+    }

@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, inject, type Ref, computed } from "vue"
 import type { ManifestEntry, ChatSession, EvidenceChunk } from "../types"
+import FileUploader from "./FileUploader.vue"
+import { deleteFile, fetchManifest } from "../api/client"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
+const isDeleting = ref<string | null>(null)
 const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
 const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
@@ -55,6 +58,38 @@ function formatTime(ts: number) {
   if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago'
   return new Date(ts).toLocaleDateString()
 }
+
+async function handleUploadComplete(entry: ManifestEntry) {
+  // Refresh the manifest to include the new file
+  try {
+    manifest.value = await fetchManifest()
+  } catch (e) {
+    console.error("Failed to refresh manifest", e)
+  }
+}
+
+async function handleDeleteFile(file: ManifestEntry, e: Event) {
+  e.stopPropagation()
+  if (isDeleting.value) return
+
+  if (!confirm(`Delete "${file.relPath}"? This action cannot be undone.`)) {
+    return
+  }
+
+  isDeleting.value = file.relPath
+  try {
+    await deleteFile(file.relPath)
+    // Remove from selection
+    selectedFiles.value.delete(file.relPath)
+    // Refresh manifest
+    manifest.value = await fetchManifest()
+  } catch (e) {
+    console.error("Failed to delete file", e)
+    alert("Failed to delete file: " + (e instanceof Error ? e.message : "Unknown error"))
+  } finally {
+    isDeleting.value = null
+  }
+}
 </script>
 
 <template>
@@ -88,12 +123,15 @@ function formatTime(ts: number) {
 
     <!-- CORPUS TAB -->
     <div class="sidebar-content" v-if="activeTab === 'corpus'">
+      <!-- File Uploader -->
+      <FileUploader @upload-complete="handleUploadComplete" />
+
       <!-- Files Section -->
       <div class="section-header" v-if="manifest.length > 0">FILES ({{ manifest.length }})</div>
-      <div v-if="manifest.length === 0" class="empty-msg">No files found.</div>
+      <div v-if="manifest.length === 0" class="empty-msg">No files indexed yet. Upload files above.</div>
 
       <div v-for="file in manifest" :key="file.relPath" class="file-item"
-        :class="{ selected: selectedFiles.has(file.relPath) }">
+        :class="{ selected: selectedFiles.has(file.relPath), deleting: isDeleting === file.relPath }">
         <div @click.stop="toggleFile(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
           <input type="checkbox" class="custom-checkbox" :checked="selectedFiles.has(file.relPath)" readonly />
         </div>
@@ -103,13 +141,27 @@ function formatTime(ts: number) {
           <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB</div>
         </div>
 
-        <button class="icon-btn preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
+        <div class="file-actions">
+          <button class="icon-btn preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          <button class="icon-btn delete-btn" @click="(e) => handleDeleteFile(file, e)" title="Delete"
+            :disabled="isDeleting === file.relPath">
+            <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Notes Section -->
@@ -235,13 +287,43 @@ function formatTime(ts: number) {
   color: var(--text-primary);
 }
 
-.preview-btn {
+.file-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.preview-btn,
+.delete-btn {
   opacity: 0;
   transition: opacity 0.2s;
 }
 
-.file-item:hover .preview-btn {
+.file-item:hover .preview-btn,
+.file-item:hover .delete-btn {
   opacity: 1;
+}
+
+.delete-btn:hover {
+  color: #ff4d4f !important;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-item.deleting {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .new-chat-btn {

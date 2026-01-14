@@ -1,4 +1,14 @@
-import type { AnswerBlock, AskResponse, EvidenceChunk, ManifestEntry, IndexStatus } from "../types"
+import type {
+  AnswerBlock,
+  AskResponse,
+  DeleteResult,
+  DuplicateCheck,
+  EvidenceChunk,
+  IndexStatus,
+  ManifestEntry,
+  UploadProgress,
+  UploadResult,
+} from "../types"
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000"
 
@@ -188,5 +198,152 @@ export async function streamSummarize(
       }
       boundary = buffer.indexOf("\n\n")
     }
+  }
+}
+
+// =============================================================================
+// File Upload API
+// =============================================================================
+
+export type UploadEventHandler = {
+  onProgress?: (progress: UploadProgress) => void
+  onDuplicate?: (sha256: string, existingPath: string) => void
+  onComplete?: (result: UploadResult) => void
+  onError?: (code: string, message: string) => void
+}
+
+export async function uploadFileStream(
+  file: File,
+  handlers: UploadEventHandler,
+  replaceExisting: boolean = false
+): Promise<UploadResult | null> {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("replace_existing", String(replaceExisting))
+
+  console.log("[upload] Starting upload for:", file.name)
+
+  const response = await fetch(`${API_BASE}/upload/stream`, {
+    method: "POST",
+    body: formData,
+  })
+
+  console.log("[upload] Response status:", response.status)
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text()
+    console.error("[upload] Request failed:", detail)
+    handlers.onError?.("UPLOAD_FAILED", detail || "Upload request failed")
+    return null
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+  let result: UploadResult | null = null
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) {
+      console.log("[upload] Stream done, remaining buffer:", buffer)
+      break
+    }
+    buffer += decoder.decode(value, { stream: true })
+    console.log("[upload] Received chunk, buffer length:", buffer.length)
+
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      let event = "message"
+      let data = ""
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim()
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim()
+        }
+      }
+
+      console.log("[upload] SSE event:", event, "data:", data.slice(0, 100))
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data)
+
+          if (event === "progress") {
+            console.log("[upload] Progress:", payload.phase, payload.percent)
+            handlers.onProgress?.({
+              phase: payload.phase,
+              percent: payload.percent,
+            })
+          } else if (event === "duplicate") {
+            console.log("[upload] Duplicate detected:", payload.existing_path)
+            handlers.onDuplicate?.(payload.sha256, payload.existing_path)
+            result = {
+              success: false,
+              relPath: "",
+              sha256: payload.sha256,
+              status: "duplicate",
+              duplicatePath: payload.existing_path,
+            }
+          } else if (event === "complete") {
+            console.log("[upload] Complete:", payload.rel_path)
+            result = {
+              success: true,
+              relPath: payload.rel_path,
+              sha256: payload.sha256,
+              status: payload.status,
+              manifestEntry: payload.manifest_entry ? mapManifestEntry(payload.manifest_entry) : undefined,
+            }
+            handlers.onComplete?.(result)
+          } else if (event === "error") {
+            console.error("[upload] Error:", payload.code, payload.message)
+            handlers.onError?.(payload.code, payload.message)
+            result = {
+              success: false,
+              relPath: "",
+              sha256: "",
+              status: "error",
+              message: payload.message,
+            }
+          }
+        } catch (e) {
+          console.error("[upload] Parse error:", e)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
+
+  console.log("[upload] Final result:", result)
+  return result
+}
+
+export async function deleteFile(relPath: string): Promise<DeleteResult> {
+  const response = await fetch(`${API_BASE}/files/${encodeURIComponent(relPath)}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(`Delete failed: ${detail}`)
+  }
+
+  const data = await response.json()
+  return {
+    success: data.success ?? false,
+    removedChunks: data.removed_chunks ?? 0,
+    message: data.message ?? "",
+  }
+}
+
+export async function checkDuplicate(sha256: string): Promise<DuplicateCheck> {
+  const data = await fetchJson<any>(`/files/check-duplicate?sha256=${sha256}`)
+  return {
+    isDuplicate: data.is_duplicate ?? false,
+    existingPath: data.existing_path ?? null,
+    existingEntry: data.existing_entry ? mapManifestEntry(data.existing_entry) : null,
   }
 }

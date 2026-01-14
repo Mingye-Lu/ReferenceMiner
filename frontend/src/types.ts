@@ -64,3 +64,44 @@ export interface AskResponse {
   answerMarkdown: string
   crosscheck: string
 }
+
+// Upload types
+export type UploadPhase = "uploading" | "hashing" | "checking_duplicate" | "storing" | "extracting" | "indexing"
+export type UploadStatus = "pending" | "uploading" | "processing" | "complete" | "error" | "duplicate"
+
+export interface UploadProgress {
+  phase: UploadPhase
+  percent?: number
+}
+
+export interface UploadResult {
+  success: boolean
+  relPath: string
+  sha256: string
+  status: "processed" | "duplicate" | "replaced" | "error"
+  message?: string
+  manifestEntry?: ManifestEntry
+  duplicatePath?: string
+}
+
+export interface UploadItem {
+  id: string
+  file: File
+  status: UploadStatus
+  progress: number
+  error?: string
+  duplicatePath?: string
+  result?: UploadResult
+}
+
+export interface DuplicateCheck {
+  isDuplicate: boolean
+  existingPath?: string | null
+  existingEntry?: ManifestEntry | null
+}
+
+export interface DeleteResult {
+  success: boolean
+  removedChunks: number
+  message: string
+}
