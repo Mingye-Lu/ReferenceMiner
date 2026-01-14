@@ -24,12 +24,18 @@ export interface AnswerBlock {
   citations: string[]
 }
 
+export interface TimelineStep {
+  phase: string
+  message: string
+  startTime: number  // epoch ms
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "ai"
   content: string
   timestamp: number
-  timeline?: { phase: string; message: string; timestamp: string }[]
+  timeline?: TimelineStep[]
   sources?: EvidenceChunk[]
   keywords?: string[]
   isStreaming?: boolean

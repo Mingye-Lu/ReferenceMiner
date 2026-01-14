@@ -86,7 +86,7 @@ async function sendMessage() {
       if (!currentAiMsg) return
 
       if (event === "status" || event === "analysis") {
-        currentAiMsg.timeline?.push({ phase: payload.phase || event, message: payload.message || "Processing...", timestamp: new Date().toLocaleTimeString() })
+        currentAiMsg.timeline?.push({ phase: payload.phase || event, message: payload.message || "Processing...", startTime: Date.now() })
         if (payload.keywords) currentAiMsg.keywords = payload.keywords
       }
       if (event === "evidence") {

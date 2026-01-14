@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, inject, computed, watch } from "vue"
-import type { ChatMessage, EvidenceChunk } from "../types"
+import { ref, inject, computed, watch, onMounted, onUnmounted } from "vue"
+import type { ChatMessage, EvidenceChunk, TimelineStep } from "../types"
 import { renderMarkdown } from "../utils/markdown"
+import { Loader2, CircleCheck } from "lucide-vue-next"
 
 const props = defineProps<{ message: ChatMessage }>()
 const openEvidence = inject<(item: EvidenceChunk) => void>("openEvidence")!
@@ -11,9 +12,81 @@ const isPinned = inject<(id: string) => boolean>("isPinned")!
 const isTimelineExpanded = ref(false)
 const showSourcePopover = ref(false)
 
+// Timer state - using deciseconds (0.1s) for precision
+const currentTime = ref(Date.now())
+let timerInterval: ReturnType<typeof setInterval> | null = null
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = ms / 1000
+  const mins = Math.floor(totalSeconds / 60)
+  const secs = (totalSeconds % 60).toFixed(1)
+  if (mins > 0) {
+    return `${mins}m ${secs}s`
+  }
+  return `${secs}s`
+}
+
+// Computed elapsed time for the overall task
+const totalElapsed = computed(() => {
+  const startTime = props.message.timestamp
+  return currentTime.value - startTime
+})
+
+// Computed elapsed time for each step
+function getStepElapsed(step: TimelineStep, index: number): number {
+  const timeline = props.message.timeline || []
+  const nextStep = timeline[index + 1]
+
+  if (nextStep) {
+    // Step is complete - show time until next step started
+    return nextStep.startTime - step.startTime
+  } else if (props.message.isStreaming) {
+    // Last step and still streaming - show live time
+    return currentTime.value - step.startTime
+  } else {
+    // Last step and done - show time until message completed
+    // Use the last known current time (frozen when streaming stopped)
+    return currentTime.value - step.startTime
+  }
+}
+
+function startTimer() {
+  if (timerInterval) return
+  currentTime.value = Date.now()
+  timerInterval = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 100) // Update every 100ms for 0.1s precision
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
 if (props.message.role === 'ai' && props.message.content.length === 0) {
   isTimelineExpanded.value = true
 }
+
+// Start timer if streaming
+onMounted(() => {
+  if (props.message.isStreaming) {
+    startTimer()
+  }
+})
+
+onUnmounted(() => {
+  stopTimer()
+})
+
+watch(() => props.message.isStreaming, (isStreaming) => {
+  if (isStreaming) {
+    startTimer()
+  } else {
+    stopTimer()
+  }
+})
 
 watch(() => props.message.content, (newVal) => {
   if (newVal && newVal.length > 0) {
@@ -88,26 +161,27 @@ function handleBodyClick(event: MouseEvent) {
       <div v-if="message.timeline?.length" class="timeline-container">
         <div class="timeline-trigger" @click="isTimelineExpanded = !isTimelineExpanded">
           <div class="trigger-left">
-            <svg v-if="message.isStreaming" class="spinner" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <span class="trigger-text">{{ message.isStreaming ? 'Thinking Process' : `Analysis Complete` }}</span>
+            <Loader2 v-if="message.isStreaming" class="spinner" :size="14" />
+            <CircleCheck v-else class="check-icon" :size="14" />
+            <span class="trigger-text">{{ message.isStreaming ? 'Thinking Process' : 'Analysis Complete' }}</span>
           </div>
-          <svg class="chevron" :class="{ 'rotate-180': isTimelineExpanded }" width="16" height="16" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+          <div class="trigger-right">
+            <span class="elapsed-time">{{ formatElapsed(totalElapsed) }}</span>
+            <svg class="chevron" :class="{ 'rotate-180': isTimelineExpanded }" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
         </div>
         <transition name="slide">
           <div v-if="isTimelineExpanded" class="timeline-content">
             <div v-for="(step, i) in message.timeline" :key="i" class="step-item">
-              <span class="step-msg">{{ step.message }}</span><span class="step-time">{{ step.timestamp }}</span>
+              <div class="step-indicator">
+                <Loader2 v-if="message.isStreaming && i === message.timeline!.length - 1" class="step-spinner" :size="10" />
+                <span v-else class="step-dot"></span>
+              </div>
+              <span class="step-msg">{{ step.message }}</span>
+              <span class="step-time">{{ formatElapsed(getStepElapsed(step, i)) }}</span>
             </div>
           </div>
         </transition>
@@ -325,6 +399,24 @@ function handleBodyClick(event: MouseEvent) {
   color: var(--text-secondary);
 }
 
+.trigger-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.elapsed-time {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  min-width: 45px;
+  text-align: right;
+}
+
+.check-icon {
+  color: #22c55e;
+}
+
 .chevron {
   transition: transform 0.3s ease;
   color: #aaa;
@@ -337,15 +429,48 @@ function handleBodyClick(event: MouseEvent) {
 
 .step-item {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 8px;
+}
+
+.step-indicator {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-color);
+  border-radius: 50%;
+}
+
+.step-spinner {
+  animation: spin 1s linear infinite;
+  color: var(--accent-color);
+}
+
+.step-msg {
+  flex: 1;
+}
+
+.step-time {
   font-family: var(--font-mono);
+  font-size: 11px;
+  color: #999;
+  min-width: 50px;
+  text-align: right;
 }
 
 .spinner {
-  animation: spin 2s linear infinite;
+  animation: spin 1s linear infinite;
   color: var(--accent-color);
 }
 

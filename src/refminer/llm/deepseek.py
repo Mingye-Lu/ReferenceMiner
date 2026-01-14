@@ -164,17 +164,18 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
     evidence_lines, _ = _format_evidence(evidence)
     language_hint = "Use Chinese." if _contains_cjk(question) else "Use English."
     system = (
-        "You are a research assistant. Use ONLY the provided evidence. "
-        "Every factual claim must cite evidence using [C#]. "
-        "If evidence is insufficient, say so. "
-        "Return sections labeled: Summary, Evidence, Limitations, Open Questions. "
-        "Do not add a 'Body:' label. "
+        "You are a knowledgeable research assistant. Answer naturally and conversationally "
+        "based on the provided evidence. You may structure your response however best fits "
+        "the question - use paragraphs, lists, or any format that communicates clearly. "
+        "Every factual claim MUST cite evidence using [C#] markers. "
+        "Be direct and insightful. If the evidence doesn't fully answer the question, "
+        "acknowledge what's missing. "
         f"{language_hint}"
     )
     user = (
         f"Question: {question}\n\n"
         f"Keywords: {', '.join(keywords) if keywords else 'none'}\n\n"
-        "Evidence list:\n"
+        "Evidence:\n"
         + "\n".join(evidence_lines)
     )
     return [
