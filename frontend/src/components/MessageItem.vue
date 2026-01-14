@@ -8,6 +8,7 @@ const props = defineProps<{ message: ChatMessage }>()
 const openEvidence = inject<(item: EvidenceChunk) => void>("openEvidence")!
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")
 const isPinned = inject<(id: string) => boolean>("isPinned")!
+const setHighlightedPaths = inject<(paths: string[]) => void>("setHighlightedPaths")!
 
 const isTimelineExpanded = ref(false)
 const showSourcePopover = ref(false)
@@ -29,7 +30,9 @@ function formatElapsed(ms: number): string {
 // Computed elapsed time for the overall task
 const totalElapsed = computed(() => {
   const startTime = props.message.timestamp
-  return currentTime.value - startTime
+  // Use completedAt if message is done, otherwise use current time
+  const endTime = props.message.completedAt || currentTime.value
+  return endTime - startTime
 })
 
 // Computed elapsed time for each step
@@ -37,16 +40,19 @@ function getStepElapsed(step: TimelineStep, index: number): number {
   const timeline = props.message.timeline || []
   const nextStep = timeline[index + 1]
 
+  // Handle legacy data that might have timestamp instead of startTime
+  const stepStart = step.startTime || (step as any).timestamp || 0
+  if (!stepStart) return 0
+
   if (nextStep) {
-    // Step is complete - show time until next step started
-    return nextStep.startTime - step.startTime
+    const nextStart = nextStep.startTime || (nextStep as any).timestamp || 0
+    return nextStart - stepStart
   } else if (props.message.isStreaming) {
-    // Last step and still streaming - show live time
-    return currentTime.value - step.startTime
+    return currentTime.value - stepStart
   } else {
-    // Last step and done - show time until message completed
-    // Use the last known current time (frozen when streaming stopped)
-    return currentTime.value - step.startTime
+    // Use completedAt if available, otherwise use current time
+    const endTime = props.message.completedAt || currentTime.value
+    return endTime - stepStart
   }
 }
 
@@ -80,10 +86,14 @@ onUnmounted(() => {
   stopTimer()
 })
 
-watch(() => props.message.isStreaming, (isStreaming) => {
+watch(() => props.message.isStreaming, (isStreaming, wasStreaming) => {
   if (isStreaming) {
     startTimer()
   } else {
+    // When streaming stops, record the completion time if not already set
+    if (wasStreaming && !props.message.completedAt) {
+      props.message.completedAt = Date.now()
+    }
     stopTimer()
   }
 })
@@ -124,7 +134,39 @@ function handleBodyClick(event: MouseEvent) {
 
     <div v-else class="ai-container">
 
-      <!-- 1. STICKY SOURCE HEADER -->
+      <!-- 2. THINKING ACCORDION -->
+      <div v-if="message.timeline?.length" class="timeline-container">
+        <div class="timeline-trigger" @click="isTimelineExpanded = !isTimelineExpanded">
+          <div class="trigger-left">
+            <Loader2 v-if="message.isStreaming" class="spinner" :size="14" />
+            <CircleCheck v-else class="check-icon" :size="14" />
+            <span class="trigger-text">{{ message.isStreaming ? 'Thinking Process' : 'Analysis Complete' }}</span>
+          </div>
+          <div class="trigger-right">
+            <span class="elapsed-time">{{ formatElapsed(totalElapsed) }}</span>
+            <svg class="chevron" :class="{ 'rotate-180': isTimelineExpanded }" width="16" height="16"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+        </div>
+        <transition name="slide">
+          <div v-if="isTimelineExpanded" class="timeline-content">
+            <div v-for="(step, i) in message.timeline" :key="i" class="step-item">
+              <div class="step-indicator">
+                <Loader2 v-if="message.isStreaming && i === message.timeline!.length - 1" class="step-spinner"
+                  :size="10" />
+                <span v-else class="step-dot"></span>
+              </div>
+              <span class="step-msg">{{ step.message }}</span>
+              <span class="step-time">{{ formatElapsed(getStepElapsed(step, i)) }}</span>
+            </div>
+          </div>
+        </transition>
+      </div>
+
+      <!-- 1. STICKY SOURCE HEADER (Moved below Timeline) -->
       <div v-if="displaySources.length" class="sticky-header-wrapper">
         <div class="source-capsule" @mouseenter="showSourcePopover = true" @mouseleave="showSourcePopover = false">
           <div class="capsule-icon-area">
@@ -140,7 +182,8 @@ function handleBodyClick(event: MouseEvent) {
           <transition name="fade">
             <div v-if="showSourcePopover" class="source-popover">
               <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="popover-item"
-                @click="openEvidence(source)">
+                @click="openEvidence(source)" @mouseenter="setHighlightedPaths([source.path])"
+                @mouseleave="setHighlightedPaths([])">
                 <div class="popover-line">
                   <div class="popover-pin-icon" :class="{ visible: isPinned(source.chunkId) }">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
@@ -150,41 +193,16 @@ function handleBodyClick(event: MouseEvent) {
                   </div>
                   <div class="popover-title"><strong>{{ idx + 1 }}.</strong> {{ source.path.split('/').pop() }}</div>
                 </div>
-                <div class="popover-meta">p.{{ source.page }}</div>
+                <div class="popover-meta" v-if="source.page">p.{{ source.page }}</div>
               </div>
             </div>
           </transition>
         </div>
       </div>
 
-      <!-- 2. THINKING ACCORDION -->
-      <div v-if="message.timeline?.length" class="timeline-container">
-        <div class="timeline-trigger" @click="isTimelineExpanded = !isTimelineExpanded">
-          <div class="trigger-left">
-            <Loader2 v-if="message.isStreaming" class="spinner" :size="14" />
-            <CircleCheck v-else class="check-icon" :size="14" />
-            <span class="trigger-text">{{ message.isStreaming ? 'Thinking Process' : 'Analysis Complete' }}</span>
-          </div>
-          <div class="trigger-right">
-            <span class="elapsed-time">{{ formatElapsed(totalElapsed) }}</span>
-            <svg class="chevron" :class="{ 'rotate-180': isTimelineExpanded }" width="16" height="16" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </div>
-        </div>
-        <transition name="slide">
-          <div v-if="isTimelineExpanded" class="timeline-content">
-            <div v-for="(step, i) in message.timeline" :key="i" class="step-item">
-              <div class="step-indicator">
-                <Loader2 v-if="message.isStreaming && i === message.timeline!.length - 1" class="step-spinner" :size="10" />
-                <span v-else class="step-dot"></span>
-              </div>
-              <span class="step-msg">{{ step.message }}</span>
-              <span class="step-time">{{ formatElapsed(getStepElapsed(step, i)) }}</span>
-            </div>
-          </div>
-        </transition>
+      <!-- KEYWORDS (SCOPE) -->
+      <div v-if="message.keywords?.length" class="keywords-row">
+        <span v-for="kw in message.keywords" :key="kw" class="keyword-tag">{{ kw }}</span>
       </div>
 
       <!-- 3. MARKDOWN BODY -->
@@ -260,7 +278,9 @@ function handleBodyClick(event: MouseEvent) {
   position: sticky;
   top: 0;
   z-index: 10;
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  height: 0;
+  overflow: visible;
   pointer-events: none;
   display: flex;
   justify-content: flex-end;
@@ -282,6 +302,7 @@ function handleBodyClick(event: MouseEvent) {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transition: all 0.2s;
   position: relative;
+  height: 30px;
   min-width: 140px;
 }
 
@@ -480,6 +501,24 @@ function handleBodyClick(event: MouseEvent) {
   }
 }
 
+/* --- Keywords --- */
+.keywords-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.keyword-tag {
+  font-size: 11px;
+  background: #eef1f8;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
 /* --- Evidence Stream --- */
 .evidence-stream-container {
   margin-top: 24px;
@@ -500,6 +539,7 @@ function handleBodyClick(event: MouseEvent) {
   display: flex;
   gap: 12px;
   overflow-x: auto;
+  padding-top: 2px;
   padding-bottom: 8px;
   scrollbar-width: thin;
 }
@@ -557,17 +597,21 @@ function handleBodyClick(event: MouseEvent) {
 
 .card-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  gap: 8px;
 }
 
 .card-loc {
   font-size: 10px;
   color: #999;
   font-family: var(--font-mono);
+  margin-right: auto;
 }
 
 .card-pin {
+  height: 16px;
+  width: 16px;
   background: transparent;
   border: none;
   color: #ccc;

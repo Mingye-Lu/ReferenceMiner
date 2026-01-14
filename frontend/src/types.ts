@@ -39,6 +39,7 @@ export interface ChatMessage {
   sources?: EvidenceChunk[]
   keywords?: string[]
   isStreaming?: boolean
+  completedAt?: number  // epoch ms when streaming completed
 }
 
 export interface ChatSession {

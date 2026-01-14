@@ -147,13 +147,8 @@ function getStatusLabel(status: string): string {
 
 <template>
   <div class="file-uploader">
-    <div
-      class="drop-zone"
-      :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
-      @dragover.prevent="isDragOver = true"
-      @dragleave="isDragOver = false"
-      @drop.prevent="handleDrop"
-    >
+    <div class="drop-zone" :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
+      @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleDrop">
       <template v-if="uploads.length === 0">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -163,14 +158,8 @@ function getStatusLabel(status: string): string {
         </svg>
         <p class="drop-text">Drop files here or click to browse</p>
         <p class="drop-hint">PDF, DOCX, TXT, MD, Images (PNG, JPG)</p>
-        <input
-          type="file"
-          multiple
-          :accept="SUPPORTED_EXTENSIONS.join(',')"
-          @change="handleFileSelect"
-          ref="fileInput"
-          class="hidden-input"
-        />
+        <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect" ref="fileInput"
+          class="hidden-input" />
         <button class="btn-secondary" @click="fileInput?.click()">Select Files</button>
       </template>
 
@@ -209,17 +198,11 @@ function getStatusLabel(status: string): string {
 
         <div class="upload-actions">
           <button class="btn-secondary" @click="fileInput?.click()">Add More</button>
-          <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')"
-                  class="btn-ghost" @click="clearCompleted">Clear Done</button>
+          <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')" class="btn-ghost"
+            @click="clearCompleted">Clear Done</button>
         </div>
-        <input
-          type="file"
-          multiple
-          :accept="SUPPORTED_EXTENSIONS.join(',')"
-          @change="handleFileSelect"
-          ref="fileInput"
-          class="hidden-input"
-        />
+        <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect" ref="fileInput"
+          class="hidden-input" />
       </template>
     </div>
   </div>
@@ -233,7 +216,7 @@ function getStatusLabel(status: string): string {
 .drop-zone {
   border: 2px dashed var(--border-color);
   border-radius: 12px;
-  padding: 24px;
+  padding: 16px;
   text-align: center;
   transition: all 0.2s;
   background: #fafafa;

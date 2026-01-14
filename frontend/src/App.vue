@@ -14,6 +14,7 @@ const drawerTab = ref<"reader" | "notebook">("reader")
 const activeEvidence = ref<EvidenceChunk | null>(null)
 const previewFile = ref<ManifestEntry | null>(null)
 const targetNoteId = ref<string | null>(null)
+const highlightedPaths = ref<Set<string>>(new Set())
 const showDeleteModal = ref(false)
 const pendingDeleteChatId = ref<string | null>(null)
 
@@ -68,6 +69,10 @@ function openNoteLocation(noteId: string) {
   isDrawerOpen.value = true
   // 重置 target 避免重复触发滚动，但要在组件响应后
   setTimeout(() => { targetNoteId.value = null }, 500)
+}
+
+function setHighlightedPaths(paths: string[]) {
+  highlightedPaths.value = new Set(paths)
 }
 
 function handleNewChat() {
@@ -172,6 +177,7 @@ provide("manifest", manifest)
 provide("selectedFiles", selectedFiles)
 provide("selectedNotes", selectedNotes)
 provide("chatSessions", chatSessions)
+provide("setHighlightedPaths", setHighlightedPaths)
 
 onMounted(async () => {
   // Load state from localStorage
@@ -220,8 +226,8 @@ watch(pinnedEvidenceMap, (val) => {
 <template>
   <div class="app-container">
     <!-- Sidebar listens for preview and chat-select events -->
-    <SidePanel :active-chat-id="currentChatId" @preview="openPreview" @select-chat="switchChat"
-      @new-chat="handleNewChat" />
+    <SidePanel :active-chat-id="currentChatId" :highlighted-paths="highlightedPaths" @preview="openPreview"
+      @select-chat="switchChat" @new-chat="handleNewChat" />
 
     <main class="workspace-shell">
       <ChatWindow v-model:history="chatHistory" />

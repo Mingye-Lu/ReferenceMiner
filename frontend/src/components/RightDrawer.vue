@@ -5,7 +5,7 @@ import type { EvidenceChunk, ManifestEntry } from "../types"
 const props = defineProps<{
   tab: "reader" | "notebook"
   evidence: EvidenceChunk | null
-  highlightNoteId: string | null // [新增]
+  highlightNoteId: string | null
 }>()
 
 defineEmits<{ (event: 'close'): void }>()
@@ -14,6 +14,7 @@ const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")!
 const isPinned = inject<(id: string) => boolean>("isPinned")!
 const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
 const openPreview = inject<(file: ManifestEntry) => void>("openPreview")!
+const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
 
 const currentTab = ref(props.tab)
 watch(() => props.tab, (v) => currentTab.value = v)
@@ -98,7 +99,21 @@ function handlePin() {
 
 function handleOpenDoc() {
   if (props.evidence) {
-    openPreview({ relPath: props.evidence.path, fileType: 'pdf' } as ManifestEntry)
+    let fType: "pdf" | "docx" | "image" | "table" | "text" = "pdf"
+
+    const entry = manifest.value.find(f => f.relPath === props.evidence?.path)
+
+    if (entry) {
+      fType = entry.fileType
+    } else {
+      const lower = props.evidence.path.toLowerCase()
+      if (lower.endsWith(".docx") || lower.endsWith(".doc")) fType = "docx"
+      else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")) fType = "image"
+      else if (lower.endsWith(".txt") || lower.endsWith(".md")) fType = "text"
+      else if (lower.endsWith(".csv") || lower.endsWith(".xlsx")) fType = "table"
+    }
+
+    openPreview({ relPath: props.evidence.path, fileType: fType } as ManifestEntry)
   }
 }
 </script>
@@ -179,7 +194,7 @@ function handleOpenDoc() {
         <div class="doc-header">
           <div class="doc-title">{{ props.evidence.path.split('/').pop() }}</div>
           <div class="doc-meta-row">
-            <span class="meta-tag">Page {{ props.evidence.page }}</span>
+            <span class="meta-tag" v-if="props.evidence.page">Page {{ props.evidence.page }}</span>
             <span class="meta-tag">Score: {{ props.evidence.score.toFixed(2) }}</span>
           </div>
           <div class="doc-path">{{ props.evidence.path }}</div>
@@ -222,7 +237,7 @@ function handleOpenDoc() {
             </button>
           </div>
           <div class="note-text">{{ item.text.slice(0, 80) }}...</div>
-          <div class="note-footer">
+          <div class="note-footer" v-if="item.page">
             <span class="note-loc">p.{{ item.page }}</span>
           </div>
         </div>

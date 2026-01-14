@@ -14,7 +14,10 @@ const chatSessions = inject<Ref<ChatSession[]>>("chatSessions")!
 const deleteChat = inject<(id: string) => void>("deleteChat")!
 const openNoteLocation = inject<(id: string) => void>("openNoteLocation")!
 
-const props = defineProps<{ activeChatId?: string }>()
+const props = defineProps<{
+  activeChatId?: string
+  highlightedPaths?: Set<string>
+}>()
 const emit = defineEmits<{
   (event: 'preview', file: ManifestEntry): void
   (event: 'select-chat', id: string): void
@@ -131,7 +134,7 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
       <div v-if="manifest.length === 0" class="empty-msg">No files indexed yet. Upload files above.</div>
 
       <div v-for="file in manifest" :key="file.relPath" class="file-item"
-        :class="{ selected: selectedFiles.has(file.relPath), deleting: isDeleting === file.relPath }">
+        :class="{ selected: selectedFiles.has(file.relPath), deleting: isDeleting === file.relPath, highlighted: highlightedPaths?.has(file.relPath) }">
         <div @click.stop="toggleFile(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
           <input type="checkbox" class="custom-checkbox" :checked="selectedFiles.has(file.relPath)" readonly />
         </div>
@@ -151,8 +154,9 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
           </button>
           <button class="icon-btn delete-btn" @click="(e) => handleDeleteFile(file, e)" title="Delete"
             :disabled="isDeleting === file.relPath">
-            <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
             </svg>
@@ -251,6 +255,10 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
   border-color: transparent;
 }
 
+.file-item.highlighted {
+  background: #fff8e1;
+}
+
 .file-info {
   flex: 1;
   overflow: hidden;
@@ -322,8 +330,13 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .new-chat-btn {
