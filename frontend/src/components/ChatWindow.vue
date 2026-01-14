@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, inject, type Ref, onUpdated } from "vue"
+import { ref, nextTick, watch, inject, type Ref } from "vue"
 import MessageItem from "./MessageItem.vue"
 import { streamAsk } from "../api/client"
 import type { ChatMessage, EvidenceChunk } from "../types"
 
 const props = defineProps<{ history: ChatMessage[] }>()
-const emit = defineEmits<{ (event: 'update:history', val: ChatMessage[]): void }>()
+defineEmits<{ (event: 'update:history', val: ChatMessage[]): void }>()
 
 const draftInput = ref("")
 const isLoading = ref(false)
@@ -14,7 +14,14 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const userScrolledUp = ref(false)
 
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
+const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
+const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
 const toggleDrawer = inject<(open?: boolean) => void>("toggleDrawer")!
+
+const isNoteMode = ref(false)
+function toggleNoteMode() {
+  isNoteMode.value = !isNoteMode.value
+}
 
 function handleScroll() {
   if (!scrollContainer.value) return
@@ -56,7 +63,25 @@ async function sendMessage() {
   isLoading.value = true
 
   try {
+    const context = Array.from(selectedFiles.value)
+
+    // Logic: If Note Mode is ON:
+    // 1. If individual notes are selected, use ONLY those.
+    // 2. If no notes selected, use ALL pinned notes.
+    // If Note Mode is OFF:
+    // Send empty notes (Server uses RAG on files).
+    let notes: EvidenceChunk[] = []
+    if (isNoteMode.value) {
+      if (selectedNotes.value.size > 0) {
+        notes = Array.from(pinnedEvidenceMap.value.values())
+          .filter(n => selectedNotes.value.has(n.chunkId))
+      } else {
+        notes = Array.from(pinnedEvidenceMap.value.values())
+      }
+    }
+
     await streamAsk(question, (event, payload) => {
+      // ... (keep event handling)
       const currentAiMsg = props.history.find(m => m.id === aiMsgId)
       if (!currentAiMsg) return
 
@@ -78,7 +103,7 @@ async function sendMessage() {
         currentAiMsg.content = payload.markdown || currentAiMsg.content
         currentAiMsg.isStreaming = false
       }
-    })
+    }, context, isNoteMode.value, notes)
   } catch (e) {
     const currentAiMsg = props.history.find(m => m.id === aiMsgId)
     if (currentAiMsg) {
@@ -121,6 +146,17 @@ async function sendMessage() {
 
   <div class="input-area-wrapper">
     <div class="context-bar">
+      <div class="note-chip" :class="{ active: isNoteMode }" @click="toggleNoteMode">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          style="margin-right: 4px;">
+          <path
+            d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+          </path>
+        </svg>
+        Use Notes ({{ selectedNotes.size > 0 ? selectedNotes.size + '/' : '' }}{{ pinnedEvidenceMap.size }})
+      </div>
+      <div class="context-divider"></div>
       <div class="context-label">Context:</div>
       <div class="context-scroll">
         <div v-if="selectedFiles.size === 0" class="file-chip placeholder">
@@ -257,12 +293,26 @@ async function sendMessage() {
 .note-chip {
   font-size: 11px;
   padding: 4px 10px;
-  background: #fff8c5;
+  background: #f1f1f1;
   border: 1px solid transparent;
   border-radius: 99px;
-  color: #5f4b0e;
+  color: var(--text-secondary);
   cursor: pointer;
   flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.note-chip.active {
+  background: #fff8c5;
+  color: #5f4b0e;
+  border-color: #ffeba6;
+}
+
+.context-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-color);
+  margin: 0 4px;
 }
 
 .input-box {

@@ -49,3 +49,12 @@ export interface IndexStatus {
   totalFiles?: number
   totalChunks?: number
 }
+
+export interface AskResponse {
+  question: string
+  scope: string[]
+  evidence: EvidenceChunk[]
+  answer: AnswerBlock[]
+  answerMarkdown: string
+  crosscheck: string
+}

@@ -1,27 +1,73 @@
 <script setup lang="ts">
+import { computed, ref, watch, nextTick } from "vue"
 import type { ManifestEntry } from "../types"
+import { renderAsync } from "docx-preview"
 
-defineProps<{ file: ManifestEntry | null }>()
-defineEmits<{ (event: 'close'): void }>()
+const props = defineProps<{ file: ManifestEntry | null }>()
+const emit = defineEmits<{ (event: 'close'): void }>()
+
+const docxContainer = ref<HTMLElement | null>(null)
+const isLoading = ref(false)
+
+const fileUrl = computed(() => {
+  if (!props.file) return ""
+  return `http://localhost:8000/files/${props.file.relPath}`
+})
+
+const isPdf = computed(() => props.file?.fileType === "pdf")
+const isImage = computed(() => ["png", "jpg", "jpeg", "gif", "webp"].includes(props.file?.fileType || ""))
+const isDocx = computed(() => ["docx", "doc"].includes(props.file?.fileType || ""))
+
+async function loadDocx() {
+  if (!isDocx.value || !fileUrl.value) return
+  isLoading.value = true
+  try {
+    const resp = await fetch(fileUrl.value)
+    if (!resp.ok) throw new Error("Failed to load file")
+    const blob = await resp.blob()
+    if (docxContainer.value) {
+      docxContainer.value.innerHTML = "" // Clear previous
+      await renderAsync(blob, docxContainer.value, docxContainer.value, {
+        className: "docx-wrapper",
+        inWrapper: true
+      })
+    }
+  } catch (e) {
+    console.error("DOCX preview failed", e)
+    if (docxContainer.value) docxContainer.value.innerHTML = "<div class='error'>Failed to load document preview.</div>"
+  } finally {
+    isLoading.value = false
+  }
+}
+
+watch(() => props.file, () => {
+  if (isDocx.value) {
+    nextTick(() => loadDocx())
+  }
+}, { immediate: true })
+
+function handleClose() {
+  emit('close')
+}
 </script>
 
 <template>
-  <div v-if="file" class="modal-backdrop" @click="$emit('close')">
-    <div class="modal-content" @click.stop>
+  <div v-if="file" class="modal-backdrop" @click.self="handleClose">
+    <div class="modal-content">
       <header class="modal-header">
         <div class="modal-title">{{ file.relPath }}</div>
-        <button class="close-btn" @click="$emit('close')">✕</button>
+        <button class="close-btn" @click="handleClose">×</button>
       </header>
       <div class="modal-body">
-        <div class="preview-placeholder">
-          <div class="icon">📄</div>
-          <p>Preview mode is a placeholder now.</p>
-          <p style="font-size: 12px; color: #888;">
-            Next, this will load the PDF via iframe or text content.
-          </p>
-          <div style="margin-top: 20px; font-family: monospace; background: #eee; padding: 10px; border-radius: 4px;">
-            {{ file.relPath }} ({{ file.fileType }})
-          </div>
+        <iframe v-if="isPdf" :src="fileUrl" class="preview-frame"></iframe>
+        <img v-else-if="isImage" :src="fileUrl" class="preview-image" />
+        <div v-else-if="isDocx" class="docx-preview-area">
+          <div v-if="isLoading" class="loading">Loading document...</div>
+          <div ref="docxContainer" class="docx-container"></div>
+        </div>
+        <div v-else class="preview-text">
+          <p>Preview not available for this file type ({{ file.fileType }}).</p>
+          <p><a :href="fileUrl" target="_blank">Download File</a></p>
         </div>
       </div>
     </div>
@@ -30,20 +76,104 @@ defineEmits<{ (event: 'close'): void }>()
 
 <style scoped>
 .modal-backdrop {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
-  z-index: 100; display: flex; align-items: center; justify-content: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .modal-content {
-  width: 80%; height: 85%; background: #fff; border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.2); display: flex; flex-direction: column;
+  width: 90%;
+  height: 90%;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
 }
+
 .modal-header {
-  padding: 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-.modal-title { font-weight: 600; font-size: 16px; }
-.close-btn { background: none; border: none; cursor: pointer; font-size: 20px; color: #888; }
-.modal-body { flex: 1; padding: 20px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; }
-.preview-placeholder { text-align: center; color: #555; }
-.icon { font-size: 48px; margin-bottom: 16px; }
+
+.modal-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  color: #888;
+}
+
+.modal-body {
+  flex: 1;
+  overflow: hidden;
+  background: #f9f9f9;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.preview-text {
+  text-align: center;
+  color: #555;
+}
+
+.docx-preview-area {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+  background: #e0e0e0;
+}
+
+.docx-container {
+  background: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  min-height: 100%;
+}
+
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 600;
+  color: #666;
+}
+
+/* docx-preview specific overrides if needed */
+:deep(.docx-wrapper) {
+  background: #ffffff;
+  padding: 40px !important;
+}
 </style>

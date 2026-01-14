@@ -6,19 +6,21 @@ import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from refminer.analyze.workflow import analyze
+from refminer.analyze.workflow import analyze, EvidenceChunk
 from refminer.ingest.pipeline import ingest_all
 from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_answer_text, stream_answer
 from refminer.retrieve.search import retrieve
 from refminer.utils.paths import get_index_dir
 
+
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="ReferenceMiner API", version="0.1.0")
 
@@ -30,31 +32,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount the references directory to serve files
+# WARNING: In production this should be restricted. For local tool it is fine.
+app.mount("/files", StaticFiles(directory="references"), name="files")
+
 
 class AskRequest(BaseModel):
     question: str
+    context: Optional[list[str]] = None
+    use_notes: bool = False
+    notes: Optional[list[dict]] = None
 
 
-def _manifest_path(root: Path | None = None) -> Path:
+def _manifest_path(root: Optional[Path] = None) -> Path:
     return get_index_dir(root) / "manifest.json"
 
 
-def _chunks_path(root: Path | None = None) -> Path:
+def _chunks_path(root: Optional[Path] = None) -> Path:
     return get_index_dir(root) / "chunks.jsonl"
 
 
-def _bm25_path(root: Path | None = None) -> Path:
+def _bm25_path(root: Optional[Path] = None) -> Path:
     return get_index_dir(root) / "bm25.pkl"
 
 
-def _load_manifest(root: Path | None = None) -> list[dict[str, Any]]:
+def _load_manifest(root: Optional[Path] = None) -> list[dict[str, Any]]:
     path = _manifest_path(root)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Manifest not found. Run ingest first.")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _count_chunks(root: Path | None = None) -> int:
+def _count_chunks(root: Optional[Path] = None) -> int:
     path = _chunks_path(root)
     if not path.exists():
         return 0
@@ -62,7 +71,7 @@ def _count_chunks(root: Path | None = None) -> int:
         return sum(1 for _ in handle)
 
 
-def _format_citation(path: str, page: int | None, section: str | None) -> str:
+def _format_citation(path: str, page: Optional[int], section: Optional[str]) -> str:
     if page:
         return f"{path} p.{page}"
     if section:
@@ -70,7 +79,7 @@ def _format_citation(path: str, page: int | None, section: str | None) -> str:
     return path
 
 
-def _format_timestamp(epoch: float | None) -> str | None:
+def _format_timestamp(epoch: Optional[float]) -> Optional[str]:
     if not epoch:
         return None
     return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
@@ -112,7 +121,12 @@ def _sse(event: str, payload: Any) -> str:
     return f"event: {event}\ndata: {data}\n\n"
 
 
-def _stream_rag(question: str) -> Iterator[str]:
+def _stream_rag(
+    question: str,
+    context: Optional[list[str]] = None,
+    use_notes: bool = False,
+    notes: Optional[list[dict]] = None,
+) -> Iterator[str]:
     yield _sse("status", {"phase": "ingest", "message": "Checking index"})
     _ensure_index()
 
@@ -120,8 +134,29 @@ def _stream_rag(question: str) -> Iterator[str]:
         yield _sse("error", {"message": "Indexes not found. Run ingest first."})
         return
 
-    yield _sse("status", {"phase": "retrieve", "message": "Retrieving evidence"})
-    evidence = retrieve(question, k=8)
+    evidence: list[EvidenceChunk] = []
+
+    if use_notes and notes:
+        yield _sse("status", {"phase": "retrieve", "message": "Using pinned notes"})
+        for note in notes:
+            # Reconstruct EvidenceChunk from dictionary
+            try:
+                evidence.append(
+                    EvidenceChunk(
+                        chunk_id=note.get("chunkId") or note.get("chunk_id") or "",
+                        path=note.get("path") or "",
+                        page=note.get("page"),
+                        section=note.get("section"),
+                        text=note.get("text") or "",
+                        score=note.get("score") or 1.0,
+                    )
+                )
+            except Exception:
+                pass
+    else:
+        yield _sse("status", {"phase": "retrieve", "message": "Retrieving evidence"})
+        evidence = retrieve(question, k=8, filter_files=context)
+
     analysis = analyze(question, evidence)
 
     yield _sse(
@@ -185,7 +220,25 @@ def ask(request: AskRequest) -> dict[str, Any]:
     if not _bm25_path().exists():
         raise HTTPException(status_code=400, detail="Indexes not found. Run ingest first.")
 
-    evidence = retrieve(request.question, k=8)
+    evidence: list[EvidenceChunk] = []
+
+    if request.use_notes and request.notes:
+        for note in request.notes:
+            try:
+                evidence.append(
+                    EvidenceChunk(
+                        chunk_id=note.get("chunkId") or note.get("chunk_id") or "",
+                        path=note.get("path") or "",
+                        page=note.get("page"),
+                        section=note.get("section"),
+                        text=note.get("text") or "",
+                        score=note.get("score") or 1.0,
+                    )
+                )
+            except Exception:
+                pass
+    else:
+        evidence = retrieve(request.question, k=8, filter_files=request.context)
     analysis = analyze(request.question, evidence)
 
     evidence_payload = [asdict(item) for item in evidence]
@@ -214,8 +267,32 @@ def ask(request: AskRequest) -> dict[str, Any]:
         "crosscheck": analysis.get("crosscheck", ""),
     }
 
-
 @app.post("/ask/stream")
 def ask_stream(request: AskRequest) -> StreamingResponse:
-    generator = _stream_rag(request.question)
+    generator = _stream_rag(
+        request.question,
+        context=request.context,
+        use_notes=request.use_notes,
+        notes=request.notes,
+    )
     return StreamingResponse(generator, media_type="text/event-stream")
+
+
+class SummarizeRequest(BaseModel):
+    messages: list[dict]
+
+
+@app.post("/summarize")
+def summarize(request: SummarizeRequest) -> dict[str, str]:
+    if not request.messages:
+        return {"title": "New Chat"}
+    
+    first_msg = next((m for m in request.messages if m.get("role") == "user"), None)
+    if not first_msg:
+        return {"title": "New Chat"}
+        
+    # TODO: Use LLM for real summarization
+    content = first_msg.get("content", "")
+    if len(content) > 30:
+        return {"title": content[:30] + "..."}
+    return {"title": content}

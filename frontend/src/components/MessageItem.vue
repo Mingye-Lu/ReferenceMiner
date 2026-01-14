@@ -21,12 +21,9 @@ watch(() => props.message.content, (newVal) => {
   }
 }, { once: true })
 
-const sortedSources = computed(() => {
-  if (!props.message.sources) return []
-  return [...props.message.sources].sort((a, b) => {
-    if ((a.page ?? 0) !== (b.page ?? 0)) return (a.page ?? 0) - (b.page ?? 0)
-    return (a.chunkId || "").toString().localeCompare((b.chunkId || "").toString())
-  })
+// [修正] 不再排序，保持与 LLM 输出的 [C1] [C2] 顺序一致
+const displaySources = computed(() => {
+  return props.message.sources || []
 })
 
 function processMarkdown(text: string) {
@@ -55,7 +52,7 @@ function handleBodyClick(event: MouseEvent) {
     <div v-else class="ai-container">
 
       <!-- 1. STICKY SOURCE HEADER -->
-      <div v-if="sortedSources.length" class="sticky-header-wrapper">
+      <div v-if="displaySources.length" class="sticky-header-wrapper">
         <div class="source-capsule" @mouseenter="showSourcePopover = true" @mouseleave="showSourcePopover = false">
           <div class="capsule-icon-area">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -65,11 +62,11 @@ function handleBodyClick(event: MouseEvent) {
                 d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
             </svg>
           </div>
-          <span class="label">Based on {{ sortedSources.length }} sources</span>
+          <span class="label">Based on {{ displaySources.length }} sources</span>
 
           <transition name="fade">
             <div v-if="showSourcePopover" class="source-popover">
-              <div v-for="(source, idx) in sortedSources" :key="source.chunkId" class="popover-item"
+              <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="popover-item"
                 @click="openEvidence(source)">
                 <div class="popover-line">
                   <div class="popover-pin-icon" :class="{ visible: isPinned(source.chunkId) }">
@@ -120,10 +117,10 @@ function handleBodyClick(event: MouseEvent) {
       <div class="markdown-body" v-html="processMarkdown(message.content)" @click="handleBodyClick"></div>
 
       <!-- 4. EVIDENCE STREAM (CARDS) -->
-      <div v-if="!message.isStreaming && sortedSources.length" class="evidence-stream-container">
+      <div v-if="!message.isStreaming && displaySources.length" class="evidence-stream-container">
         <div class="stream-label">References</div>
         <div class="stream-scroll">
-          <div v-for="(source, idx) in sortedSources" :key="source.chunkId" class="stream-card"
+          <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="stream-card"
             @click="openEvidence(source)">
             <div class="card-header">
               <span class="card-idx">{{ idx + 1 }}</span>
@@ -284,14 +281,17 @@ function handleBodyClick(event: MouseEvent) {
   margin-right: 4px;
 }
 
-.popover-pin-icon { 
-  width: 16px; 
-  display: flex; 
-  align-items: center; 
+.popover-pin-icon {
+  width: 16px;
+  display: flex;
+  align-items: center;
   opacity: 0;
-  transition: opacity 0.2s; 
+  transition: opacity 0.2s;
 }
-.popover-pin-icon.visible { opacity: 1; }
+
+.popover-pin-icon.visible {
+  opacity: 1;
+}
 
 /* --- Thinking Accordion --- */
 .timeline-container {

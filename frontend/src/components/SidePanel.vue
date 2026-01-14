@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref, inject, type Ref } from "vue"
-import type { ManifestEntry } from "../types"
+import { ref, inject, type Ref, computed } from "vue"
+import type { ManifestEntry, ChatSession, EvidenceChunk } from "../types"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
+const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
+const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
+const chatSessions = inject<Ref<ChatSession[]>>("chatSessions")!
+const deleteChat = inject<(id: string) => void>("deleteChat")!
+const openNoteLocation = inject<(id: string) => void>("openNoteLocation")!
 
 const props = defineProps<{ activeChatId?: string }>()
 const emit = defineEmits<{
@@ -13,14 +18,16 @@ const emit = defineEmits<{
   (event: 'new-chat'): void
 }>()
 
-const mockChats = [
-  { id: "1", title: "光伏成本分析", time: "2h ago", meta: "5 refs" },
-  { id: "2", title: "初始调研", time: "Yesterday", meta: "2 refs" }
-]
+const notesList = computed(() => Array.from(pinnedEvidenceMap.value.values()))
 
 function toggleFile(path: string) {
   if (selectedFiles.value.has(path)) selectedFiles.value.delete(path)
   else selectedFiles.value.add(path)
+}
+
+function toggleNote(id: string) {
+  if (selectedNotes.value.has(id)) selectedNotes.value.delete(id)
+  else selectedNotes.value.add(id)
 }
 
 function handlePreview(file: ManifestEntry, e?: Event) {
@@ -34,6 +41,19 @@ function selectChat(id: string) {
 
 function handleNewChat() {
   emit('new-chat')
+}
+
+function handleDeleteChat(id: string, e: Event) {
+  e.stopPropagation()
+  deleteChat(id)
+}
+
+function formatTime(ts: number) {
+  const diff = Date.now() - ts
+  if (diff < 60000) return 'Just now'
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago'
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago'
+  return new Date(ts).toLocaleDateString()
 }
 </script>
 
@@ -68,6 +88,8 @@ function handleNewChat() {
 
     <!-- CORPUS TAB -->
     <div class="sidebar-content" v-if="activeTab === 'corpus'">
+      <!-- Files Section -->
+      <div class="section-header" v-if="manifest.length > 0">FILES ({{ manifest.length }})</div>
       <div v-if="manifest.length === 0" class="empty-msg">No files found.</div>
 
       <div v-for="file in manifest" :key="file.relPath" class="file-item"
@@ -89,6 +111,22 @@ function handleNewChat() {
           </svg>
         </button>
       </div>
+
+      <!-- Notes Section -->
+      <div class="section-header" style="margin-top: 20px;">PINNED NOTES ({{ notesList.length }})</div>
+      <div v-if="notesList.length === 0" class="empty-msg">No pinned notes.</div>
+
+      <div v-for="note in notesList" :key="note.chunkId" class="file-item"
+        :class="{ selected: selectedNotes.has(note.chunkId) }">
+        <div @click.stop="toggleNote(note.chunkId)" style="display:flex; align-items:center; padding-right:8px;">
+          <input type="checkbox" class="custom-checkbox" :checked="selectedNotes.has(note.chunkId)" readonly />
+        </div>
+        <div class="file-info" @click="openNoteLocation(note.chunkId)">
+          <div class="file-name" :title="note.text">{{ note.text.slice(0, 40) }}...</div>
+          <div class="file-meta">Page {{ note.page || 1 }}</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- CHATS TAB -->
@@ -103,10 +141,19 @@ function handleNewChat() {
         New Chat
       </button>
       <div class="chat-list">
-        <div v-for="chat in mockChats" :key="chat.id" class="chat-item"
+        <div v-for="chat in chatSessions" :key="chat.id" class="chat-item"
           :class="{ active: props.activeChatId === chat.id }" @click="selectChat(chat.id)">
-          <div class="chat-title">{{ chat.title }}</div>
-          <div class="chat-meta">{{ chat.time }} · {{ chat.meta }}</div>
+          <div class="chat-content-wrapper">
+            <div class="chat-title">{{ chat.title }}</div>
+            <div class="chat-meta">{{ formatTime(chat.lastActive) }} · {{ chat.messageCount }} msgs</div>
+          </div>
+          <button class="delete-chat-btn" @click="handleDeleteChat(chat.id, $event)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -115,10 +162,19 @@ function handleNewChat() {
 
 <style scoped>
 .empty-msg {
-  padding: 20px;
+  padding: 10px 20px;
   font-size: 12px;
   color: #888;
   text-align: center;
+}
+
+.section-header {
+  padding: 0 10px 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .file-item {
@@ -210,7 +266,34 @@ function handleNewChat() {
   cursor: pointer;
   margin-bottom: 4px;
   border: 1px solid transparent;
+  border: 1px solid transparent;
   transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-content-wrapper {
+  flex: 1;
+  overflow: hidden;
+}
+
+.delete-chat-btn {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.chat-item:hover .delete-chat-btn {
+  opacity: 1;
+}
+
+.delete-chat-btn:hover {
+  color: #ff4d4f;
 }
 
 .chat-item:hover {

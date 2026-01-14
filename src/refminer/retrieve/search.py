@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 from refminer.analyze.workflow import EvidenceChunk
 from refminer.index.bm25 import load_bm25, search as bm25_search
@@ -20,11 +21,16 @@ def load_chunks(index_dir: Path) -> dict[str, dict]:
     return chunks
 
 
-def retrieve(query: str, root: Path | None = None, k: int = 5) -> list[EvidenceChunk]:
+def retrieve(
+    query: str, root: Optional[Path] = None, k: int = 5, filter_files: Optional[list[str]] = None
+) -> list[EvidenceChunk]:
     index_dir = get_index_dir(root)
     chunks = load_chunks(index_dir)
     bm25_index = load_bm25(index_dir / "bm25.pkl")
-    bm25_hits = bm25_search(bm25_index, query, k=k)
+    
+    # Retrieve more candidates if filtering is active to ensure we have enough results
+    search_k = k * 5 if filter_files else k
+    bm25_hits = bm25_search(bm25_index, query, k=search_k)
 
     rankings = [bm25_hits]
     vector_hits: list[tuple[str, float]] = []
@@ -32,7 +38,7 @@ def retrieve(query: str, root: Path | None = None, k: int = 5) -> list[EvidenceC
     if vectors_path.exists():
         try:
             vector_index = load_vectors(vectors_path)
-            vector_hits = vector_search(vector_index, query, k=k)
+            vector_hits = vector_search(vector_index, query, k=search_k)
             if vector_hits:
                 rankings.append(vector_hits)
         except RuntimeError:
@@ -40,10 +46,19 @@ def retrieve(query: str, root: Path | None = None, k: int = 5) -> list[EvidenceC
 
     fused = reciprocal_rank_fusion(rankings)
     evidence: list[EvidenceChunk] = []
-    for chunk_id, score in fused[:k]:
+    
+    for chunk_id, score in fused:
+        if len(evidence) >= k:
+            break
+            
         item = chunks.get(chunk_id)
         if not item:
             continue
+            
+        # Apply strict filtering
+        if filter_files and item["path"] not in filter_files:
+            continue
+            
         evidence.append(
             EvidenceChunk(
                 chunk_id=chunk_id,

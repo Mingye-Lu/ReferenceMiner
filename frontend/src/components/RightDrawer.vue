@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, inject, computed, watch, nextTick, type Ref } from "vue"
+import { ref, inject, watch, nextTick, type Ref } from "vue"
 import type { EvidenceChunk, ManifestEntry } from "../types"
 
 const props = defineProps<{
   tab: "reader" | "notebook"
   evidence: EvidenceChunk | null
+  highlightNoteId: string | null // [新增]
 }>()
 
-const emit = defineEmits<{ (event: 'close'): void }>()
+defineEmits<{ (event: 'close'): void }>()
 
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")!
 const isPinned = inject<(id: string) => boolean>("isPinned")!
@@ -19,36 +20,50 @@ watch(() => props.tab, (v) => currentTab.value = v)
 
 // Notebook Logic
 const notebookList = ref<EvidenceChunk[]>([])
-const isInternalUnpin = ref(false)
+// [新增] 暂存被移除的 ID，防止列表抖动
+const pendingRemovals = ref(new Set<string>())
 
 function refreshNotebook() {
   if (pinnedEvidenceMap.value) {
+    // 重新加载时，清除 pending 状态
+    pendingRemovals.value.clear()
     notebookList.value = Array.from(pinnedEvidenceMap.value.values())
   }
 }
 
+// [逻辑修正] 在笔记本中点击取消钉选
 function handleNotebookUnpin(item: EvidenceChunk) {
-  isInternalUnpin.value = true
+  // 1. 标记为待移除 (视觉变灰)
+  pendingRemovals.value.add(item.chunkId)
+  // 2. 全局状态移除 (影响其他地方的状态)
   togglePin(item)
-  nextTick(() => {
-    isInternalUnpin.value = false
-  })
+  // 3. 但不从 notebookList 移除，直到 Refresh 或 Tab 切换
 }
 
 watch(currentTab, (val) => {
   if (val === 'notebook') refreshNotebook()
 })
 
+// 监听全局 Map 变化
 watch(pinnedEvidenceMap, (newMap) => {
-  const currentIds = new Set(notebookList.value.map(i => i.chunkId))
+  // 如果是新增的，加入列表
   for (const [id, item] of newMap.entries()) {
-    if (!currentIds.has(id)) {
+    if (!notebookList.value.find(i => i.chunkId === id)) {
       notebookList.value.unshift(item)
     }
   }
 
-  if (!isInternalUnpin.value) {
-    notebookList.value = notebookList.value.filter(i => newMap.has(i.chunkId))
+  // 如果是移除的，只有在不在 pendingRemovals 里才移除
+  // (意味着是在外部 Reference Card 点击的取消)
+  if (currentTab.value === 'notebook') {
+    notebookList.value = notebookList.value.filter(item => {
+      // 如果还在全局 map 里，保留
+      if (newMap.has(item.chunkId)) return true
+      // 如果不在全局 map，但在 pendingRemovals，保留显示（直到刷新）
+      if (pendingRemovals.value.has(item.chunkId)) return true
+      // 否则移除
+      return false
+    })
   }
 }, { deep: true })
 
@@ -57,7 +72,22 @@ watch(() => props.evidence, (newVal) => {
   if (newVal) {
     currentTab.value = 'reader'
     nextTick(() => {
+      // [修正] 简单定位到顶部
       if (contentRef.value) contentRef.value.scrollTop = 0
+    })
+  }
+})
+
+// [新增] Notebook 定位高亮
+watch(() => props.highlightNoteId, (id) => {
+  if (id && currentTab.value === 'notebook') {
+    nextTick(() => {
+      const el = document.getElementById(`note-${id}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('flash-highlight')
+        setTimeout(() => el.classList.remove('flash-highlight'), 2000)
+      }
     })
   }
 })
@@ -97,8 +127,8 @@ function handleOpenDoc() {
       </div>
 
       <div class="header-actions">
-        <!-- Notebook Refresh -->
-        <button v-if="currentTab === 'notebook'" class="icon-btn" title="Refresh List">
+        <!-- Notebook Refresh (Clean up removed items) -->
+        <button v-if="currentTab === 'notebook'" class="icon-btn" title="Refresh List" @click="refreshNotebook">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -174,11 +204,13 @@ function handleOpenDoc() {
         <p>Notebook is empty.</p>
       </div>
       <div v-else class="notebook-list">
-        <div v-for="item in notebookList" :key="item.chunkId" class="note-item">
+        <div v-for="item in notebookList" :key="item.chunkId" :id="`note-${item.chunkId}`" class="note-item"
+          :class="{ 'pending-removal': pendingRemovals.has(item.chunkId) }">
           <div class="note-header">
             <span class="note-source">{{ item.path.split('/').pop() }}</span>
             <button class="unpin-btn" @click="handleNotebookUnpin(item)" title="Toggle Pin">
-              <svg v-if="isPinned(item.chunkId)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+              <!-- 显示实心或空心图标 -->
+              <svg v-if="!pendingRemovals.has(item.chunkId)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
                 viewBox="0 0 24 24" fill="currentColor" stroke="none">
                 <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
               </svg>
@@ -398,6 +430,31 @@ function handleOpenDoc() {
   border: 1px solid var(--border-color);
   padding: 12px;
   border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+/* 视觉上置灰 */
+.note-item.pending-removal {
+  opacity: 0.5;
+  background: #f9f9f9;
+  border-style: dashed;
+}
+
+/* 高亮闪烁 */
+.flash-highlight {
+  animation: flash 1.5s ease-out;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+@keyframes flash {
+  0% {
+    background-color: var(--gold-highlight);
+  }
+
+  100% {
+    background-color: #fff;
+  }
 }
 
 .note-header {

@@ -74,11 +74,24 @@ export async function askQuestion(question: string): Promise<AskResponse> {
 
 export type StreamEventHandler = (event: string, payload: any) => void
 
-export async function streamAsk(question: string, onEvent: StreamEventHandler): Promise<void> {
+export async function streamAsk(
+  question: string,
+  onEvent: StreamEventHandler,
+  context?: string[],
+  useNotes?: boolean,
+  notes?: EvidenceChunk[]
+): Promise<void> {
+  const body = {
+    question,
+    context: context && context.length > 0 ? context : undefined,
+    use_notes: useNotes,
+    notes: notes && notes.length > 0 ? notes : undefined
+  }
+
   const response = await fetch(`${API_BASE}/ask/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok || !response.body) {
@@ -120,4 +133,12 @@ export async function streamAsk(question: string, onEvent: StreamEventHandler): 
       boundary = buffer.indexOf("\n\n")
     }
   }
+}
+export async function fetchSummarize(messages: any[]): Promise<string> {
+  const data = await fetchJson<any>("/summarize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
+  })
+  return data.title ?? "New Chat"
 }
