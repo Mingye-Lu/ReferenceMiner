@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 import time
 from dataclasses import asdict
 from datetime import datetime
@@ -11,7 +13,7 @@ import shutil
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze, EvidenceChunk
@@ -25,8 +27,33 @@ from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
 from refminer.projects.manager import ProjectManager
 
+
+def _get_base_dir() -> Path:
+    """Get base directory, accounting for PyInstaller bundling."""
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle - use executable's directory
+        return Path(sys.executable).parent
+    else:
+        # Normal execution - relative to this file
+        return Path(__file__).resolve().parent.parent.parent
+
+
+def _is_bundled() -> bool:
+    """Check if running as a PyInstaller bundle."""
+    return getattr(sys, "frozen", False)
+
+
+def _get_frontend_dir() -> Path:
+    """Get the frontend dist directory."""
+    if _is_bundled():
+        # PyInstaller extracts data to _MEIPASS
+        return Path(sys._MEIPASS) / "frontend"
+    else:
+        return _get_base_dir() / "frontend" / "dist"
+
+
 # Root directory of the repository
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = _get_base_dir()
 project_manager = ProjectManager(str(BASE_DIR))
 
 
@@ -34,9 +61,11 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="ReferenceMiner API", version="0.1.0")
 
+# CORS: Allow localhost dev server in dev mode, or same-origin in bundled mode
+_cors_origins = ["*"] if _is_bundled() else ["http://localhost:5173", "http://127.0.0.1:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -595,3 +624,48 @@ async def upload_bank_stream_api(
         _stream_upload(None, file, replace_existing, False),
         media_type="text/event-stream",
     )
+
+
+# =============================================================================
+# SPA Static File Serving (for bundled executable)
+# =============================================================================
+
+FRONTEND_DIR = _get_frontend_dir()
+
+# Mount frontend assets if available
+if FRONTEND_DIR.exists() and (FRONTEND_DIR / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="frontend_assets")
+
+
+@app.get("/")
+async def serve_root():
+    """Serve the frontend index.html at root."""
+    index_path = FRONTEND_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    # Fallback for development without built frontend
+    return {"message": "ReferenceMiner API", "docs": "/docs"}
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """
+    SPA fallback route - serves static files or index.html for client-side routing.
+    This must be the LAST route registered.
+    """
+    # Skip API routes (handled by earlier routes)
+    if full_path.startswith("api/") or full_path.startswith("files/"):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Try to serve the exact file
+    file_path = FRONTEND_DIR / full_path
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+
+    # Fallback to index.html for SPA routing (e.g., /project/123)
+    index_path = FRONTEND_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+
+    # No frontend available
+    raise HTTPException(status_code=404, detail="Not found")

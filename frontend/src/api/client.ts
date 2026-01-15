@@ -13,7 +13,9 @@ import type {
   ChatMessage
 } from "../types"
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000"
+// When bundled, frontend is served from the same server - use relative URLs
+// In development, VITE_API_URL can be set to point to the backend
+const API_BASE = import.meta.env.VITE_API_URL ?? ""
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, init)

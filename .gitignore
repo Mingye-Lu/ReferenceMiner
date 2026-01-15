@@ -1,11 +1,31 @@
+# Environment
 .env
+frontend/.env
+
+# Data directories
 references/
 .index/
+projects.json
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
+
+# Frontend
 frontend/node_modules/
 frontend/dist/
-frontend/.env
+
+# PyInstaller build artifacts
+build/
+dist/
+*.exe
+
+# Claude Code
+.claude/
+
+# Misc
 clean-css.py
 tool/
+*.log

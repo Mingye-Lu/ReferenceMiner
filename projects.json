@@ -2,10 +2,14 @@
   "default": {
     "id": "default",
     "name": "Default Project",
+    "root_path": "default",
     "created_at": 1768416828.6119022,
-    "last_active": 1768416828.6119022,
-    "file_count": 0,
+    "last_active": 1768457900.416693,
+    "file_count": 1,
     "note_count": 0,
-    "icon": "📚"
+    "description": null,
+    "selected_files": [
+      "“两山论”：人地关系理论的中国实践与时代升华_郝兆印.pdf"
+    ]
   }
 }
