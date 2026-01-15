@@ -106,3 +106,21 @@ export interface DeleteResult {
   removedChunks: number
   message: string
 }
+
+// Project types
+export interface Project {
+  id: string
+  name: string
+  rootPath: string
+  createdAt: number
+  lastActive: number
+  fileCount: number
+  noteCount: number
+  description?: string
+  icon?: string
+}
+
+export interface ProjectCreate {
+  name: string
+  description?: string
+}

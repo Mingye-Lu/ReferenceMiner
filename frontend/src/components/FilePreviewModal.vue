@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from "vue"
-import type { ManifestEntry } from "../types"
+import { computed, ref, watch, nextTick, inject, type Ref } from "vue"
+import type { ManifestEntry, Project } from "../types"
 import { renderAsync } from "docx-preview"
+import { getFileUrl } from "../api/client"
 
 const props = defineProps<{ file: ManifestEntry | null }>()
 const emit = defineEmits<{ (event: 'close'): void }>()
+
+const currentProject = inject<Ref<Project | null>>("currentProject")!
+const projectId = computed(() => currentProject.value?.id || "default")
 
 const docxContainer = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
 
 const fileUrl = computed(() => {
   if (!props.file) return ""
-  return `http://localhost:8000/files/${props.file.relPath}`
+  return getFileUrl(projectId.value, props.file.relPath)
 })
 
 const isPdf = computed(() => props.file?.fileType === "pdf")

@@ -12,8 +12,26 @@ from refminer.index.vectors import build_vectors, save_vectors
 from refminer.utils.paths import get_index_dir
 
 
-def ingest_all(root: Path | None = None, build_vectors_index: bool = True) -> dict:
-    manifest_entries = build_manifest(root)
+def ingest_all(
+    root: Path | None = None, 
+    references_dir: Path | None = None,
+    index_dir: Path | None = None,
+    build_vectors_index: bool = True
+) -> dict:
+    manifest_entries = build_manifest(root, references_dir=references_dir)
+    manifest_path = write_manifest(manifest_entries, root, index_dir=index_dir)
+    
+    idx_dir = index_dir or get_index_dir(root)
+    ref_dir = references_dir or get_references_dir(root)
+
+    if not manifest_entries:
+        return {
+            "manifest": str(manifest_path),
+            "chunks": None,
+            "bm25": None,
+            "vectors": None,
+        }
+
     chunks_payload: list[dict] = []
 
     for entry in manifest_entries:
@@ -32,19 +50,17 @@ def ingest_all(root: Path | None = None, build_vectors_index: bool = True) -> di
             for chunk in chunks:
                 chunks_payload.append(asdict(chunk))
 
-    index_dir = get_index_dir(root)
-    index_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = write_manifest(manifest_entries, root)
-
-    chunks_path = index_dir / "chunks.jsonl"
+    idx_dir.mkdir(parents=True, exist_ok=True)
+    
+    chunks_path = idx_dir / "chunks.jsonl"
     with chunks_path.open("w", encoding="utf-8") as handle:
         for item in chunks_payload:
             handle.write(json.dumps(item, ensure_ascii=True) + "\n")
 
     bm25_index = build_bm25([(item["chunk_id"], item["text"]) for item in chunks_payload])
-    save_bm25(bm25_index, index_dir / "bm25.pkl")
+    save_bm25(bm25_index, idx_dir / "bm25.pkl")
 
-    vectors_path = index_dir / "vectors.faiss"
+    vectors_path = idx_dir / "vectors.faiss"
     vectors_built = False
     if build_vectors_index and chunks_payload:
         try:
@@ -57,6 +73,6 @@ def ingest_all(root: Path | None = None, build_vectors_index: bool = True) -> di
     return {
         "manifest": str(manifest_path),
         "chunks": str(chunks_path),
-        "bm25": str(index_dir / "bm25.pkl"),
+        "bm25": str(idx_dir / "bm25.pkl"),
         "vectors": str(vectors_path) if vectors_built else None,
     }

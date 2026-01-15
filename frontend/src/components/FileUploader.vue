@@ -3,6 +3,10 @@ import { ref } from "vue"
 import { uploadFileStream } from "../api/client"
 import type { UploadItem, ManifestEntry } from "../types"
 
+const props = defineProps<{
+  projectId: string
+}>()
+
 const emit = defineEmits<{
   (e: "upload-complete", entry: ManifestEntry): void
 }>()
@@ -54,7 +58,7 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
   updateItem({ status: "uploading", progress: 0 })
 
   try {
-    const result = await uploadFileStream(item.file, {
+    const result = await uploadFileStream(props.projectId, item.file, {
       onProgress: (progress) => {
         updateItem({
           status: "processing",
