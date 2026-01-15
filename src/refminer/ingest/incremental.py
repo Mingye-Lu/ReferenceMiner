@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import time
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
@@ -18,6 +20,44 @@ from refminer.index.bm25 import BM25Index, build_bm25, save_bm25
 from refminer.index.chunk import Chunk, chunk_text
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
+
+
+@contextmanager
+def _file_lock(lock_path: Path, timeout: float = 30.0):
+    """Cross-platform file lock using a lock file.
+
+    Prevents concurrent writes to chunks.jsonl which can cause corruption.
+    """
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    start = time.time()
+
+    while True:
+        try:
+            # Try to create lock file exclusively
+            fd = lock_path.open("x")
+            fd.write(str(time.time()))
+            fd.close()
+            break
+        except FileExistsError:
+            # Lock exists - check if it's stale (older than timeout)
+            try:
+                mtime = lock_path.stat().st_mtime
+                if time.time() - mtime > timeout:
+                    # Stale lock, remove it
+                    lock_path.unlink(missing_ok=True)
+                    continue
+            except FileNotFoundError:
+                # Lock was released, try again
+                continue
+
+            if time.time() - start > timeout:
+                raise TimeoutError(f"Could not acquire lock on {lock_path}")
+            time.sleep(0.1)
+
+    try:
+        yield
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 def ingest_single_file(
@@ -98,14 +138,21 @@ def remove_from_manifest(rel_path: str, root: Path | None = None, index_dir: Pat
 
 
 def append_chunks(chunks: list[Chunk], root: Path | None = None, index_dir: Path | None = None) -> None:
-    """Append chunks to chunks.jsonl."""
+    """Append chunks to chunks.jsonl with file locking to prevent corruption."""
     idx_dir = index_dir or get_index_dir(root)
     idx_dir.mkdir(parents=True, exist_ok=True)
     chunks_path = idx_dir / "chunks.jsonl"
+    lock_path = idx_dir / "chunks.jsonl.lock"
 
-    with chunks_path.open("a", encoding="utf-8") as handle:
-        for chunk in chunks:
-            handle.write(json.dumps(asdict(chunk), ensure_ascii=True) + "\n")
+    # Serialize all chunks first (outside the lock) to minimize lock time
+    lines = [json.dumps(asdict(chunk), ensure_ascii=True) + "\n" for chunk in chunks]
+    data = "".join(lines)
+
+    # Acquire lock and write atomically
+    with _file_lock(lock_path):
+        with chunks_path.open("a", encoding="utf-8") as handle:
+            handle.write(data)
+            handle.flush()
 
 
 def load_all_chunks(root: Path | None = None, index_dir: Path | None = None) -> list[tuple[str, str]]:
@@ -119,8 +166,12 @@ def load_all_chunks(root: Path | None = None, index_dir: Path | None = None) -> 
     chunks = []
     with chunks_path.open("r", encoding="utf-8") as handle:
         for line in handle:
-            item = json.loads(line)
-            chunks.append((item["chunk_id"], item["text"]))
+            try:
+                item = json.loads(line)
+                chunks.append((item["chunk_id"], item["text"]))
+            except json.JSONDecodeError:
+                # Skip corrupted lines
+                continue
     return chunks
 
 
@@ -197,25 +248,32 @@ def remove_file_from_index(rel_path: str, root: Path | None = None, index_dir: P
     """Remove all chunks for a file and rebuild indexes. Returns chunk count removed."""
     idx_dir = index_dir or get_index_dir(root)
     chunks_path = idx_dir / "chunks.jsonl"
+    lock_path = idx_dir / "chunks.jsonl.lock"
 
     # 1. Remove from manifest
     remove_from_manifest(rel_path, root, index_dir=idx_dir)
 
-    # 2. Filter chunks.jsonl
+    # 2. Filter chunks.jsonl (with lock to prevent concurrent access)
     removed = 0
     remaining_chunks: list[tuple[str, str]] = []
 
     if chunks_path.exists():
-        temp_path = idx_dir / "chunks.jsonl.tmp"
-        with chunks_path.open("r", encoding="utf-8") as src, temp_path.open("w", encoding="utf-8") as dst:
-            for line in src:
-                item = json.loads(line)
-                if item["path"] == rel_path:
-                    removed += 1
-                else:
-                    dst.write(line)
-                    remaining_chunks.append((item["chunk_id"], item["text"]))
-        temp_path.replace(chunks_path)
+        with _file_lock(lock_path):
+            temp_path = idx_dir / "chunks.jsonl.tmp"
+            with chunks_path.open("r", encoding="utf-8") as src, temp_path.open("w", encoding="utf-8") as dst:
+                for line in src:
+                    try:
+                        item = json.loads(line)
+                    except json.JSONDecodeError:
+                        # Skip corrupted lines
+                        continue
+                    if item["path"] == rel_path:
+                        removed += 1
+                    else:
+                        # Re-serialize to ensure clean output
+                        dst.write(json.dumps(item, ensure_ascii=True) + "\n")
+                        remaining_chunks.append((item["chunk_id"], item["text"]))
+            temp_path.replace(chunks_path)
 
     # 3. Rebuild BM25 (required - no incremental delete support)
     if remaining_chunks:

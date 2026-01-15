@@ -108,6 +108,21 @@ export interface DeleteResult {
   message: string
 }
 
+export interface BatchDeleteFileResult {
+  relPath: string
+  success: boolean
+  removedChunks?: number
+  error?: string
+}
+
+export interface BatchDeleteResult {
+  success: boolean
+  deletedCount: number
+  failedCount: number
+  totalChunksRemoved: number
+  results: BatchDeleteFileResult[]
+}
+
 // Project types
 export interface Project {
   id: string

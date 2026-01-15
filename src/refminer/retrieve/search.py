@@ -17,9 +17,15 @@ def load_chunks(index_dir: Path) -> dict[str, dict]:
     if not chunks_path.exists():
         return chunks
     with chunks_path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            item = json.loads(line)
-            chunks[item["chunk_id"]] = item
+        for line_num, line in enumerate(handle, 1):
+            try:
+                item = json.loads(line)
+                chunks[item["chunk_id"]] = item
+            except json.JSONDecodeError:
+                # Skip corrupted lines - log but don't crash
+                import logging
+                logging.warning(f"Skipping corrupted line {line_num} in chunks.jsonl")
+                continue
     return chunks
 
 

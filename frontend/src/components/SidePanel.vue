@@ -4,7 +4,7 @@ import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../type
 import FileUploader from "./FileUploader.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import AlertModal from "./AlertModal.vue"
-import { deleteFile, fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
+import { deleteFile, batchDeleteFiles, fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
@@ -14,6 +14,12 @@ const showDeleteFileModal = ref(false)
 const pendingDeleteFile = ref<ManifestEntry | null>(null)
 const showErrorModal = ref(false)
 const errorMessage = ref("")
+
+// Batch delete state
+const batchMode = ref(false)
+const batchSelected = ref<Set<string>>(new Set())
+const showBatchDeleteModal = ref(false)
+const isBatchDeleting = ref(false)
 const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
 const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
@@ -132,6 +138,73 @@ function closeErrorModal() {
   showErrorModal.value = false
   errorMessage.value = ""
 }
+
+// Batch delete functions
+function toggleBatchMode() {
+  batchMode.value = !batchMode.value
+  if (!batchMode.value) {
+    batchSelected.value = new Set()
+  }
+}
+
+function toggleBatchSelect(path: string) {
+  if (batchSelected.value.has(path)) {
+    batchSelected.value.delete(path)
+  } else {
+    batchSelected.value.add(path)
+  }
+  // Trigger reactivity
+  batchSelected.value = new Set(batchSelected.value)
+}
+
+function selectAllForBatch() {
+  if (batchSelected.value.size === manifest.value.length) {
+    batchSelected.value = new Set()
+  } else {
+    batchSelected.value = new Set(manifest.value.map(f => f.relPath))
+  }
+}
+
+function requestBatchDelete() {
+  if (batchSelected.value.size === 0) return
+  showBatchDeleteModal.value = true
+}
+
+function cancelBatchDelete() {
+  showBatchDeleteModal.value = false
+}
+
+async function confirmBatchDelete() {
+  if (batchSelected.value.size === 0) return
+
+  showBatchDeleteModal.value = false
+  isBatchDeleting.value = true
+
+  try {
+    const result = await batchDeleteFiles(projectId.value, Array.from(batchSelected.value))
+
+    if (result.failedCount > 0) {
+      const failedPaths = result.results.filter(r => !r.success).map(r => r.relPath)
+      errorMessage.value = `Failed to delete ${result.failedCount} file(s): ${failedPaths.join(", ")}`
+      showErrorModal.value = true
+    }
+
+    // Refresh data
+    const selected = await fetchProjectFiles(projectId.value)
+    selectedFiles.value = new Set(selected)
+    manifest.value = await fetchBankManifest()
+
+    // Exit batch mode and clear selection
+    batchMode.value = false
+    batchSelected.value = new Set()
+  } catch (e) {
+    console.error("Batch delete failed", e)
+    errorMessage.value = e instanceof Error ? e.message : "Unknown error"
+    showErrorModal.value = true
+  } finally {
+    isBatchDeleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -169,21 +242,59 @@ function closeErrorModal() {
       <FileUploader :project-id="projectId" @upload-complete="handleUploadComplete" />
 
       <!-- Files Section -->
-      <div class="section-header" v-if="manifest.length > 0">REFERENCE BANK ({{ manifest.length }})</div>
+      <div class="section-header-row" v-if="manifest.length > 0">
+        <div class="section-header">REFERENCE BANK ({{ manifest.length }})</div>
+        <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode" title="Toggle batch selection">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="8" height="8" x="3" y="3" rx="1" />
+            <rect width="8" height="8" x="13" y="3" rx="1" />
+            <rect width="8" height="8" x="3" y="13" rx="1" />
+            <rect width="8" height="8" x="13" y="13" rx="1" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Batch Action Bar -->
+      <div v-if="batchMode && manifest.length > 0" class="batch-action-bar">
+        <button class="batch-select-all" @click="selectAllForBatch">
+          {{ batchSelected.size === manifest.length ? 'Deselect All' : 'Select All' }}
+        </button>
+        <button class="batch-delete-btn" @click="requestBatchDelete" :disabled="batchSelected.size === 0 || isBatchDeleting">
+          <svg v-if="!isBatchDeleting" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+          Delete ({{ batchSelected.size }})
+        </button>
+      </div>
+
       <div v-if="manifest.length === 0" class="empty-msg">No files indexed yet. Upload files above.</div>
 
       <div v-for="file in manifest" :key="file.relPath" class="file-item"
-        :class="{ selected: selectedFiles.has(file.relPath), deleting: isDeleting === file.relPath, highlighted: highlightedPaths?.has(file.relPath) }">
-        <div @click.stop="toggleFile(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
+        :class="{ selected: selectedFiles.has(file.relPath), deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)), highlighted: highlightedPaths?.has(file.relPath), 'batch-selected': batchMode && batchSelected.has(file.relPath) }">
+
+        <!-- Batch mode checkbox -->
+        <div v-if="batchMode" @click.stop="toggleBatchSelect(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
+          <input type="checkbox" class="custom-checkbox batch-checkbox" :checked="batchSelected.has(file.relPath)" readonly />
+        </div>
+
+        <!-- Normal mode checkbox -->
+        <div v-else @click.stop="toggleFile(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
           <input type="checkbox" class="custom-checkbox" :checked="selectedFiles.has(file.relPath)" readonly />
         </div>
 
-        <div class="file-info" @click="handlePreview(file)">
+        <div class="file-info" @click="batchMode ? toggleBatchSelect(file.relPath) : handlePreview(file)">
           <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
           <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB</div>
         </div>
 
-        <div class="file-actions">
+        <div class="file-actions" v-if="!batchMode">
           <button class="icon-btn preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -265,6 +376,18 @@ function closeErrorModal() {
       />
     </Transition>
 
+    <!-- Batch Delete Confirmation Modal -->
+    <Transition name="modal">
+      <ConfirmationModal
+        v-if="showBatchDeleteModal"
+        title="Delete Multiple Files?"
+        :message="`Delete ${batchSelected.size} file(s)? This action cannot be undone.`"
+        confirm-text="Delete All"
+        @confirm="confirmBatchDelete"
+        @cancel="cancelBatchDelete"
+      />
+    </Transition>
+
     <!-- Error Modal -->
     <Transition name="modal">
       <AlertModal
@@ -286,13 +409,99 @@ function closeErrorModal() {
   text-align: center;
 }
 
-.section-header {
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 10px 6px 10px;
+}
+
+.section-header {
   font-size: 11px;
   font-weight: 700;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.batch-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.batch-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.batch-toggle-btn.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.batch-action-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.batch-select-all {
+  flex: 1;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batch-select-all:hover {
+  background: #f0f0f0;
+}
+
+.batch-delete-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #ff4d4f;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batch-delete-btn:hover:not(:disabled) {
+  background: #ff1f1f;
+}
+
+.batch-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-item.batch-selected {
+  background: #fff1f0;
+  border-color: #ffccc7;
+}
+
+.batch-checkbox:checked {
+  accent-color: #ff4d4f;
 }
 
 .file-item {

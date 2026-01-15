@@ -614,6 +614,50 @@ async def delete_file_api(project_id: str, rel_path: str):
     }
 
 
+class BatchDeleteRequest(BaseModel):
+    rel_paths: list[str]
+
+
+@app.post("/api/projects/{project_id}/files/batch-delete")
+async def batch_delete_files_api(project_id: str, req: BatchDeleteRequest):
+    """Delete multiple files from the bank and remove them from the index."""
+    ref_dir, idx_dir = _get_bank_paths()
+
+    results = []
+    total_chunks_removed = 0
+    deleted_count = 0
+    failed_count = 0
+
+    for rel_path in req.rel_paths:
+        file_path = ref_dir / rel_path
+        try:
+            if not file_path.exists():
+                results.append({"rel_path": rel_path, "success": False, "error": "File not found"})
+                failed_count += 1
+                continue
+
+            removed_chunks = remove_file_from_index(rel_path, index_dir=idx_dir, references_dir=ref_dir)
+            total_chunks_removed += removed_chunks
+
+            if file_path.exists():
+                file_path.unlink()
+
+            project_manager.remove_file_from_all_projects(rel_path)
+            results.append({"rel_path": rel_path, "success": True, "removed_chunks": removed_chunks})
+            deleted_count += 1
+        except Exception as e:
+            results.append({"rel_path": rel_path, "success": False, "error": str(e)})
+            failed_count += 1
+
+    return {
+        "success": failed_count == 0,
+        "deleted_count": deleted_count,
+        "failed_count": failed_count,
+        "total_chunks_removed": total_chunks_removed,
+        "results": results,
+    }
+
+
 @app.post("/api/bank/upload/stream")
 async def upload_bank_stream_api(
     file: UploadFile = File(...),

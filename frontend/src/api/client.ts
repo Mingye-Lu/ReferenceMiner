@@ -1,6 +1,7 @@
 import type {
   AnswerBlock,
   AskResponse,
+  BatchDeleteResult,
   DeleteResult,
   DuplicateCheck,
   EvidenceChunk,
@@ -373,6 +374,33 @@ export async function deleteFile(projectId: string, relPath: string): Promise<De
     success: data.success ?? false,
     removedChunks: data.removed_chunks ?? 0,
     message: data.message ?? "",
+  }
+}
+
+export async function batchDeleteFiles(projectId: string, relPaths: string[]): Promise<BatchDeleteResult> {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/files/batch-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rel_paths: relPaths }),
+  })
+
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(`Batch delete failed: ${detail}`)
+  }
+
+  const data = await response.json()
+  return {
+    success: data.success ?? false,
+    deletedCount: data.deleted_count ?? 0,
+    failedCount: data.failed_count ?? 0,
+    totalChunksRemoved: data.total_chunks_removed ?? 0,
+    results: (data.results ?? []).map((r: any) => ({
+      relPath: r.rel_path,
+      success: r.success,
+      removedChunks: r.removed_chunks,
+      error: r.error,
+    })),
   }
 }
 
