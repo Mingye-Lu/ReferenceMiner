@@ -142,18 +142,19 @@ function openSearch() {
 
 function handleSearchNavigate(item: any) {
   if (item.type === 'chat') {
-    switchChat(item.data.sessionId)
-    if (item.data.messageId) {
-      // Force update if same ID
-      highlightMessageId.value = null
-      nextTick(() => {
+    if (item.data.sessionId) {
+      switchChat(item.data.sessionId)
+      // Wait for chat to switch and DOM to render
+      setTimeout(() => {
         highlightMessageId.value = item.data.messageId
-      })
+      }, 100)
     }
   } else if (item.type === 'note') {
     openNoteLocation(item.data.chunkId)
   } else if (item.type === 'file') {
-    openPreview(item.data)
+    // File navigation: Just close search, file is already in the project
+    // User can find it in SidePanel corpus tab
+    // TODO: Add file highlighting in SidePanel for better UX
   }
 }
 

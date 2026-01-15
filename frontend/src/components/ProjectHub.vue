@@ -356,6 +356,7 @@ onMounted(loadProjects)
 <style scoped>
 .project-hub-container {
     min-height: 100vh;
+    height: 100vh;
     background: #f8f9fc;
     color: var(--text-primary);
     display: flex;
@@ -435,6 +436,7 @@ onMounted(loadProjects)
 .hub-content {
     padding: 60px;
     flex: 1;
+    overflow-y: auto;
 }
 
 .project-grid {
