@@ -4,7 +4,7 @@ import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../type
 import FileUploader from "./FileUploader.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import AlertModal from "./AlertModal.vue"
-import { deleteFile, fetchManifest } from "../api/client"
+import { deleteFile, fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
@@ -36,9 +36,18 @@ const emit = defineEmits<{
 
 const notesList = computed(() => Array.from(pinnedEvidenceMap.value.values()))
 
-function toggleFile(path: string) {
-  if (selectedFiles.value.has(path)) selectedFiles.value.delete(path)
-  else selectedFiles.value.add(path)
+async function toggleFile(path: string) {
+  try {
+    if (selectedFiles.value.has(path)) {
+      const updated = await removeProjectFiles(projectId.value, [path])
+      selectedFiles.value = new Set(updated)
+    } else {
+      const updated = await selectProjectFiles(projectId.value, [path])
+      selectedFiles.value = new Set(updated)
+    }
+  } catch (e) {
+    console.error("Failed to update selection", e)
+  }
 }
 
 function toggleNote(id: string) {
@@ -75,7 +84,9 @@ function formatTime(ts: number) {
 async function handleUploadComplete(_entry: ManifestEntry) {
   // Refresh the manifest to include the new file
   try {
-    manifest.value = await fetchManifest(projectId.value)
+    manifest.value = await fetchBankManifest()
+    const selected = await fetchProjectFiles(projectId.value)
+    selectedFiles.value = new Set(selected)
   } catch (e) {
     console.error("Failed to refresh manifest", e)
   }
@@ -103,9 +114,10 @@ async function confirmDeleteFile() {
   try {
     await deleteFile(projectId.value, file.relPath)
     // Remove from selection
-    selectedFiles.value.delete(file.relPath)
+    const selected = await fetchProjectFiles(projectId.value)
+    selectedFiles.value = new Set(selected)
     // Refresh manifest
-    manifest.value = await fetchManifest(projectId.value)
+    manifest.value = await fetchBankManifest()
   } catch (e) {
     console.error("Failed to delete file", e)
     errorMessage.value = e instanceof Error ? e.message : "Unknown error"
@@ -157,7 +169,7 @@ function closeErrorModal() {
       <FileUploader :project-id="projectId" @upload-complete="handleUploadComplete" />
 
       <!-- Files Section -->
-      <div class="section-header" v-if="manifest.length > 0">FILES ({{ manifest.length }})</div>
+      <div class="section-header" v-if="manifest.length > 0">REFERENCE BANK ({{ manifest.length }})</div>
       <div v-if="manifest.length === 0" class="empty-msg">No files indexed yet. Upload files above.</div>
 
       <div v-for="file in manifest" :key="file.relPath" class="file-item"

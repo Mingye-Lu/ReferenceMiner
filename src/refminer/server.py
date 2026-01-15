@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import json
 import time
-import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
 import shutil
-import tempfile
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,10 +16,10 @@ from pydantic import BaseModel
 
 from refminer.analyze.workflow import analyze, EvidenceChunk
 from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
-from refminer.ingest.manifest import SUPPORTED_EXTENSIONS
+from refminer.ingest.manifest import SUPPORTED_EXTENSIONS, load_manifest
 from refminer.ingest.pipeline import ingest_all
 from refminer.ingest.registry import check_duplicate, load_registry, save_registry
-from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_answer_text, stream_answer, DeepSeekClient, _load_config
+from refminer.llm.deepseek import blocks_to_markdown, generate_answer, stream_answer, DeepSeekClient, _load_config
 from refminer.retrieve.search import retrieve
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
@@ -45,8 +43,8 @@ app.add_middleware(
 )
 
 # Mount the references directory to serve files
-# Files will be at /files/{pid}/{rel_path}
-app.mount("/files", StaticFiles(directory="references"), name="files")
+# Files will be at /files/{rel_path}
+app.mount("/files", StaticFiles(directory=str(get_references_dir(BASE_DIR))), name="files")
 
 # --- Project Management Endpoints ---
 
@@ -88,46 +86,34 @@ class AskRequest(BaseModel):
     notes: Optional[list[dict]] = None
 
 
-def _get_project_root(project_id: str) -> Path:
-    # In the new model, root is not a single folder but we return a virtual reference
-    # and index dir. This function is kept for compatibility if needed.
-    return BASE_DIR
-
-def _get_project_paths(project_id: str) -> tuple[Path, Path]:
-    project = project_manager.get_project(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    pid = project.id 
-    ref_dir = BASE_DIR / "references" / pid
-    idx_dir = BASE_DIR / "index" / pid
-    
-    # Ensure they exist (user requirement: create if missing)
+def _get_bank_paths() -> tuple[Path, Path]:
+    ref_dir = get_references_dir(BASE_DIR)
+    idx_dir = get_index_dir(BASE_DIR)
     ref_dir.mkdir(parents=True, exist_ok=True)
     idx_dir.mkdir(parents=True, exist_ok=True)
-    
     return ref_dir, idx_dir
 
-def _manifest_path(project_id: str) -> Path:
-    _, index_dir = _get_project_paths(project_id)
+def _manifest_path() -> Path:
+    _, index_dir = _get_bank_paths()
     return index_dir / "manifest.json"
 
-def _chunks_path(project_id: str) -> Path:
-    _, index_dir = _get_project_paths(project_id)
+def _chunks_path() -> Path:
+    _, index_dir = _get_bank_paths()
     return index_dir / "chunks.jsonl"
 
-def _bm25_path(project_id: str) -> Path:
-    _, index_dir = _get_project_paths(project_id)
+def _bm25_path() -> Path:
+    _, index_dir = _get_bank_paths()
     return index_dir / "bm25.pkl"
 
-def _load_manifest(project_id: str) -> list:
+def _load_manifest() -> list:
     try:
-        _, idx_dir = _get_project_paths(project_id)
+        _, idx_dir = _get_bank_paths()
         return load_manifest(index_dir=idx_dir)
     except Exception:
         return []
 
-def _count_chunks(project_id: str) -> int:
-    path = _chunks_path(project_id)
+def _count_chunks() -> int:
+    path = _chunks_path()
     if not path.exists():
         return 0
     with path.open("r", encoding="utf-8") as handle:
@@ -148,12 +134,12 @@ def _format_timestamp(epoch: Optional[float]) -> Optional[str]:
     return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
 
 
-def _ensure_index(project_id: str) -> None:
-    manifest_exists = _manifest_path(project_id).exists()
-    bm25_exists = _bm25_path(project_id).exists()
+def _ensure_index() -> None:
+    manifest_exists = _manifest_path().exists()
+    bm25_exists = _bm25_path().exists()
     if manifest_exists and bm25_exists:
         return
-    ref_dir, idx_dir = _get_project_paths(project_id)
+    ref_dir, idx_dir = _get_bank_paths()
     ingest_all(references_dir=ref_dir, index_dir=idx_dir)
 
 
@@ -192,10 +178,8 @@ def _stream_rag(
     use_notes: bool = False,
     notes: Optional[list[dict]] = None,
 ) -> Iterator[str]:
-    ref_dir, index_dir = _get_project_paths(project_id)
-
     # Load manifest and ensure it exists
-    if not _bm25_path(project_id).exists():
+    if not _bm25_path().exists():
         yield _sse("error", {"code": "LACK_INGEST", "message": "Indexes not found. Run ingest first."})
         return
 
@@ -219,7 +203,7 @@ def _stream_rag(
             except Exception:
                 pass
     else:
-        ref_dir, idx_dir = _get_project_paths(project_id)
+        _, idx_dir = _get_bank_paths()
         evidence = retrieve(question, index_dir=idx_dir, k=8, filter_files=context)
 
     yield _sse("evidence", [asdict(e) for e in evidence])
@@ -228,21 +212,62 @@ def _stream_rag(
     analysis = analyze(question, evidence)
 
     yield _sse("step", {"step": "answer", "title": "Generating Answer", "timestamp": time.time()})
-    for delta in stream_answer(question, evidence, analysis.get("keywords", [])):
-        yield _sse("answer_delta", {"delta": delta})
+    stream_result = stream_answer(question, evidence, analysis.get("keywords", []))
+    if stream_result:
+        stream_iter, _citations = stream_result
+        for delta in stream_iter:
+            yield _sse("answer_delta", {"delta": delta})
+    else:
+        _, answer_markdown = _fallback_answer(analysis, evidence)
+        if answer_markdown:
+            yield _sse("answer_delta", {"delta": answer_markdown})
 
     yield _sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
 
 
 @app.get("/api/projects/{project_id}/manifest")
 async def get_manifest(project_id: str):
-    _ensure_index(project_id)
-    return _load_manifest(project_id)
+    _ensure_index()
+    entries = _load_manifest()
+    selected = set(project_manager.get_selected_files(project_id))
+    filtered = entries if not selected else [e for e in entries if e.rel_path in selected]
+    return [asdict(entry) for entry in filtered]
+
+
+@app.get("/api/bank/manifest")
+async def get_bank_manifest():
+    _ensure_index()
+    entries = _load_manifest()
+    return [asdict(entry) for entry in entries]
+
+
+@app.get("/api/projects/{project_id}/files")
+async def get_project_files(project_id: str):
+    return {"selected_files": project_manager.get_selected_files(project_id)}
+
+
+class FileSelectionRequest(BaseModel):
+    rel_paths: list[str]
+
+
+@app.post("/api/projects/{project_id}/files/select")
+async def select_project_files(project_id: str, req: FileSelectionRequest):
+    manifest = _load_manifest()
+    allowed = {entry.rel_path for entry in manifest}
+    rel_paths = [p for p in req.rel_paths if p in allowed]
+    selected = project_manager.add_selected_files(project_id, rel_paths)
+    return {"selected_files": selected}
+
+
+@app.post("/api/projects/{project_id}/files/remove")
+async def remove_project_files(project_id: str, req: FileSelectionRequest):
+    selected = project_manager.remove_selected_files(project_id, req.rel_paths)
+    return {"selected_files": selected}
 
 
 @app.get("/api/projects/{project_id}/status")
 async def get_status(project_id: str):
-    manifest = _load_manifest(project_id)
+    manifest = _load_manifest()
     # The original _ensure_index needs to be updated to be project-specific
     # manifest_exists = _manifest_path(project_id).exists()
     # bm25_exists = _bm25_path(project_id).exists()
@@ -251,7 +276,7 @@ async def get_status(project_id: str):
         "indexed": len(manifest) > 0,
         # "last_ingest": last_ingest, # Removed as per diff
         "total_files": len(manifest),
-        "total_chunks": _count_chunks(project_id),
+        "total_chunks": _count_chunks(),
     }
 
 
@@ -260,12 +285,10 @@ async def ask(project_id: str, req: AskRequest):
     # The original _ensure_index needs to be updated to be project-specific
     # if not _bm25_path(project_id).exists():
     #     _ensure_index(project_id)
-    if not _bm25_path(project_id).exists():
+    if not _bm25_path().exists():
         raise HTTPException(status_code=400, detail="Indexes not found. Run ingest first.")
 
     evidence: list[EvidenceChunk] = []
-    ref_dir, index_dir = _get_project_paths(project_id) # Get project-specific paths
-
     if req.use_notes and req.notes:
         for note in req.notes:
             try:
@@ -282,7 +305,7 @@ async def ask(project_id: str, req: AskRequest):
             except Exception:
                 pass
     else:
-        ref_dir, idx_dir = _get_project_paths(project_id)
+        _, idx_dir = _get_bank_paths()
         evidence = retrieve(req.question, index_dir=idx_dir, k=8, filter_files=req.context)
     analysis = analyze(req.question, evidence)
 
@@ -389,17 +412,18 @@ async def summarize(project_id: str, request: SummarizeRequest):
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
-def _get_temp_dir(project_id: str) -> Path: # Updated to take project_id
-    _, index_dir = _get_project_paths(project_id)
-    temp_dir = index_dir / "temp" # Use project-specific index_dir
+def _get_temp_dir() -> Path:
+    _, index_dir = _get_bank_paths()
+    temp_dir = index_dir / "temp"
     temp_dir.mkdir(parents=True, exist_ok=True)
     return temp_dir
 
 
 def _stream_upload(
-    project_id: str, # Added project_id
+    project_id: Optional[str],
     file: UploadFile,
     replace_existing: bool = False,
+    select_in_project: bool = True,
 ) -> Iterator[str]:
     """Stream file upload with SSE progress events."""
     # Check file extension
@@ -408,7 +432,7 @@ def _stream_upload(
         yield _sse("error", {"code": "UNSUPPORTED_TYPE", "message": f"Unsupported file type: {suffix}"})
         return
 
-    temp_dir = _get_temp_dir(project_id) # Use project-specific temp dir
+    temp_dir = _get_temp_dir()
     temp_path = temp_dir / f"upload_{int(time.time() * 1000)}{suffix}"
 
     try:
@@ -432,7 +456,7 @@ def _stream_upload(
         yield _sse("progress", {"phase": "checking_duplicate", "percent": 60})
 
         # Check for duplicates
-        references_dir, index_dir = _get_project_paths(project_id)
+        references_dir, index_dir = _get_bank_paths()
         registry = load_registry(index_dir=index_dir)
         existing_path = check_duplicate(file_hash, registry)
 
@@ -443,7 +467,7 @@ def _stream_upload(
         yield _sse("progress", {"phase": "storing", "percent": 70})
 
         # Determine final path
-        references_dir, index_dir = _get_project_paths(project_id)
+        references_dir, index_dir = _get_bank_paths()
         references_dir.mkdir(parents=True, exist_ok=True)
         final_name = file.filename or f"file{suffix}"
 
@@ -487,6 +511,9 @@ def _stream_upload(
             "size_bytes": entry.size_bytes,
         }
 
+        if select_in_project and project_id:
+            project_manager.add_selected_files(project_id, [entry.rel_path])
+
         yield _sse("complete", {
             "rel_path": entry.rel_path,
             "sha256": entry.sha256,
@@ -510,24 +537,32 @@ async def upload_file_stream_api(
 ):
     """Upload a file with SSE progress events."""
     return StreamingResponse(
-        _stream_upload(project_id, file, replace_existing), # Pass project_id
+        _stream_upload(project_id, file, replace_existing, True),
         media_type="text/event-stream",
     )
 
 
 @app.get("/api/projects/{project_id}/files/check-duplicate")
 async def check_duplicate_api(project_id: str, sha256: str):
-    ref_dir, idx_dir = _get_project_paths(project_id)
+    _, idx_dir = _get_bank_paths()
     registry = load_registry(index_dir=idx_dir)
     existing_path = check_duplicate(sha256, registry)
-    return {"is_duplicate": existing_path is not None, "existing_path": existing_path}
+    entry = None
+    if existing_path:
+        manifest = _load_manifest()
+        entry = next((e for e in manifest if e.rel_path == existing_path), None)
+    return {
+        "is_duplicate": existing_path is not None,
+        "existing_path": existing_path,
+        "existing_entry": asdict(entry) if entry else None,
+    }
 
 
 @app.delete("/api/projects/{project_id}/files/{rel_path:path}")
 async def delete_file_api(project_id: str, rel_path: str):
-    """Delete a file and remove it from the index."""
-    _, idx_dir = _get_project_paths(project_id)
-    ref_dir, _ = _get_project_paths(project_id)
+    """Delete a file from the bank and remove it from the index."""
+    _, idx_dir = _get_bank_paths()
+    ref_dir, _ = _get_bank_paths()
     file_path = ref_dir / rel_path
 
     if not file_path.exists():
@@ -541,8 +576,22 @@ async def delete_file_api(project_id: str, rel_path: str):
     if file_path.exists():
         file_path.unlink()
 
+    project_manager.remove_file_from_all_projects(rel_path)
+
     return {
         "success": True,
         "removed_chunks": removed_chunks,
         "message": f"Deleted {rel_path} and removed {removed_chunks} chunks from index",
     }
+
+
+@app.post("/api/bank/upload/stream")
+async def upload_bank_stream_api(
+    file: UploadFile = File(...),
+    replace_existing: bool = Form(False)
+):
+    """Upload a file to the global reference bank."""
+    return StreamingResponse(
+        _stream_upload(None, file, replace_existing, False),
+        media_type="text/event-stream",
+    )

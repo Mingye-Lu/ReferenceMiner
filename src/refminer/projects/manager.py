@@ -1,6 +1,4 @@
 import json
-import os
-import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -10,7 +8,6 @@ class ProjectManager:
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
         self.projects_file = self.base_dir / "projects.json"
-        self.projects_dir = self.base_dir / "projects"
         self.projects: Dict[str, Project] = {}
         self._ensure_paths()
         self._load_projects()
@@ -18,7 +15,7 @@ class ProjectManager:
     def _ensure_paths(self):
         # Base data folders
         (self.base_dir / "references").mkdir(exist_ok=True)
-        (self.base_dir / "index").mkdir(exist_ok=True)
+        (self.base_dir / ".index").mkdir(exist_ok=True)
 
         if not self.projects_file.exists():
             # Create a default project
@@ -26,14 +23,11 @@ class ProjectManager:
             default_project = Project(
                 id="default",
                 name="Default Project",
-                root_path="default", # In the new model, root_path is just the folder name inside references/ and index/
+                root_path="default",
                 created_at=now,
                 last_active=now,
                 description="Your initial research project."
             )
-            # Ensure folders exist
-            (self.base_dir / "references" / "default").mkdir(parents=True, exist_ok=True)
-            (self.base_dir / "index" / "default").mkdir(parents=True, exist_ok=True)
             
             self._save_projects_to_disk({"default": default_project.to_dict()})
 
@@ -48,9 +42,10 @@ class ProjectManager:
                         root_path=pdata.get("root_path", pid),
                         created_at=pdata["created_at"],
                         last_active=pdata["last_active"],
-                        file_count=pdata.get("file_count", 0),
+                        file_count=pdata.get("file_count", len(pdata.get("selected_files", []) or [])),
                         note_count=pdata.get("note_count", 0),
-                        description=pdata.get("description")
+                        description=pdata.get("description"),
+                        selected_files=pdata.get("selected_files", []) or [],
                     )
         except Exception as e:
             print(f"Error loading projects: {e}")
@@ -75,10 +70,6 @@ class ProjectManager:
             counter += 1
         
         root_path = pid
-        
-        # Create separate folders in references/ and index/
-        (self.base_dir / "references" / pid).mkdir(parents=True, exist_ok=True)
-        (self.base_dir / "index" / pid).mkdir(parents=True, exist_ok=True)
         
         now = datetime.now().timestamp()
         new_project = Project(
@@ -105,16 +96,53 @@ class ProjectManager:
 
     def delete_project(self, project_id: str):
         if project_id in self.projects:
-            project = self.projects[project_id]
-            pid = project.id # Or project.root_path
-            
-            ref_path = self.base_dir / "references" / pid
-            idx_path = self.base_dir / "index" / pid
-            
-            if ref_path.exists():
-                shutil.rmtree(ref_path)
-            if idx_path.exists():
-                shutil.rmtree(idx_path)
-                
             del self.projects[project_id]
+            self._save_all()
+
+    def get_selected_files(self, project_id: str) -> list[str]:
+        project = self.projects.get(project_id)
+        if not project:
+            return []
+        return list(project.selected_files)
+
+    def set_selected_files(self, project_id: str, rel_paths: list[str]) -> list[str]:
+        project = self.projects.get(project_id)
+        if not project:
+            return []
+        unique = list(dict.fromkeys(rel_paths))
+        project.selected_files = unique
+        project.file_count = len(unique)
+        self._save_all()
+        return unique
+
+    def add_selected_files(self, project_id: str, rel_paths: list[str]) -> list[str]:
+        project = self.projects.get(project_id)
+        if not project:
+            return []
+        current = set(project.selected_files)
+        for rel_path in rel_paths:
+            current.add(rel_path)
+        project.selected_files = sorted(current)
+        project.file_count = len(project.selected_files)
+        self._save_all()
+        return list(project.selected_files)
+
+    def remove_selected_files(self, project_id: str, rel_paths: list[str]) -> list[str]:
+        project = self.projects.get(project_id)
+        if not project:
+            return []
+        remove_set = set(rel_paths)
+        project.selected_files = [p for p in project.selected_files if p not in remove_set]
+        project.file_count = len(project.selected_files)
+        self._save_all()
+        return list(project.selected_files)
+
+    def remove_file_from_all_projects(self, rel_path: str) -> None:
+        changed = False
+        for project in self.projects.values():
+            if rel_path in project.selected_files:
+                project.selected_files = [p for p in project.selected_files if p != rel_path]
+                project.file_count = len(project.selected_files)
+                changed = True
+        if changed:
             self._save_all()

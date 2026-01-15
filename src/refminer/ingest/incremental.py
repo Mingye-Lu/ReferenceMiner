@@ -237,9 +237,9 @@ def remove_file_from_index(rel_path: str, root: Path | None = None, index_dir: P
             meta_path.unlink()
 
     # 5. Update hash registry
-    registry = load_registry(root, references_dir=references_dir)
+    registry = load_registry(root, index_dir=idx_dir, references_dir=references_dir)
     unregister_file(rel_path, registry)
-    save_registry(registry, root, references_dir=references_dir)
+    save_registry(registry, root, index_dir=idx_dir, references_dir=references_dir)
 
     return removed
 
@@ -271,8 +271,8 @@ def full_ingest_single_file(
         add_vectors_incremental(chunk_data, root, index_dir=index_dir)
 
     # 6. Update registry
-    registry = load_registry(root, references_dir=references_dir)
+    registry = load_registry(root, index_dir=index_dir, references_dir=references_dir)
     register_file(entry.rel_path, entry.sha256, registry)
-    save_registry(registry, root, references_dir=references_dir)
+    save_registry(registry, root, index_dir=index_dir, references_dir=references_dir)
 
     return entry

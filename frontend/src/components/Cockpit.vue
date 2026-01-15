@@ -5,7 +5,7 @@ import ChatWindow from "./ChatWindow.vue"
 import RightDrawer from "./RightDrawer.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
-import { fetchManifest, streamSummarize, activateProject, fetchProjects } from "../api/client"
+import { fetchBankManifest, fetchProjectFiles, streamSummarize, activateProject, fetchProjects } from "../api/client"
 import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project } from "../types"
 import { useRouter } from "vue-router"
 import { Home, Settings, Search } from "lucide-vue-next"
@@ -217,7 +217,9 @@ onMounted(async () => {
   try {
     const list = await fetchProjects()
     project.value = list.find(p => p.id === pid) || null
-    manifest.value = await fetchManifest(pid)
+    manifest.value = await fetchBankManifest()
+    const selected = await fetchProjectFiles(pid)
+    selectedFiles.value = new Set(selected)
   } catch (e) { console.error(e) }
 })
 

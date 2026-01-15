@@ -7,6 +7,7 @@ export interface ManifestEntry {
   abstract?: string | null
   pageCount?: number | null
   sizeBytes?: number
+  sha256?: string
 }
 
 export interface EvidenceChunk {
@@ -118,6 +119,7 @@ export interface Project {
   noteCount: number
   description?: string
   icon?: string
+  selectedFiles?: string[]
 }
 
 export interface ProjectCreate {

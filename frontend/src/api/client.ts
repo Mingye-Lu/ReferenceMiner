@@ -32,6 +32,7 @@ function mapManifestEntry(item: any): ManifestEntry {
     abstract: item.abstract ?? null,
     pageCount: item.page_count ?? item.pageCount ?? null,
     sizeBytes: item.size_bytes ?? item.sizeBytes,
+    sha256: item.sha256 ?? undefined,
   }
 }
 
@@ -57,6 +58,34 @@ function mapAnswerBlock(item: any): AnswerBlock {
 export async function fetchManifest(projectId: string): Promise<ManifestEntry[]> {
   const data = await fetchJson<any[]>(`/api/projects/${projectId}/manifest`)
   return data.map(mapManifestEntry)
+}
+
+export async function fetchBankManifest(): Promise<ManifestEntry[]> {
+  const data = await fetchJson<any[]>(`/api/bank/manifest`)
+  return data.map(mapManifestEntry)
+}
+
+export async function fetchProjectFiles(projectId: string): Promise<string[]> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/files`)
+  return data.selected_files ?? []
+}
+
+export async function selectProjectFiles(projectId: string, relPaths: string[]): Promise<string[]> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/files/select`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rel_paths: relPaths }),
+  })
+  return data.selected_files ?? []
+}
+
+export async function removeProjectFiles(projectId: string, relPaths: string[]): Promise<string[]> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/files/remove`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rel_paths: relPaths }),
+  })
+  return data.selected_files ?? []
 }
 
 export async function fetchIndexStatus(projectId: string): Promise<IndexStatus> {
@@ -354,8 +383,8 @@ export async function checkDuplicate(projectId: string, sha256: string): Promise
   }
 }
 
-export function getFileUrl(projectId: string, relPath: string): string {
-  return `${API_BASE}/files/${projectId}/${encodeURIComponent(relPath)}`
+export function getFileUrl(_projectId: string, relPath: string): string {
+  return `${API_BASE}/files/${encodeURIComponent(relPath)}`
 }
 
 // =============================================================================
@@ -372,7 +401,8 @@ function mapProject(item: any): Project {
     fileCount: item.file_count ?? item.fileCount ?? 0,
     noteCount: item.note_count ?? item.noteCount ?? 0,
     description: item.description,
-    icon: item.icon
+    icon: item.icon,
+    selectedFiles: item.selected_files ?? item.selectedFiles ?? []
   }
 }
 
