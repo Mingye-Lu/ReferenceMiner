@@ -23,11 +23,12 @@ from refminer.utils.paths import get_index_dir, get_references_dir
 def ingest_single_file(
     file_path: Path,
     root: Path | None = None,
+    references_dir: Path | None = None,
     build_vectors: bool = True,
 ) -> tuple[ManifestEntry, list[Chunk]]:
     """Process a single file: extract text, chunk, and return manifest entry + chunks."""
-    references_dir = get_references_dir(root)
-    rel_path = str(file_path.relative_to(references_dir))
+    ref_dir = references_dir or get_references_dir(root)
+    rel_path = str(file_path.relative_to(ref_dir))
     file_type = detect_type(file_path)
 
     if not file_type:
@@ -62,55 +63,55 @@ def ingest_single_file(
     return entry, chunks
 
 
-def append_to_manifest(entry: ManifestEntry, root: Path | None = None) -> None:
+def append_to_manifest(entry: ManifestEntry, root: Path | None = None, index_dir: Path | None = None) -> None:
     """Add a manifest entry to the existing manifest."""
-    index_dir = get_index_dir(root)
-    manifest_path = index_dir / "manifest.json"
-
+    idx_dir = index_dir or get_index_dir(root)
+    manifest_path = idx_dir / "manifest.json"
+    
     if manifest_path.exists():
-        manifest = load_manifest(root)
+        manifest = load_manifest(root, index_dir=idx_dir)
         # Remove any existing entry with same rel_path (for updates)
         manifest = [e for e in manifest if e.rel_path != entry.rel_path]
     else:
         manifest = []
 
     manifest.append(entry)
-    write_manifest(manifest, root)
+    write_manifest(manifest, root, index_dir=idx_dir)
 
 
-def remove_from_manifest(rel_path: str, root: Path | None = None) -> bool:
+def remove_from_manifest(rel_path: str, root: Path | None = None, index_dir: Path | None = None) -> bool:
     """Remove a manifest entry by rel_path. Returns True if found and removed."""
-    index_dir = get_index_dir(root)
-    manifest_path = index_dir / "manifest.json"
+    idx_dir = index_dir or get_index_dir(root)
+    manifest_path = idx_dir / "manifest.json"
 
     if not manifest_path.exists():
         return False
 
-    manifest = load_manifest(root)
+    manifest = load_manifest(root, index_dir=idx_dir)
     original_len = len(manifest)
     manifest = [e for e in manifest if e.rel_path != rel_path]
 
     if len(manifest) < original_len:
-        write_manifest(manifest, root)
+        write_manifest(manifest, root, index_dir=idx_dir)
         return True
     return False
 
 
-def append_chunks(chunks: list[Chunk], root: Path | None = None) -> None:
+def append_chunks(chunks: list[Chunk], root: Path | None = None, index_dir: Path | None = None) -> None:
     """Append chunks to chunks.jsonl."""
-    index_dir = get_index_dir(root)
-    index_dir.mkdir(parents=True, exist_ok=True)
-    chunks_path = index_dir / "chunks.jsonl"
+    idx_dir = index_dir or get_index_dir(root)
+    idx_dir.mkdir(parents=True, exist_ok=True)
+    chunks_path = idx_dir / "chunks.jsonl"
 
     with chunks_path.open("a", encoding="utf-8") as handle:
         for chunk in chunks:
             handle.write(json.dumps(asdict(chunk), ensure_ascii=True) + "\n")
 
 
-def load_all_chunks(root: Path | None = None) -> list[tuple[str, str]]:
+def load_all_chunks(root: Path | None = None, index_dir: Path | None = None) -> list[tuple[str, str]]:
     """Load all chunks from chunks.jsonl as (chunk_id, text) tuples."""
-    index_dir = get_index_dir(root)
-    chunks_path = index_dir / "chunks.jsonl"
+    idx_dir = index_dir or get_index_dir(root)
+    chunks_path = idx_dir / "chunks.jsonl"
 
     if not chunks_path.exists():
         return []
@@ -123,20 +124,22 @@ def load_all_chunks(root: Path | None = None) -> list[tuple[str, str]]:
     return chunks
 
 
-def rebuild_bm25_from_chunks(root: Path | None = None) -> Optional[BM25Index]:
+def rebuild_bm25_from_chunks(root: Path | None = None, index_dir: Path | None = None) -> Optional[BM25Index]:
     """Rebuild BM25 index from existing chunks.jsonl."""
-    chunks = load_all_chunks(root)
+    idx_dir = index_dir or get_index_dir(root)
+    chunks = load_all_chunks(root, index_dir=idx_dir)
     if not chunks:
         return None
 
     bm25_index = build_bm25(chunks)
-    save_bm25(bm25_index, get_index_dir(root) / "bm25.pkl")
+    save_bm25(bm25_index, idx_dir / "bm25.pkl")
     return bm25_index
 
 
 def add_vectors_incremental(
     new_chunks: list[tuple[str, str]],
     root: Path | None = None,
+    index_dir: Path | None = None,
 ) -> bool:
     """Add new vectors to existing FAISS index incrementally."""
     if not new_chunks:
@@ -147,8 +150,8 @@ def add_vectors_incremental(
     except RuntimeError:
         return False
 
-    index_dir = get_index_dir(root)
-    vectors_path = index_dir / "vectors.faiss"
+    idx_dir = index_dir or get_index_dir(root)
+    vectors_path = idx_dir / "vectors.faiss"
 
     try:
         faiss, SentenceTransformer = _load_dependencies()
@@ -190,20 +193,20 @@ def add_vectors_incremental(
     return True
 
 
-def remove_file_from_index(rel_path: str, root: Path | None = None) -> int:
+def remove_file_from_index(rel_path: str, root: Path | None = None, index_dir: Path | None = None, references_dir: Path | None = None) -> int:
     """Remove all chunks for a file and rebuild indexes. Returns chunk count removed."""
-    index_dir = get_index_dir(root)
-    chunks_path = index_dir / "chunks.jsonl"
+    idx_dir = index_dir or get_index_dir(root)
+    chunks_path = idx_dir / "chunks.jsonl"
 
     # 1. Remove from manifest
-    remove_from_manifest(rel_path, root)
+    remove_from_manifest(rel_path, root, index_dir=idx_dir)
 
     # 2. Filter chunks.jsonl
     removed = 0
     remaining_chunks: list[tuple[str, str]] = []
 
     if chunks_path.exists():
-        temp_path = index_dir / "chunks.jsonl.tmp"
+        temp_path = idx_dir / "chunks.jsonl.tmp"
         with chunks_path.open("r", encoding="utf-8") as src, temp_path.open("w", encoding="utf-8") as dst:
             for line in src:
                 item = json.loads(line)
@@ -217,16 +220,16 @@ def remove_file_from_index(rel_path: str, root: Path | None = None) -> int:
     # 3. Rebuild BM25 (required - no incremental delete support)
     if remaining_chunks:
         bm25_index = build_bm25(remaining_chunks)
-        save_bm25(bm25_index, index_dir / "bm25.pkl")
+        save_bm25(bm25_index, idx_dir / "bm25.pkl")
     else:
         # Remove empty index
-        bm25_path = index_dir / "bm25.pkl"
+        bm25_path = idx_dir / "bm25.pkl"
         if bm25_path.exists():
             bm25_path.unlink()
 
     # 4. Remove FAISS index (rebuilding is too expensive; BM25 will handle search)
     #    User can rebuild vectors later with `python referenceminer.py ingest` if needed
-    vectors_path = index_dir / "vectors.faiss"
+    vectors_path = idx_dir / "vectors.faiss"
     if vectors_path.exists():
         vectors_path.unlink()
         meta_path = vectors_path.with_suffix(".meta.npz")
@@ -234,9 +237,9 @@ def remove_file_from_index(rel_path: str, root: Path | None = None) -> int:
             meta_path.unlink()
 
     # 5. Update hash registry
-    registry = load_registry(root)
+    registry = load_registry(root, references_dir=references_dir)
     unregister_file(rel_path, registry)
-    save_registry(registry, root)
+    save_registry(registry, root, references_dir=references_dir)
 
     return removed
 
@@ -244,30 +247,32 @@ def remove_file_from_index(rel_path: str, root: Path | None = None) -> int:
 def full_ingest_single_file(
     file_path: Path,
     root: Path | None = None,
+    references_dir: Path | None = None,
+    index_dir: Path | None = None,
     build_vectors: bool = True,
 ) -> ManifestEntry:
     """Complete single-file ingest: process, update all indexes, update registry."""
     # 1. Process the file
-    entry, chunks = ingest_single_file(file_path, root)
+    entry, chunks = ingest_single_file(file_path, root, references_dir=references_dir)
 
     # 2. Update manifest
-    append_to_manifest(entry, root)
+    append_to_manifest(entry, root, index_dir=index_dir)
 
     # 3. Append chunks
     if chunks:
-        append_chunks(chunks, root)
+        append_chunks(chunks, root, index_dir=index_dir)
 
     # 4. Rebuild BM25 (required - no incremental support)
-    rebuild_bm25_from_chunks(root)
+    rebuild_bm25_from_chunks(root, index_dir=index_dir)
 
     # 5. Add vectors incrementally
     if build_vectors and chunks:
         chunk_data = [(c.chunk_id, c.text) for c in chunks]
-        add_vectors_incremental(chunk_data, root)
+        add_vectors_incremental(chunk_data, root, index_dir=index_dir)
 
     # 6. Update registry
-    registry = load_registry(root)
+    registry = load_registry(root, references_dir=references_dir)
     register_file(entry.rel_path, entry.sha256, registry)
-    save_registry(registry, root)
+    save_registry(registry, root, references_dir=references_dir)
 
     return entry

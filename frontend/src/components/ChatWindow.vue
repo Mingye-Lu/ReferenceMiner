@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, inject, type Ref } from "vue"
+import { ref, nextTick, watch, inject, type Ref, computed } from "vue"
 import MessageItem from "./MessageItem.vue"
 import { streamAsk } from "../api/client"
-import type { ChatMessage, EvidenceChunk } from "../types"
+import type { ChatMessage, EvidenceChunk, Project } from "../types"
 
 const props = defineProps<{ history: ChatMessage[] }>()
 defineEmits<{ (event: 'update:history', val: ChatMessage[]): void }>()
@@ -16,7 +16,8 @@ const userScrolledUp = ref(false)
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
 const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
 const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
-const toggleDrawer = inject<(open?: boolean) => void>("toggleDrawer")!
+const currentProject = inject<Ref<Project | null>>("currentProject")!
+const projectId = computed(() => currentProject.value?.id || "default")
 
 const isNoteMode = ref(false)
 function toggleNoteMode() {
@@ -80,27 +81,33 @@ async function sendMessage() {
       }
     }
 
-    await streamAsk(question, (event, payload) => {
-      // ... (keep event handling)
+    await streamAsk(projectId.value, question, (event, payload) => {
       const currentAiMsg = props.history.find(m => m.id === aiMsgId)
       if (!currentAiMsg) return
 
-      if (event === "status" || event === "analysis") {
-        currentAiMsg.timeline?.push({ phase: payload.phase || event, message: payload.message || "Processing...", startTime: Date.now() })
+      if (event === "step") {
+        currentAiMsg.timeline?.push({
+          phase: payload.step,
+          message: payload.title,
+          startTime: payload.timestamp * 1000
+        })
         if (payload.keywords) currentAiMsg.keywords = payload.keywords
       }
       if (event === "evidence") {
         currentAiMsg.sources = (payload || []).map((item: any) => ({
-          chunkId: item.chunk_id ?? item.chunkId, path: item.path ?? item.rel_path,
-          page: item.page, section: item.section, text: item.text, score: item.score
+          chunkId: item.chunk_id ?? item.chunkId,
+          path: item.path ?? item.rel_path,
+          page: item.page,
+          section: item.section,
+          text: item.text,
+          score: item.score
         }))
       }
-      if (event === "llm_delta") {
+      if (event === "answer_delta") {
         currentAiMsg.content += (payload.delta || "")
         scrollToBottom()
       }
-      if (event === "answer_done") {
-        currentAiMsg.content = payload.markdown || currentAiMsg.content
+      if (event === "answer_done" || event === "done") {
         currentAiMsg.isStreaming = false
       }
     }, context, isNoteMode.value, notes)
@@ -115,17 +122,7 @@ async function sendMessage() {
 </script>
 
 <template>
-  <header class="workspace-header">
-    <div style="font-weight: 600; font-size: 14px;">Study: Default Project</div>
-
-    <button class="header-icon-btn" @click="toggleDrawer()" title="Toggle Right Panel">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-        <line x1="15" x2="15" y1="3" y2="21" />
-      </svg>
-    </button>
-  </header>
+  <!-- Workspace Header removed, using Top Nav in Cockpit.vue -->
 
   <div class="chat-scroll-area" ref="scrollContainer" @scroll="handleScroll">
     <div v-if="history.length === 0" class="empty-welcome">

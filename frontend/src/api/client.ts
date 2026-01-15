@@ -8,6 +8,9 @@ import type {
   ManifestEntry,
   UploadProgress,
   UploadResult,
+  Project,
+  ProjectCreate,
+  ChatMessage
 } from "../types"
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000"
@@ -51,13 +54,13 @@ function mapAnswerBlock(item: any): AnswerBlock {
   }
 }
 
-export async function fetchManifest(): Promise<ManifestEntry[]> {
-  const data = await fetchJson<any[]>("/manifest")
+export async function fetchManifest(projectId: string): Promise<ManifestEntry[]> {
+  const data = await fetchJson<any[]>(`/api/projects/${projectId}/manifest`)
   return data.map(mapManifestEntry)
 }
 
-export async function fetchIndexStatus(): Promise<IndexStatus> {
-  const data = await fetchJson<any>("/status")
+export async function fetchIndexStatus(projectId: string): Promise<IndexStatus> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/status`)
   return {
     indexed: data.indexed ?? false,
     lastIngest: data.last_ingest ?? data.lastIngest ?? null,
@@ -66,8 +69,8 @@ export async function fetchIndexStatus(): Promise<IndexStatus> {
   }
 }
 
-export async function askQuestion(question: string): Promise<AskResponse> {
-  const data = await fetchJson<any>("/ask", {
+export async function askQuestion(projectId: string, question: string): Promise<AskResponse> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question }),
@@ -85,6 +88,7 @@ export async function askQuestion(question: string): Promise<AskResponse> {
 export type StreamEventHandler = (event: string, payload: any) => void
 
 export async function streamAsk(
+  projectId: string,
   question: string,
   onEvent: StreamEventHandler,
   context?: string[],
@@ -98,7 +102,7 @@ export async function streamAsk(
     notes: notes && notes.length > 0 ? notes : undefined
   }
 
-  const response = await fetch(`${API_BASE}/ask/stream`, {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/ask/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -145,11 +149,12 @@ export async function streamAsk(
   }
 }
 export async function streamSummarize(
-  messages: any[],
+  projectId: string,
+  messages: ChatMessage[],
   onDelta: (delta: string) => void,
   onDone: (title: string) => void
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/summarize`, {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/summarize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
@@ -213,6 +218,7 @@ export type UploadEventHandler = {
 }
 
 export async function uploadFileStream(
+  projectId: string,
   file: File,
   handlers: UploadEventHandler,
   replaceExisting: boolean = false
@@ -223,7 +229,7 @@ export async function uploadFileStream(
 
   console.log("[upload] Starting upload for:", file.name)
 
-  const response = await fetch(`${API_BASE}/upload/stream`, {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/upload/stream`, {
     method: "POST",
     body: formData,
   })
@@ -321,8 +327,8 @@ export async function uploadFileStream(
   return result
 }
 
-export async function deleteFile(relPath: string): Promise<DeleteResult> {
-  const response = await fetch(`${API_BASE}/reference/${encodeURIComponent(relPath)}`, {
+export async function deleteFile(projectId: string, relPath: string): Promise<DeleteResult> {
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/files/${encodeURIComponent(relPath)}`, {
     method: "DELETE",
   })
 
@@ -339,11 +345,55 @@ export async function deleteFile(relPath: string): Promise<DeleteResult> {
   }
 }
 
-export async function checkDuplicate(sha256: string): Promise<DuplicateCheck> {
-  const data = await fetchJson<any>(`/files/check-duplicate?sha256=${sha256}`)
+export async function checkDuplicate(projectId: string, sha256: string): Promise<DuplicateCheck> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/files/check-duplicate?sha256=${sha256}`)
   return {
     isDuplicate: data.is_duplicate ?? false,
     existingPath: data.existing_path ?? null,
     existingEntry: data.existing_entry ? mapManifestEntry(data.existing_entry) : null,
   }
+}
+
+export function getFileUrl(projectId: string, relPath: string): string {
+  return `${API_BASE}/files/${projectId}/${encodeURIComponent(relPath)}`
+}
+
+// =============================================================================
+// Project API
+// =============================================================================
+
+function mapProject(item: any): Project {
+  return {
+    id: item.id,
+    name: item.name,
+    rootPath: item.root_path ?? item.rootPath,
+    createdAt: item.created_at ?? item.createdAt,
+    lastActive: item.last_active ?? item.lastActive,
+    fileCount: item.file_count ?? item.fileCount ?? 0,
+    noteCount: item.note_count ?? item.noteCount ?? 0,
+    description: item.description,
+    icon: item.icon
+  }
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+  const data = await fetchJson<any[]>("/api/projects")
+  return data.map(mapProject)
+}
+
+export async function createProject(req: ProjectCreate): Promise<Project> {
+  const data = await fetchJson<any>("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  })
+  return mapProject(data)
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await fetchJson(`/api/projects/${projectId}`, { method: "DELETE" })
+}
+
+export async function activateProject(projectId: string): Promise<void> {
+  await fetchJson(`/api/projects/${projectId}/activate`, { method: "POST" })
 }

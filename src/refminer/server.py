@@ -25,6 +25,11 @@ from refminer.llm.deepseek import blocks_to_markdown, generate_answer, parse_ans
 from refminer.retrieve.search import retrieve
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
+from refminer.projects.manager import ProjectManager
+
+# Root directory of the repository
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+project_manager = ProjectManager(str(BASE_DIR))
 
 
 from fastapi.staticfiles import StaticFiles
@@ -40,8 +45,40 @@ app.add_middleware(
 )
 
 # Mount the references directory to serve files
-# WARNING: In production this should be restricted. For local tool it is fine.
+# Files will be at /files/{pid}/{rel_path}
 app.mount("/files", StaticFiles(directory="references"), name="files")
+
+# --- Project Management Endpoints ---
+
+@app.get("/api/projects")
+async def get_projects():
+    return [p.to_dict() for p in project_manager.get_projects()]
+
+class ProjectCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+@app.post("/api/projects")
+async def create_project(req: ProjectCreate):
+    project = project_manager.create_project(req.name, req.description)
+    return project.to_dict()
+
+@app.get("/api/projects/{project_id}")
+async def get_project(project_id: str):
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project.to_dict()
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str):
+    project_manager.delete_project(project_id)
+    return {"success": True}
+
+@app.post("/api/projects/{project_id}/activate")
+async def activate_project(project_id: str):
+    project_manager.update_activity(project_id)
+    return {"success": True}
 
 
 class AskRequest(BaseModel):
@@ -51,27 +88,46 @@ class AskRequest(BaseModel):
     notes: Optional[list[dict]] = None
 
 
-def _manifest_path(root: Optional[Path] = None) -> Path:
-    return get_index_dir(root) / "manifest.json"
+def _get_project_root(project_id: str) -> Path:
+    # In the new model, root is not a single folder but we return a virtual reference
+    # and index dir. This function is kept for compatibility if needed.
+    return BASE_DIR
 
+def _get_project_paths(project_id: str) -> tuple[Path, Path]:
+    project = project_manager.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    pid = project.id 
+    ref_dir = BASE_DIR / "references" / pid
+    idx_dir = BASE_DIR / "index" / pid
+    
+    # Ensure they exist (user requirement: create if missing)
+    ref_dir.mkdir(parents=True, exist_ok=True)
+    idx_dir.mkdir(parents=True, exist_ok=True)
+    
+    return ref_dir, idx_dir
 
-def _chunks_path(root: Optional[Path] = None) -> Path:
-    return get_index_dir(root) / "chunks.jsonl"
+def _manifest_path(project_id: str) -> Path:
+    _, index_dir = _get_project_paths(project_id)
+    return index_dir / "manifest.json"
 
+def _chunks_path(project_id: str) -> Path:
+    _, index_dir = _get_project_paths(project_id)
+    return index_dir / "chunks.jsonl"
 
-def _bm25_path(root: Optional[Path] = None) -> Path:
-    return get_index_dir(root) / "bm25.pkl"
+def _bm25_path(project_id: str) -> Path:
+    _, index_dir = _get_project_paths(project_id)
+    return index_dir / "bm25.pkl"
 
+def _load_manifest(project_id: str) -> list:
+    try:
+        _, idx_dir = _get_project_paths(project_id)
+        return load_manifest(index_dir=idx_dir)
+    except Exception:
+        return []
 
-def _load_manifest(root: Optional[Path] = None) -> list[dict[str, Any]]:
-    path = _manifest_path(root)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Manifest not found. Run ingest first.")
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _count_chunks(root: Optional[Path] = None) -> int:
-    path = _chunks_path(root)
+def _count_chunks(project_id: str) -> int:
+    path = _chunks_path(project_id)
     if not path.exists():
         return 0
     with path.open("r", encoding="utf-8") as handle:
@@ -92,12 +148,13 @@ def _format_timestamp(epoch: Optional[float]) -> Optional[str]:
     return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
 
 
-def _ensure_index() -> None:
-    manifest_exists = _manifest_path().exists()
-    bm25_exists = _bm25_path().exists()
+def _ensure_index(project_id: str) -> None:
+    manifest_exists = _manifest_path(project_id).exists()
+    bm25_exists = _bm25_path(project_id).exists()
     if manifest_exists and bm25_exists:
         return
-    ingest_all(build_vectors_index=True)
+    ref_dir, idx_dir = _get_project_paths(project_id)
+    ingest_all(references_dir=ref_dir, index_dir=idx_dir)
 
 
 def _fallback_answer(analysis: dict, evidence: list) -> tuple[list[dict[str, Any]], str]:
@@ -129,24 +186,25 @@ def _sse(event: str, payload: Any) -> str:
 
 
 def _stream_rag(
+    project_id: str,
     question: str,
     context: Optional[list[str]] = None,
     use_notes: bool = False,
     notes: Optional[list[dict]] = None,
 ) -> Iterator[str]:
-    yield _sse("status", {"phase": "ingest", "message": "Checking index"})
-    _ensure_index()
+    ref_dir, index_dir = _get_project_paths(project_id)
 
-    if not _bm25_path().exists():
-        yield _sse("error", {"message": "Indexes not found. Run ingest first."})
+    # Load manifest and ensure it exists
+    if not _bm25_path(project_id).exists():
+        yield _sse("error", {"code": "LACK_INGEST", "message": "Indexes not found. Run ingest first."})
         return
 
     evidence: list[EvidenceChunk] = []
 
+    yield _sse("step", {"step": "research", "title": "Searching References", "timestamp": time.time()})
+
     if use_notes and notes:
-        yield _sse("status", {"phase": "retrieve", "message": "Using pinned notes"})
         for note in notes:
-            # Reconstruct EvidenceChunk from dictionary
             try:
                 evidence.append(
                     EvidenceChunk(
@@ -161,76 +219,55 @@ def _stream_rag(
             except Exception:
                 pass
     else:
-        yield _sse("status", {"phase": "retrieve", "message": "Retrieving evidence"})
-        evidence = retrieve(question, k=8, filter_files=context)
+        ref_dir, idx_dir = _get_project_paths(project_id)
+        evidence = retrieve(question, index_dir=idx_dir, k=8, filter_files=context)
 
+    yield _sse("evidence", [asdict(e) for e in evidence])
+
+    yield _sse("step", {"step": "analyze", "title": "Analyzing Evidence", "timestamp": time.time()})
     analysis = analyze(question, evidence)
 
-    yield _sse(
-        "analysis",
-        {
-            "scope": analysis.get("scope", []),
-            "keywords": analysis.get("keywords", []),
-        },
-    )
+    yield _sse("step", {"step": "answer", "title": "Generating Answer", "timestamp": time.time()})
+    for delta in stream_answer(question, evidence, analysis.get("keywords", [])):
+        yield _sse("answer_delta", {"delta": delta})
 
-    yield _sse("evidence", [asdict(item) for item in evidence])
-
-    llm_stream = stream_answer(question, evidence, analysis.get("keywords", []))
-    if not llm_stream:
-        yield _sse("status", {"phase": "llm", "message": "LLM unavailable, using fallback"})
-        blocks, markdown = _fallback_answer(analysis, evidence)
-        yield _sse("answer_done", {"blocks": blocks, "markdown": markdown})
-        return
-
-    stream_iter, citations = llm_stream
-    yield _sse("status", {"phase": "llm", "message": "Drafting answer"})
-
-    full_text = ""
-    for delta in stream_iter:
-        full_text += delta
-        yield _sse("llm_delta", {"delta": delta})
-
-    answer_blocks = parse_answer_text(full_text, citations)
-    answer_payload = [
-        {"heading": block.heading, "body": block.body, "citations": block.citations}
-        for block in answer_blocks
-    ]
-    markdown = blocks_to_markdown(answer_blocks)
-    yield _sse("answer_done", {"blocks": answer_payload, "markdown": markdown})
+    yield _sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
 
 
-@app.get("/manifest")
-def manifest() -> list[dict[str, Any]]:
-    if not _manifest_path().exists():
-        _ensure_index()
-    return _load_manifest()
+@app.get("/api/projects/{project_id}/manifest")
+async def get_manifest(project_id: str):
+    _ensure_index(project_id)
+    return _load_manifest(project_id)
 
 
-@app.get("/status")
-def status() -> dict[str, Any]:
-    manifest_exists = _manifest_path().exists()
-    bm25_exists = _bm25_path().exists()
-    last_ingest = _format_timestamp(_manifest_path().stat().st_mtime) if manifest_exists else None
+@app.get("/api/projects/{project_id}/status")
+async def get_status(project_id: str):
+    manifest = _load_manifest(project_id)
+    # The original _ensure_index needs to be updated to be project-specific
+    # manifest_exists = _manifest_path(project_id).exists()
+    # bm25_exists = _bm25_path(project_id).exists()
+    # last_ingest = _format_timestamp(_manifest_path(project_id).stat().st_mtime) if manifest_exists else None
     return {
-        "indexed": manifest_exists and bm25_exists,
-        "last_ingest": last_ingest,
-        "total_files": len(_load_manifest()) if manifest_exists else 0,
-        "total_chunks": _count_chunks(),
+        "indexed": len(manifest) > 0,
+        # "last_ingest": last_ingest, # Removed as per diff
+        "total_files": len(manifest),
+        "total_chunks": _count_chunks(project_id),
     }
 
 
-@app.post("/ask")
-def ask(request: AskRequest) -> dict[str, Any]:
-    if not _bm25_path().exists():
-        _ensure_index()
-    if not _bm25_path().exists():
+@app.post("/api/projects/{project_id}/ask")
+async def ask(project_id: str, req: AskRequest):
+    # The original _ensure_index needs to be updated to be project-specific
+    # if not _bm25_path(project_id).exists():
+    #     _ensure_index(project_id)
+    if not _bm25_path(project_id).exists():
         raise HTTPException(status_code=400, detail="Indexes not found. Run ingest first.")
 
     evidence: list[EvidenceChunk] = []
+    ref_dir, index_dir = _get_project_paths(project_id) # Get project-specific paths
 
-    if request.use_notes and request.notes:
-        for note in request.notes:
+    if req.use_notes and req.notes:
+        for note in req.notes:
             try:
                 evidence.append(
                     EvidenceChunk(
@@ -245,14 +282,15 @@ def ask(request: AskRequest) -> dict[str, Any]:
             except Exception:
                 pass
     else:
-        evidence = retrieve(request.question, k=8, filter_files=request.context)
-    analysis = analyze(request.question, evidence)
+        ref_dir, idx_dir = _get_project_paths(project_id)
+        evidence = retrieve(req.question, index_dir=idx_dir, k=8, filter_files=req.context)
+    analysis = analyze(req.question, evidence)
 
     evidence_payload = [asdict(item) for item in evidence]
 
     answer_blocks = None
     try:
-        answer_blocks = generate_answer(request.question, evidence, analysis.get("keywords", []))
+        answer_blocks = generate_answer(req.question, evidence, analysis.get("keywords", []))
     except Exception:
         answer_blocks = None
 
@@ -266,7 +304,7 @@ def ask(request: AskRequest) -> dict[str, Any]:
         answer_payload, answer_markdown = _fallback_answer(analysis, evidence)
 
     return {
-        "question": request.question,
+        "question": req.question,
         "scope": analysis.get("scope", []),
         "evidence": evidence_payload,
         "answer": answer_payload,
@@ -274,13 +312,14 @@ def ask(request: AskRequest) -> dict[str, Any]:
         "crosscheck": analysis.get("crosscheck", ""),
     }
 
-@app.post("/ask/stream")
-def ask_stream(request: AskRequest) -> StreamingResponse:
+@app.post("/api/projects/{project_id}/ask/stream")
+async def ask_stream(project_id: str, req: AskRequest) -> StreamingResponse:
     generator = _stream_rag(
-        request.question,
-        context=request.context,
-        use_notes=request.use_notes,
-        notes=request.notes,
+        project_id, # Pass project_id
+        req.question,
+        context=req.context,
+        use_notes=req.use_notes,
+        notes=req.notes,
     )
     return StreamingResponse(generator, media_type="text/event-stream")
 
@@ -333,10 +372,10 @@ def _stream_summarize(messages: list[dict]) -> Iterator[str]:
         yield _sse("title_done", {"title": _generate_title_fallback(messages)})
 
 
-@app.post("/summarize")
-def summarize(request: SummarizeRequest) -> StreamingResponse:
+@app.post("/api/projects/{project_id}/summarize")
+async def summarize(project_id: str, request: SummarizeRequest):
     if not request.messages:
-        def empty_gen() -> Iterator[str]:
+        async def empty_gen() -> Iterator[str]:
             yield _sse("title_done", {"title": "New Chat"})
         return StreamingResponse(empty_gen(), media_type="text/event-stream")
 
@@ -350,13 +389,15 @@ def summarize(request: SummarizeRequest) -> StreamingResponse:
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
-def _get_temp_dir() -> Path:
-    temp_dir = get_index_dir() / "temp"
+def _get_temp_dir(project_id: str) -> Path: # Updated to take project_id
+    _, index_dir = _get_project_paths(project_id)
+    temp_dir = index_dir / "temp" # Use project-specific index_dir
     temp_dir.mkdir(parents=True, exist_ok=True)
     return temp_dir
 
 
 def _stream_upload(
+    project_id: str, # Added project_id
     file: UploadFile,
     replace_existing: bool = False,
 ) -> Iterator[str]:
@@ -367,7 +408,7 @@ def _stream_upload(
         yield _sse("error", {"code": "UNSUPPORTED_TYPE", "message": f"Unsupported file type: {suffix}"})
         return
 
-    temp_dir = _get_temp_dir()
+    temp_dir = _get_temp_dir(project_id) # Use project-specific temp dir
     temp_path = temp_dir / f"upload_{int(time.time() * 1000)}{suffix}"
 
     try:
@@ -391,7 +432,8 @@ def _stream_upload(
         yield _sse("progress", {"phase": "checking_duplicate", "percent": 60})
 
         # Check for duplicates
-        registry = load_registry()
+        references_dir, index_dir = _get_project_paths(project_id)
+        registry = load_registry(index_dir=index_dir)
         existing_path = check_duplicate(file_hash, registry)
 
         if existing_path and not replace_existing:
@@ -401,7 +443,7 @@ def _stream_upload(
         yield _sse("progress", {"phase": "storing", "percent": 70})
 
         # Determine final path
-        references_dir = get_references_dir()
+        references_dir, index_dir = _get_project_paths(project_id)
         references_dir.mkdir(parents=True, exist_ok=True)
         final_name = file.filename or f"file{suffix}"
 
@@ -409,7 +451,7 @@ def _stream_upload(
         if existing_path and replace_existing:
             final_path = references_dir / existing_path
             # Remove old file from index first
-            remove_file_from_index(existing_path)
+            remove_file_from_index(existing_path, index_dir=index_dir, references_dir=references_dir)
         else:
             final_path = references_dir / final_name
             counter = 1
@@ -425,7 +467,7 @@ def _stream_upload(
 
         # Process the file
         try:
-            entry = full_ingest_single_file(final_path, build_vectors=True)
+            entry = full_ingest_single_file(final_path, references_dir=references_dir, index_dir=index_dir, build_vectors=True)
         except Exception as e:
             # Clean up on processing failure
             if final_path.exists():
@@ -460,62 +502,47 @@ def _stream_upload(
             temp_path.unlink()
 
 
-@app.post("/upload/stream")
-async def upload_stream(
+@app.post("/api/projects/{project_id}/upload/stream")
+async def upload_file_stream_api(
+    project_id: str,
     file: UploadFile = File(...),
-    replace_existing: bool = Form(False),
-) -> StreamingResponse:
+    replace_existing: bool = Form(False)
+):
     """Upload a file with SSE progress events."""
     return StreamingResponse(
-        _stream_upload(file, replace_existing),
+        _stream_upload(project_id, file, replace_existing), # Pass project_id
         media_type="text/event-stream",
     )
 
 
-@app.delete("/reference/{rel_path:path}")
-def delete_file(rel_path: str) -> dict[str, Any]:
+@app.get("/api/projects/{project_id}/files/check-duplicate")
+async def check_duplicate_api(project_id: str, sha256: str):
+    ref_dir, idx_dir = _get_project_paths(project_id)
+    registry = load_registry(index_dir=idx_dir)
+    existing_path = check_duplicate(sha256, registry)
+    return {"is_duplicate": existing_path is not None, "existing_path": existing_path}
+
+
+@app.delete("/api/projects/{project_id}/files/{rel_path:path}")
+async def delete_file_api(project_id: str, rel_path: str):
     """Delete a file and remove it from the index."""
-    references_dir = get_references_dir()
-    file_path = references_dir / rel_path
+    _, idx_dir = _get_project_paths(project_id)
+    ref_dir, _ = _get_project_paths(project_id)
+    file_path = ref_dir / rel_path
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
 
-    # Remove from index
-    removed_chunks = remove_file_from_index(rel_path)
+    # Remove from index (which also updates registry and unlinks file if called via higher level)
+    # Actually remove_file_from_index does: manifest update, chunks update, index rebuild, AND registry update.
+    removed_chunks = remove_file_from_index(rel_path, index_dir=idx_dir, references_dir=ref_dir)
 
     # Delete the actual file
-    file_path.unlink()
+    if file_path.exists():
+        file_path.unlink()
 
     return {
         "success": True,
         "removed_chunks": removed_chunks,
         "message": f"Deleted {rel_path} and removed {removed_chunks} chunks from index",
-    }
-
-
-@app.get("/files/check-duplicate")
-def check_duplicate_endpoint(sha256: str) -> dict[str, Any]:
-    """Check if a file with the given SHA256 hash already exists."""
-    registry = load_registry()
-    existing_path = check_duplicate(sha256, registry)
-
-    if existing_path:
-        # Load manifest to get full entry
-        try:
-            manifest = _load_manifest()
-            entry = next((e for e in manifest if e.get("rel_path") == existing_path), None)
-        except HTTPException:
-            entry = None
-
-        return {
-            "is_duplicate": True,
-            "existing_path": existing_path,
-            "existing_entry": entry,
-        }
-
-    return {
-        "is_duplicate": False,
-        "existing_path": None,
-        "existing_entry": None,
     }

@@ -15,13 +15,16 @@ class HashRegistry:
     by_path: dict[str, str] = field(default_factory=dict)  # rel_path -> sha256
 
 
-def _registry_path(root: Path | None = None) -> Path:
-    return get_index_dir(root) / "hash_registry.json"
+def _registry_path(root: Path | None = None, index_dir: Path | None = None) -> Path:
+    # Hash registry belongs to the index, but we often associate it with the project folder.
+    # In the decoupled layout, we use the index folder for consistency.
+    idx_dir = index_dir or get_index_dir(root)
+    return idx_dir / "hash_registry.json"
 
 
-def load_registry(root: Path | None = None) -> HashRegistry:
+def load_registry(root: Path | None = None, index_dir: Path | None = None, references_dir: Path | None = None) -> HashRegistry:
     """Load hash registry from disk. Returns empty registry if file doesn't exist."""
-    path = _registry_path(root)
+    path = _registry_path(root, index_dir=index_dir)
     if not path.exists():
         return HashRegistry()
     try:
@@ -34,9 +37,9 @@ def load_registry(root: Path | None = None) -> HashRegistry:
         return HashRegistry()
 
 
-def save_registry(registry: HashRegistry, root: Path | None = None) -> None:
+def save_registry(registry: HashRegistry, root: Path | None = None, index_dir: Path | None = None, references_dir: Path | None = None) -> None:
     """Save hash registry to disk."""
-    path = _registry_path(root)
+    path = _registry_path(root, index_dir=index_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "by_hash": registry.by_hash,

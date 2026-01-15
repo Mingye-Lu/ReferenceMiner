@@ -14,6 +14,8 @@ from refminer.utils.paths import get_index_dir
 def load_chunks(index_dir: Path) -> dict[str, dict]:
     chunks_path = index_dir / "chunks.jsonl"
     chunks: dict[str, dict] = {}
+    if not chunks_path.exists():
+        return chunks
     with chunks_path.open("r", encoding="utf-8") as handle:
         for line in handle:
             item = json.loads(line)
@@ -22,11 +24,20 @@ def load_chunks(index_dir: Path) -> dict[str, dict]:
 
 
 def retrieve(
-    query: str, root: Optional[Path] = None, k: int = 5, filter_files: Optional[list[str]] = None
+    query: str, 
+    root: Optional[Path] = None, 
+    index_dir: Optional[Path] = None,
+    k: int = 5, 
+    filter_files: Optional[list[str]] = None
 ) -> list[EvidenceChunk]:
-    index_dir = get_index_dir(root)
-    chunks = load_chunks(index_dir)
-    bm25_index = load_bm25(index_dir / "bm25.pkl")
+    idx_dir = index_dir or get_index_dir(root)
+    chunks = load_chunks(idx_dir)
+    
+    bm25_path = idx_dir / "bm25.pkl"
+    if not bm25_path.exists():
+        return []
+        
+    bm25_index = load_bm25(bm25_path)
     
     # Retrieve more candidates if filtering is active to ensure we have enough results
     search_k = k * 5 if filter_files else k

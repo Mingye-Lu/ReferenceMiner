@@ -3,6 +3,10 @@ import { ref } from "vue"
 import { uploadFileStream } from "../api/client"
 import type { UploadItem, ManifestEntry } from "../types"
 
+const props = defineProps<{
+  projectId: string
+}>()
+
 const emit = defineEmits<{
   (e: "upload-complete", entry: ManifestEntry): void
 }>()
@@ -54,14 +58,14 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
   updateItem({ status: "uploading", progress: 0 })
 
   try {
-    const result = await uploadFileStream(item.file, {
+    const result = await uploadFileStream(props.projectId, item.file, {
       onProgress: (progress) => {
         updateItem({
           status: "processing",
           progress: progress.percent ?? item.progress
         })
       },
-      onDuplicate: (sha256, existingPath) => {
+      onDuplicate: (_sha256, existingPath) => {
         updateItem({
           status: "duplicate",
           duplicatePath: existingPath
@@ -77,7 +81,7 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
           emit("upload-complete", result.manifestEntry)
         }
       },
-      onError: (code, message) => {
+      onError: (_code, message) => {
         updateItem({
           status: "error",
           error: message

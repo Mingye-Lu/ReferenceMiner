@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, type Ref, computed } from "vue"
-import type { ManifestEntry, ChatSession, EvidenceChunk } from "../types"
+import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../types"
 import FileUploader from "./FileUploader.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import AlertModal from "./AlertModal.vue"
@@ -21,6 +21,8 @@ const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenc
 const chatSessions = inject<Ref<ChatSession[]>>("chatSessions")!
 const deleteChat = inject<(id: string) => void>("deleteChat")!
 const openNoteLocation = inject<(id: string) => void>("openNoteLocation")!
+const currentProject = inject<Ref<Project | null>>("currentProject")!
+const projectId = computed(() => currentProject.value?.id || "default")
 
 const props = defineProps<{
   activeChatId?: string
@@ -70,10 +72,10 @@ function formatTime(ts: number) {
   return new Date(ts).toLocaleDateString()
 }
 
-async function handleUploadComplete(entry: ManifestEntry) {
+async function handleUploadComplete(_entry: ManifestEntry) {
   // Refresh the manifest to include the new file
   try {
-    manifest.value = await fetchManifest()
+    manifest.value = await fetchManifest(projectId.value)
   } catch (e) {
     console.error("Failed to refresh manifest", e)
   }
@@ -99,9 +101,11 @@ async function confirmDeleteFile() {
   isDeleting.value = file.relPath
 
   try {
-    await deleteFile(file.relPath)
+    await deleteFile(projectId.value, file.relPath)
+    // Remove from selection
     selectedFiles.value.delete(file.relPath)
-    manifest.value = await fetchManifest()
+    // Refresh manifest
+    manifest.value = await fetchManifest(projectId.value)
   } catch (e) {
     console.error("Failed to delete file", e)
     errorMessage.value = e instanceof Error ? e.message : "Unknown error"
@@ -150,7 +154,7 @@ function closeErrorModal() {
     <!-- CORPUS TAB -->
     <div class="sidebar-content" v-if="activeTab === 'corpus'">
       <!-- File Uploader -->
-      <FileUploader @upload-complete="handleUploadComplete" />
+      <FileUploader :project-id="projectId" @upload-complete="handleUploadComplete" />
 
       <!-- Files Section -->
       <div class="section-header" v-if="manifest.length > 0">FILES ({{ manifest.length }})</div>

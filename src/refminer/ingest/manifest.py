@@ -36,6 +36,8 @@ class ManifestEntry:
 
 
 def iter_reference_files(root: Path) -> Iterable[Path]:
+    if not root.exists():
+        return
     for path in sorted(root.rglob("*")):
         if path.is_file():
             yield path
@@ -45,10 +47,10 @@ def detect_type(path: Path) -> str | None:
     return SUPPORTED_EXTENSIONS.get(path.suffix.lower())
 
 
-def build_manifest(root: Path | None = None) -> list[ManifestEntry]:
-    references_dir = get_references_dir(root)
+def build_manifest(root: Path | None = None, references_dir: Path | None = None) -> list[ManifestEntry]:
+    ref_dir = references_dir or get_references_dir(root)
     entries: list[ManifestEntry] = []
-    for path in iter_reference_files(references_dir):
+    for path in iter_reference_files(ref_dir):
         file_type = detect_type(path)
         if not file_type:
             continue
@@ -56,7 +58,7 @@ def build_manifest(root: Path | None = None) -> list[ManifestEntry]:
         entries.append(
             ManifestEntry(
                 path=str(path),
-                rel_path=str(path.relative_to(references_dir)),
+                rel_path=str(path.relative_to(ref_dir)),
                 file_type=file_type,
                 size_bytes=stat.st_size,
                 modified_time=stat.st_mtime,
@@ -66,17 +68,19 @@ def build_manifest(root: Path | None = None) -> list[ManifestEntry]:
     return entries
 
 
-def write_manifest(entries: list[ManifestEntry], root: Path | None = None) -> Path:
-    index_dir = get_index_dir(root)
-    index_dir.mkdir(parents=True, exist_ok=True)
-    output_path = index_dir / "manifest.json"
+def write_manifest(entries: list[ManifestEntry], root: Path | None = None, index_dir: Path | None = None) -> Path:
+    idx_dir = index_dir or get_index_dir(root)
+    idx_dir.mkdir(parents=True, exist_ok=True)
+    output_path = idx_dir / "manifest.json"
     payload = [asdict(entry) for entry in entries]
     output_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     return output_path
 
 
-def load_manifest(root: Path | None = None) -> list[ManifestEntry]:
-    index_dir = get_index_dir(root)
-    manifest_path = index_dir / "manifest.json"
+def load_manifest(root: Path | None = None, index_dir: Path | None = None) -> list[ManifestEntry]:
+    idx_dir = index_dir or get_index_dir(root)
+    manifest_path = idx_dir / "manifest.json"
+    if not manifest_path.exists():
+        return []
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     return [ManifestEntry(**item) for item in data]
