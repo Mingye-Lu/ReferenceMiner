@@ -10,10 +10,9 @@ const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")
 const isPinned = inject<(id: string) => boolean>("isPinned")!
 const setHighlightedPaths = inject<(paths: string[]) => void>("setHighlightedPaths")!
 
-const isTimelineExpanded = ref(false)
-const showSourcePopover = ref(false)
+const isTimelineExpanded = ref(true)
 
-// Timer state - using deciseconds (0.1s) for precision
+
 const currentTime = ref(Date.now())
 let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -27,7 +26,7 @@ function formatElapsed(ms: number): string {
   return `${secs}s`
 }
 
-// Computed elapsed time for the overall task
+
 const totalElapsed = computed(() => {
   const startTime = props.message.timestamp
   // Use completedAt if message is done, otherwise use current time
@@ -35,12 +34,12 @@ const totalElapsed = computed(() => {
   return endTime - startTime
 })
 
-// Computed elapsed time for each step
+
 function getStepElapsed(step: TimelineStep, index: number): number {
   const timeline = props.message.timeline || []
   const nextStep = timeline[index + 1]
 
-  // Handle legacy data that might have timestamp instead of startTime
+
   const stepStart = step.startTime || (step as any).timestamp || 0
   if (!stepStart) return 0
 
@@ -61,7 +60,7 @@ function startTimer() {
   currentTime.value = Date.now()
   timerInterval = setInterval(() => {
     currentTime.value = Date.now()
-  }, 100) // Update every 100ms for 0.1s precision
+  }, 100)
 }
 
 function stopTimer() {
@@ -75,7 +74,7 @@ if (props.message.role === 'ai' && props.message.content.length === 0) {
   isTimelineExpanded.value = true
 }
 
-// Start timer if streaming
+
 onMounted(() => {
   if (props.message.isStreaming) {
     startTimer()
@@ -90,7 +89,7 @@ watch(() => props.message.isStreaming, (isStreaming, wasStreaming) => {
   if (isStreaming) {
     startTimer()
   } else {
-    // When streaming stops, record the completion time if not already set
+
     if (wasStreaming && !props.message.completedAt) {
       props.message.completedAt = Date.now()
     }
@@ -106,8 +105,64 @@ watch(() => props.message.content, (newVal) => {
 
 // [修正] 不再排序，保持与 LLM 输出的 [C1] [C2] 顺序一致
 const displaySources = computed(() => {
-  return props.message.sources || []
+  const sources = props.message.sources || []
+  const unique = new Set<string>()
+  const result: EvidenceChunk[] = []
+  for (const s of sources) {
+    if (!unique.has(s.chunkId)) {
+      unique.add(s.chunkId)
+      result.push(s)
+    }
+  }
+  return result
 })
+
+// Capsule Auto-Hide Logic
+const isCapsuleVisible = ref(false)
+let hideTimer: any = null
+
+function handleMouseMove() {
+  isCapsuleVisible.value = true
+  clearTimeout(hideTimer)
+  // Hide after inactivity? User said "when mouse moving ... automatically show". 
+  // "Usually automatically hide" -> Hide when mouse stops or leaves?
+  // "Put on top of it" -> hover capsule keeps it open.
+  // Let's set a debounce to hide if mouse stops moving? Or just keep showing while inside message?
+  // "In message... absolute coord moving... automatically show".
+  // Simple interpretation: Show when mouse is inside message.
+  // "Automatically hide usually" -> Hide when mouse leaves message?
+  // BUT user explicitly said "absolute coord moving or hover on it".
+  // Maybe they mean: if mouse is static inside message (reading), it should hide?
+  // Let's try: Show on move, hide after 2s of inactivity (unless hovering capsule).
+
+  hideTimer = setTimeout(() => {
+    if (!isCapsuleHovered.value) {
+      isCapsuleVisible.value = false
+    }
+  }, 2000)
+}
+
+const isCapsuleHovered = ref(false)
+function onCapsuleEnter() {
+  isCapsuleHovered.value = true
+  isCapsuleVisible.value = true
+  clearTimeout(hideTimer)
+}
+function onCapsuleLeave() {
+  isCapsuleHovered.value = false
+  // Start hide timer
+  hideTimer = setTimeout(() => {
+    isCapsuleVisible.value = false
+  }, 1000)
+}
+
+function handleMessageLeave() {
+  // Hide immediately or with short delay when leaving entire message area
+  clearTimeout(hideTimer)
+  if (!isCapsuleHovered.value) {
+    isCapsuleVisible.value = false
+  }
+}
 
 function processMarkdown(text: string) {
   return renderMarkdown(text).replace(
@@ -129,7 +184,7 @@ function handleBodyClick(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="message-row" :class="message.role">
+  <div class="message-row" :class="message.role" @mousemove="handleMouseMove" @mouseleave="handleMessageLeave">
     <div v-if="message.role === 'user'" class="user-bubble">{{ message.content }}</div>
 
     <div v-else class="ai-container">
@@ -167,8 +222,8 @@ function handleBodyClick(event: MouseEvent) {
       </div>
 
       <!-- 1. STICKY SOURCE HEADER (Moved below Timeline) -->
-      <div v-if="displaySources.length" class="sticky-header-wrapper">
-        <div class="source-capsule" @mouseenter="showSourcePopover = true" @mouseleave="showSourcePopover = false">
+      <div v-if="displaySources.length" class="sticky-header-wrapper" :class="{ visible: isCapsuleVisible }">
+        <div class="source-capsule" @mouseenter="onCapsuleEnter" @mouseleave="onCapsuleLeave">
           <div class="capsule-icon-area">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -180,7 +235,7 @@ function handleBodyClick(event: MouseEvent) {
           <span class="label">Based on {{ displaySources.length }} sources</span>
 
           <transition name="fade">
-            <div v-if="showSourcePopover" class="source-popover">
+            <div v-if="isCapsuleHovered" class="source-popover">
               <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="popover-item"
                 @click="openEvidence(source)" @mouseenter="setHighlightedPaths([source.path])"
                 @mouseleave="setHighlightedPaths([])">
@@ -256,6 +311,7 @@ function handleBodyClick(event: MouseEvent) {
   justify-content: flex-start;
 }
 
+/* Reverting layout styles */
 .user-bubble {
   background: #f0f2f5;
   padding: 12px 18px;
@@ -277,17 +333,30 @@ function handleBodyClick(event: MouseEvent) {
 .sticky-header-wrapper {
   position: sticky;
   top: 0;
+  right: 0;
+  /* sticky doesn't use right for positioning usually, but flex handles it */
   z-index: 10;
-  margin-bottom: 0;
   height: 0;
   overflow: visible;
-  pointer-events: none;
   display: flex;
   justify-content: flex-end;
+  padding-right: 16px;
+  /* Offset from right edge */
+
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.sticky-header-wrapper.visible {
+  opacity: 1;
+  pointer-events: none;
+  /* Wrapper itself shouldn't block, children will */
 }
 
 .source-capsule {
   pointer-events: auto;
+  /* Re-enable pointer events for the button */
   display: inline-flex;
   align-items: center;
   gap: 8px;

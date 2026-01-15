@@ -2,33 +2,43 @@
 import { ref, inject, type Ref, computed } from "vue"
 import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../types"
 import FileUploader from "./FileUploader.vue"
+import BankFileSelectorModal from "./BankFileSelectorModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import AlertModal from "./AlertModal.vue"
-import { deleteFile, batchDeleteFiles, fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
+import { fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
 
-// Modal state for file deletion
+
 const showDeleteFileModal = ref(false)
 const pendingDeleteFile = ref<ManifestEntry | null>(null)
 const showErrorModal = ref(false)
 const errorMessage = ref("")
 
-// Batch delete state
+
 const batchMode = ref(false)
 const batchSelected = ref<Set<string>>(new Set())
 const showBatchDeleteModal = ref(false)
 const isBatchDeleting = ref(false)
+
+const aiSelectionBackup = ref<Set<string>>(new Set())
 const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
+const projectFiles = inject<Ref<Set<string>>>("projectFiles")!
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
 const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
 const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
 const chatSessions = inject<Ref<ChatSession[]>>("chatSessions")!
 const deleteChat = inject<(id: string) => void>("deleteChat")!
-const openNoteLocation = inject<(id: string) => void>("openNoteLocation")!
 const currentProject = inject<Ref<Project | null>>("currentProject")!
+const openEvidence = inject<(item: EvidenceChunk) => void>("openEvidence")!
 const projectId = computed(() => currentProject.value?.id || "default")
+
+
+const showBankSelector = ref(false)
+
+const showUnpinNoteModal = ref(false)
+const pendingUnpinNote = ref<EvidenceChunk | null>(null)
 
 const props = defineProps<{
   activeChatId?: string
@@ -40,25 +50,100 @@ const emit = defineEmits<{
   (event: 'new-chat'): void
 }>()
 
+
 const notesList = computed(() => Array.from(pinnedEvidenceMap.value.values()))
 
-async function toggleFile(path: string) {
+
+const displayedFiles = computed(() => {
+  if (!projectFiles.value) return []
+  return manifest.value.filter(f => projectFiles.value.has(f.relPath))
+})
+
+async function handleUploadComplete(_entry: ManifestEntry) {
+  // Refresh the manifest and project files
   try {
-    if (selectedFiles.value.has(path)) {
-      const updated = await removeProjectFiles(projectId.value, [path])
-      selectedFiles.value = new Set(updated)
-    } else {
-      const updated = await selectProjectFiles(projectId.value, [path])
-      selectedFiles.value = new Set(updated)
-    }
+    manifest.value = await fetchBankManifest()
+    const currentFiles = await fetchProjectFiles(projectId.value)
+    // Update the list of files in the project
+    projectFiles.value = new Set(currentFiles)
+
+    // Do NOT auto-select the new file (User requirement)
+    // Do NOT reset selectedFiles (User requirement)
   } catch (e) {
-    console.error("Failed to update selection", e)
+    console.error("Failed to refresh manifest", e)
   }
+}
+
+function openBankSelector() {
+  showBankSelector.value = true
+}
+
+
+
+async function handleBankFilesSelected(files: string[]) {
+  // Update project files: replace with new set
+  projectFiles.value = new Set(files)
+  showBankSelector.value = false
+
+  // Persist to backend
+  selectProjectFiles(projectId.value, files).catch(console.error)
 }
 
 function toggleNote(id: string) {
   if (selectedNotes.value.has(id)) selectedNotes.value.delete(id)
   else selectedNotes.value.add(id)
+}
+
+// Jump to note in Reader tab
+function jumpToNoteInReader(note: EvidenceChunk, e: Event) {
+  e.stopPropagation()
+  // Use openEvidence to open in Reader tab
+  openEvidence(note)
+}
+
+// Request to unpin a note (with confirmation)
+function requestUnpinNote(note: EvidenceChunk, e: Event) {
+  e.stopPropagation()
+  pendingUnpinNote.value = note
+  showUnpinNoteModal.value = true
+}
+
+// Confirm unpin note
+function confirmUnpinNote() {
+  if (!pendingUnpinNote.value) return
+  try {
+    // Remove from pinned evidence map
+    pinnedEvidenceMap.value.delete(pendingUnpinNote.value.chunkId)
+    // Trigger reactivity
+    pinnedEvidenceMap.value = new Map(pinnedEvidenceMap.value)
+    // Also remove from selected notes if it was selected
+    selectedNotes.value.delete(pendingUnpinNote.value.chunkId)
+    selectedNotes.value = new Set(selectedNotes.value)
+    showUnpinNoteModal.value = false
+    pendingUnpinNote.value = null
+  } catch (err) {
+    console.error("Failed to unpin note:", err)
+  }
+}
+
+// Cancel unpin note
+function cancelUnpinNote() {
+  showUnpinNoteModal.value = false
+  pendingUnpinNote.value = null
+}
+
+function toggleFile(path: string) {
+  try {
+    if (selectedFiles.value.has(path)) {
+      selectedFiles.value.delete(path)
+    } else {
+      selectedFiles.value.add(path)
+    }
+    // Trigger reactivity
+    selectedFiles.value = new Set(selectedFiles.value)
+  } catch (e) {
+    console.error("Failed to toggle file selection", e)
+  }
 }
 
 function handlePreview(file: ManifestEntry, e?: Event) {
@@ -87,20 +172,9 @@ function formatTime(ts: number) {
   return new Date(ts).toLocaleDateString()
 }
 
-async function handleUploadComplete(_entry: ManifestEntry) {
-  // Refresh the manifest to include the new file
-  try {
-    manifest.value = await fetchBankManifest()
-    const selected = await fetchProjectFiles(projectId.value)
-    selectedFiles.value = new Set(selected)
-  } catch (e) {
-    console.error("Failed to refresh manifest", e)
-  }
-}
 
-function requestDeleteFile(file: ManifestEntry, e: Event) {
+async function requestDeleteFile(file: ManifestEntry, e: Event) {
   e.stopPropagation()
-  if (isDeleting.value) return
   pendingDeleteFile.value = file
   showDeleteFileModal.value = true
 }
@@ -112,25 +186,26 @@ function cancelDeleteFile() {
 
 async function confirmDeleteFile() {
   if (!pendingDeleteFile.value) return
-
-  const file = pendingDeleteFile.value
-  showDeleteFileModal.value = false
-  isDeleting.value = file.relPath
-
   try {
-    await deleteFile(projectId.value, file.relPath)
-    // Remove from selection
-    const selected = await fetchProjectFiles(projectId.value)
-    selectedFiles.value = new Set(selected)
-    // Refresh manifest
-    manifest.value = await fetchBankManifest()
-  } catch (e) {
-    console.error("Failed to delete file", e)
-    errorMessage.value = e instanceof Error ? e.message : "Unknown error"
+    isDeleting.value = pendingDeleteFile.value.relPath
+    // Remove from project
+    await removeProjectFiles(projectId.value, [pendingDeleteFile.value.relPath])
+
+    // Update local state
+    projectFiles.value.delete(pendingDeleteFile.value.relPath)
+    projectFiles.value = new Set(projectFiles.value)
+
+    selectedFiles.value.delete(pendingDeleteFile.value.relPath)
+    selectedFiles.value = new Set(selectedFiles.value)
+
+    showDeleteFileModal.value = false
+    pendingDeleteFile.value = null
+  } catch (err) {
+    console.error("Failed to remove file from project:", err)
+    errorMessage.value = err instanceof Error ? err.message : "Unknown error"
     showErrorModal.value = true
   } finally {
     isDeleting.value = null
-    pendingDeleteFile.value = null
   }
 }
 
@@ -141,10 +216,27 @@ function closeErrorModal() {
 
 // Batch delete functions
 function toggleBatchMode() {
-  batchMode.value = !batchMode.value
-  if (!batchMode.value) {
-    batchSelected.value = new Set()
+  if (batchMode.value) {
+    cancelBatchMode()
+  } else {
+    startBatchMode()
   }
+}
+
+function startBatchMode() {
+  // Backup AI selection
+  aiSelectionBackup.value = new Set(selectedFiles.value)
+  // Clear AI selection visually (actual state cleared temporarily or just visually overridden?)
+  // We'll visually override in template, but to be safe let's clear selectedFiles so checkboxes don't confuse
+  // actually, let's keep selectedFiles as is, but in template use batchSelected for style
+  batchMode.value = true
+}
+
+function cancelBatchMode() {
+  batchMode.value = false
+  batchSelected.value.clear()
+  // No need to restore if we didn't touch selectedFiles, but wait
+  // If we want "pure" batch selection state, we should rely on template logic
 }
 
 function toggleBatchSelect(path: string) {
@@ -153,15 +245,14 @@ function toggleBatchSelect(path: string) {
   } else {
     batchSelected.value.add(path)
   }
-  // Trigger reactivity
   batchSelected.value = new Set(batchSelected.value)
 }
 
 function selectAllForBatch() {
-  if (batchSelected.value.size === manifest.value.length) {
-    batchSelected.value = new Set()
+  if (batchSelected.value.size === displayedFiles.value.length) {
+    batchSelected.value.clear()
   } else {
-    batchSelected.value = new Set(manifest.value.map(f => f.relPath))
+    batchSelected.value = new Set(displayedFiles.value.map(f => f.relPath))
   }
 }
 
@@ -176,30 +267,33 @@ function cancelBatchDelete() {
 
 async function confirmBatchDelete() {
   if (batchSelected.value.size === 0) return
-
-  showBatchDeleteModal.value = false
-  isBatchDeleting.value = true
-
   try {
-    const result = await batchDeleteFiles(projectId.value, Array.from(batchSelected.value))
+    isBatchDeleting.value = true
+    const filesToRemove = Array.from(batchSelected.value)
 
-    if (result.failedCount > 0) {
-      const failedPaths = result.results.filter(r => !r.success).map(r => r.relPath)
-      errorMessage.value = `Failed to delete ${result.failedCount} file(s): ${failedPaths.join(", ")}`
-      showErrorModal.value = true
-    }
+    // Remove from project
+    await removeProjectFiles(projectId.value, filesToRemove)
 
-    // Refresh data
-    const selected = await fetchProjectFiles(projectId.value)
-    selectedFiles.value = new Set(selected)
-    manifest.value = await fetchBankManifest()
+    // Update local state
+    // 1. Remove from projectFiles
+    for (const f of filesToRemove) projectFiles.value.delete(f)
+    projectFiles.value = new Set(projectFiles.value)
 
-    // Exit batch mode and clear selection
+    // 2. Remove from selectedFiles (AI context) if present
+    for (const f of filesToRemove) selectedFiles.value.delete(f)
+    selectedFiles.value = new Set(selectedFiles.value)
+
+    // 3. Update backup if we were backing up (not strictly needed if we didn't clear selectedFiles)
+
+    batchSelected.value.clear()
+    showBatchDeleteModal.value = false
     batchMode.value = false
-    batchSelected.value = new Set()
-  } catch (e) {
-    console.error("Batch delete failed", e)
-    errorMessage.value = e instanceof Error ? e.message : "Unknown error"
+
+    // Refresh manifest not needed for removal from project, but maybe good practice
+    // manifest.value = await fetchBankManifest() // Not strictly needed as files stay in bank
+  } catch (err) {
+    console.error("Failed to remove files from project:", err)
+    errorMessage.value = err instanceof Error ? err.message : "Unknown error"
     showErrorModal.value = true
   } finally {
     isBatchDeleting.value = false
@@ -239,57 +333,89 @@ async function confirmBatchDelete() {
     <!-- CORPUS TAB -->
     <div class="sidebar-content" v-if="activeTab === 'corpus'">
       <!-- File Uploader -->
-      <FileUploader :project-id="projectId" @upload-complete="handleUploadComplete" />
+      <FileUploader :project-id="projectId" upload-mode="project" @upload-complete="handleUploadComplete" />
+
+      <!-- Add from Bank Button -->
+      <button class="add-files-btn" @click="openBankSelector">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Manage Project Files
+      </button>
 
       <!-- Files Section -->
-      <div class="section-header-row" v-if="manifest.length > 0">
-        <div class="section-header">REFERENCE BANK ({{ manifest.length }})</div>
-        <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode" title="Toggle batch selection">
+      <div class="section-header-row" v-if="displayedFiles.length > 0">
+        <div class="section-header">PROJECT FILES ({{ displayedFiles.length }})</div>
+        <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode"
+          :title="batchMode ? 'Exit Batch Mode' : 'Batch Selection'">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="8" height="8" x="3" y="3" rx="1" />
-            <rect width="8" height="8" x="13" y="3" rx="1" />
-            <rect width="8" height="8" x="3" y="13" rx="1" />
-            <rect width="8" height="8" x="13" y="13" rx="1" />
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
         </button>
       </div>
 
-      <!-- Batch Action Bar -->
-      <div v-if="batchMode && manifest.length > 0" class="batch-action-bar">
-        <button class="batch-select-all" @click="selectAllForBatch">
-          {{ batchSelected.size === manifest.length ? 'Deselect All' : 'Select All' }}
+      <!-- Batch Action Toolbar (Below Header) -->
+      <div v-if="batchMode && displayedFiles.length > 0" class="batch-toolbar">
+        <button class="batch-tool-btn" @click="selectAllForBatch">
+          {{ batchSelected.size === displayedFiles.length ? 'Deselect All' : 'Select All' }}
         </button>
-        <button class="batch-delete-btn" @click="requestBatchDelete" :disabled="batchSelected.size === 0 || isBatchDeleting">
-          <svg v-if="!isBatchDeleting" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+        <div style="flex:1"></div>
+        <button class="batch-tool-btn delete" @click="requestBatchDelete" :disabled="batchSelected.size === 0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Remove ({{ batchSelected.size }})
+        </button>
+      </div>
+
+      <!-- Batch Action Bar -->
+      <!-- This section is now integrated into the section-header-row -->
+      <!-- <div v-if="batchMode && displayedFiles.length > 0" class="batch-action-bar">
+        <button class="batch-select-all" @click="selectAllForBatch">
+          {{ batchSelected.size === displayedFiles.length ? 'Deselect All' : 'Select All' }}
+        </button>
+        <button class="batch-delete-btn" @click="requestBatchDelete"
+          :disabled="batchSelected.size === 0 || isBatchDeleting">
+          <svg v-if="!isBatchDeleting" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
           <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
-          Delete ({{ batchSelected.size }})
+          Remove ({{ batchSelected.size }})
         </button>
-      </div>
+      </div> -->
 
-      <div v-if="manifest.length === 0" class="empty-msg">No files indexed yet. Upload files above.</div>
+      <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Add from Reference Bank" to
+        add files.</div>
 
-      <div v-for="file in manifest" :key="file.relPath" class="file-item"
-        :class="{ selected: selectedFiles.has(file.relPath), deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)), highlighted: highlightedPaths?.has(file.relPath), 'batch-selected': batchMode && batchSelected.has(file.relPath) }">
+      <div v-for="file in displayedFiles" :key="file.relPath" class="file-item" :class="{
+        deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)),
+        highlighted: highlightedPaths?.has(file.relPath),
+        selected: batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath),
+        'batch-mode': batchMode && batchSelected.has(file.relPath)
+      }">
 
-        <!-- Batch mode checkbox -->
-        <div v-if="batchMode" @click.stop="toggleBatchSelect(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
-          <input type="checkbox" class="custom-checkbox batch-checkbox" :checked="batchSelected.has(file.relPath)" readonly />
+        <!-- Checkbox: Show AI selection in normal mode, Batch selection in batch mode -->
+        <div class="checkbox-wrapper"
+          @click.stop="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
+          <input type="checkbox" class="custom-checkbox"
+            :checked="batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath)" readonly />
         </div>
 
-        <!-- Normal mode checkbox -->
-        <div v-else @click.stop="toggleFile(file.relPath)" style="display:flex; align-items:center; padding-right:8px;">
-          <input type="checkbox" class="custom-checkbox" :checked="selectedFiles.has(file.relPath)" readonly />
-        </div>
-
-        <div class="file-info" @click="batchMode ? toggleBatchSelect(file.relPath) : handlePreview(file)">
+        <div class="file-info" @click="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
           <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
           <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB</div>
         </div>
@@ -302,13 +428,13 @@ async function confirmBatchDelete() {
               <circle cx="12" cy="12" r="3" />
             </svg>
           </button>
-          <button class="icon-btn delete-btn" @click="(e) => requestDeleteFile(file, e)" title="Delete"
+          <button class="icon-btn delete-btn" @click="(e) => requestDeleteFile(file, e)" title="Remove from project"
             :disabled="isDeleting === file.relPath">
             <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
             <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
@@ -324,12 +450,38 @@ async function confirmBatchDelete() {
 
       <div v-for="note in notesList" :key="note.chunkId" class="file-item"
         :class="{ selected: selectedNotes.has(note.chunkId) }">
-        <div @click.stop="toggleNote(note.chunkId)" style="display:flex; align-items:center; padding-right:8px;">
+
+        <!-- Checkbox for AI selection -->
+        <div @click.stop="toggleNote(note.chunkId)" style="display:flex; align-items:center;"
+          title="Select for AI context">
           <input type="checkbox" class="custom-checkbox" :checked="selectedNotes.has(note.chunkId)" readonly />
         </div>
-        <div class="file-info" @click="openNoteLocation(note.chunkId)">
+
+        <!-- Note info - click to toggle selection -->
+        <div class="file-info" @click="toggleNote(note.chunkId)">
           <div class="file-name" :title="note.text">{{ note.text.slice(0, 40) }}...</div>
           <div class="file-meta">Page {{ note.page || 1 }}</div>
+        </div>
+
+        <!-- Note actions -->
+        <div class="file-actions">
+          <!-- Jump to Reader button -->
+          <button class="icon-btn preview-btn" @click="(e) => jumpToNoteInReader(note, e)" title="View in Reader">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+            </svg>
+          </button>
+
+          <!-- Unpin button -->
+          <button class="icon-btn delete-btn" @click="(e) => requestUnpinNote(note, e)" title="Unpin note">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -366,37 +518,35 @@ async function confirmBatchDelete() {
 
     <!-- Delete File Confirmation Modal -->
     <Transition name="modal">
-      <ConfirmationModal
-        v-if="showDeleteFileModal && pendingDeleteFile"
-        title="Delete File?"
-        :message="`Delete &quot;${pendingDeleteFile.relPath}&quot;? This action cannot be undone.`"
-        confirm-text="Delete"
-        @confirm="confirmDeleteFile"
-        @cancel="cancelDeleteFile"
-      />
+      <ConfirmationModal v-if="showDeleteFileModal && pendingDeleteFile" title="Remove File?"
+        :message="`Remove \&quot;${pendingDeleteFile.relPath}\&quot; from this project? The file will remain in the Reference Bank.`"
+        confirmText="Remove" @confirm="confirmDeleteFile" @cancel="cancelDeleteFile" />
     </Transition>
 
     <!-- Batch Delete Confirmation Modal -->
     <Transition name="modal">
-      <ConfirmationModal
-        v-if="showBatchDeleteModal"
-        title="Delete Multiple Files?"
-        :message="`Delete ${batchSelected.size} file(s)? This action cannot be undone.`"
-        confirm-text="Delete All"
-        @confirm="confirmBatchDelete"
-        @cancel="cancelBatchDelete"
-      />
+      <ConfirmationModal v-if="showBatchDeleteModal && batchSelected.size > 0" title="Remove Files?"
+        :message="`Remove ${batchSelected.size} files from this project? They will remain in the Reference Bank.`"
+        confirmText="Remove" @confirm="confirmBatchDelete" @cancel="cancelBatchDelete" />
     </Transition>
 
-    <!-- Error Modal -->
+    <!-- Unpin Note Confirmation Modal -->
     <Transition name="modal">
-      <AlertModal
-        v-if="showErrorModal"
-        title="Delete Failed"
-        :message="errorMessage"
-        type="error"
-        @close="closeErrorModal"
-      />
+      <ConfirmationModal v-if="showUnpinNoteModal && pendingUnpinNote" title="Unpin Note?"
+        :message="`Unpin note: &quot;${pendingUnpinNote.text.slice(0, 50)}${pendingUnpinNote.text.length > 50 ? '...' : ''}&quot;?`"
+        confirmText="Unpin" @confirm="confirmUnpinNote" @cancel="cancelUnpinNote" />
+    </Transition>
+
+    <!-- Bank File Selector Modal -->
+    <Transition name="modal">
+      <BankFileSelectorModal v-if="showBankSelector" :project-id="projectId" :selected-files="projectFiles"
+        @close="showBankSelector = false" @confirm="handleBankFilesSelected" />
+    </Transition>
+
+    <!-- Error Alert Modal -->
+    <Transition name="modal">
+      <AlertModal v-if="showErrorModal" title="Delete Failed" :message="errorMessage" type="error"
+        @close="closeErrorModal" />
     </Transition>
   </aside>
 </template>
@@ -407,6 +557,23 @@ async function confirmBatchDelete() {
   font-size: 12px;
   color: #888;
   text-align: center;
+}
+
+.info-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1565c0;
+}
+
+.info-banner svg {
+  flex-shrink: 0;
 }
 
 .section-header-row {
@@ -423,6 +590,35 @@ async function confirmBatchDelete() {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+.add-from-bank-btn {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--accent-color) 0%, #5e72e4 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.add-from-bank-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.add-from-bank-btn:active {
+  transform: translateY(0);
+}
+
 
 .batch-toggle-btn {
   background: transparent;
@@ -610,6 +806,30 @@ async function confirmBatchDelete() {
   }
 }
 
+.add-files-btn {
+  width: 100%;
+  padding: 10px;
+  background: #fff;
+  color: var(--text-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.add-files-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: #f8faff;
+}
+
 .new-chat-btn {
   width: 100%;
   padding: 10px;
@@ -709,5 +929,82 @@ async function confirmBatchDelete() {
 .modal-leave-to :deep(.modal-box) {
   transform: scale(0.95) translateY(10px);
   opacity: 0;
+}
+
+/* Batch Toolbar Styles */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 12px 16px;
+  /* Below header */
+  padding: 8px;
+  background: #f0f4ff;
+  border-radius: 8px;
+  border: 1px dashed #aabbdd;
+}
+
+.batch-tool-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batch-tool-btn:hover {
+  background: #f9f9f9;
+  border-color: #ccc;
+  color: #333;
+}
+
+.batch-tool-btn.delete {
+  background: #fff0f0;
+  color: #d32f2f;
+  border-color: #ffcccc;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.batch-tool-btn.delete:hover {
+  background: #ffe0e0;
+  border-color: #ffaaaa;
+}
+
+.batch-tool-btn.delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+  color: #aaa;
+  border-color: transparent;
+}
+
+.batch-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  /* Push to right if needed */
+}
+
+.batch-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.batch-toggle-btn.active {
+  background: #e6f0ff;
+  color: #3b82f6;
 }
 </style>

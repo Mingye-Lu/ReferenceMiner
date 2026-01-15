@@ -359,6 +359,122 @@ export async function uploadFileStream(
   return result
 }
 
+// Upload file to global Reference Bank (not project-specific)
+export async function uploadFileToBankStream(
+  file: File,
+  handlers: UploadEventHandler,
+  replaceExisting: boolean = false
+): Promise<UploadResult | null> {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("replace_existing", String(replaceExisting))
+
+  console.log("[bank-upload] Starting upload for:", file.name)
+
+  const response = await fetch(`${API_BASE}/api/bank/upload/stream`, {
+    method: "POST",
+    body: formData,
+  })
+
+  console.log("[bank-upload] Response status:", response.status)
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text()
+    console.error("[bank-upload] Request failed:", detail)
+    handlers.onError?.("UPLOAD_FAILED", detail || "Upload request failed")
+    return null
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+  let result: UploadResult | null = null
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) {
+      console.log("[bank-upload] Stream done, remaining buffer:", buffer)
+      break
+    }
+    buffer += decoder.decode(value, { stream: true })
+    console.log("[bank-upload] Received chunk, buffer length:", buffer.length)
+
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      let event = "message"
+      let data = ""
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim()
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim()
+        }
+      }
+
+      console.log("[bank-upload] SSE event:", event, "data:", data.slice(0, 100))
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data)
+
+          if (event === "progress") {
+            console.log("[bank-upload] Progress:", payload.phase, payload.percent)
+            handlers.onProgress?.({
+              phase: payload.phase,
+              percent: payload.percent,
+            })
+          } else if (event === "duplicate") {
+            console.log("[bank-upload] Duplicate detected:", payload.existing_path)
+            handlers.onDuplicate?.(payload.sha256, payload.existing_path)
+            result = {
+              success: false,
+              relPath: "",
+              sha256: payload.sha256,
+              status: "duplicate",
+              duplicatePath: payload.existing_path,
+            }
+          } else if (event === "complete") {
+            console.log("[bank-upload] Complete:", payload.rel_path)
+            result = {
+              success: true,
+              relPath: payload.rel_path,
+              sha256: payload.sha256,
+              status: payload.status,
+              manifestEntry: payload.manifest_entry ? mapManifestEntry(payload.manifest_entry) : undefined,
+            }
+            handlers.onComplete?.(result)
+          } else if (event === "error") {
+            console.error("[bank-upload] Error:", payload.code, payload.message)
+            handlers.onError?.(payload.code, payload.message)
+            result = {
+              success: false,
+              relPath: "",
+              sha256: "",
+              status: "error",
+              message: payload.message,
+            }
+          }
+        } catch (e) {
+          console.error("[bank-upload] Parse error:", e)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
+
+  console.log("[bank-upload] Final result:", result)
+  return result
+}
+
+export async function fetchFileStats(): Promise<Record<string, { usage_count: number; last_used: number }>> {
+  const data = await fetchJson<Record<string, { usage_count: number; last_used: number }>>("/api/bank/files/stats")
+  return data
+}
+
+
 export async function deleteFile(projectId: string, relPath: string): Promise<DeleteResult> {
   const response = await fetch(`${API_BASE}/api/projects/${projectId}/files/${encodeURIComponent(relPath)}`, {
     method: "DELETE",

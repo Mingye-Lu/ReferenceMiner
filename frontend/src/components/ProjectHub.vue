@@ -1,19 +1,35 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue"
+import { ref, onMounted, computed } from "vue"
 import { useRouter } from "vue-router"
-import { fetchProjects, createProject } from "../api/client"
-import type { Project } from "../types"
+import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles } from "../api/client"
+import type { Project, ManifestEntry } from "../types"
 import ProjectCard from "./ProjectCard.vue"
-import { Plus, Search, Loader2 } from "lucide-vue-next"
+import FileUploader from "./FileUploader.vue"
+import FilePreviewModal from "./FilePreviewModal.vue"
+import ConfirmationModal from "./ConfirmationModal.vue"
+import BankFileSelectorModal from "./BankFileSelectorModal.vue"
+import { Plus, Search, Loader2, Upload, FileText, Trash2 } from "lucide-vue-next"
 
 const router = useRouter()
+const activeTab = ref<'projects' | 'bank'>('projects')
 const projects = ref<Project[]>([])
+const bankFiles = ref<ManifestEntry[]>([])
 const loading = ref(true)
+const bankLoading = ref(false)
 const searchQuery = ref("")
 const showCreateModal = ref(false)
 const newProjectName = ref("")
 const newProjectDesc = ref("")
 const creating = ref(false)
+const previewFile = ref<ManifestEntry | null>(null)
+const showDeleteModal = ref(false)
+const fileToDelete = ref<ManifestEntry | null>(null)
+const deleting = ref(false)
+const showDeleteProjectModal = ref(false)
+const projectToDelete = ref<Project | null>(null)
+const deletingProject = ref(false)
+const showFileSelectorForCreate = ref(false)
+const selectedFilesForCreate = ref<Set<string>>(new Set())
 
 async function loadProjects() {
     try {
@@ -26,6 +42,17 @@ async function loadProjects() {
     }
 }
 
+async function loadBankFiles() {
+    try {
+        bankLoading.value = true
+        bankFiles.value = await fetchBankManifest()
+    } catch (err) {
+        console.error("Failed to load bank files:", err)
+    } finally {
+        bankLoading.value = false
+    }
+}
+
 async function handleCreate() {
     if (!newProjectName.value.trim()) return
     try {
@@ -34,11 +61,22 @@ async function handleCreate() {
             name: newProjectName.value,
             description: newProjectDesc.value
         })
+
+
+        if (selectedFilesForCreate.value.size > 0) {
+            try {
+                await selectProjectFiles(p.id, Array.from(selectedFilesForCreate.value))
+            } catch (e) {
+                console.error("Failed to add initial files", e)
+            }
+        }
+
         projects.value.push(p)
         showCreateModal.value = false
         newProjectName.value = ""
         newProjectDesc.value = ""
-        // Navigate to the new project
+        selectedFilesForCreate.value = new Set()
+
         openProject(p.id)
     } catch (err) {
         console.error("Failed to create project:", err)
@@ -47,8 +85,90 @@ async function handleCreate() {
     }
 }
 
+function openFileSelectorForCreate() {
+    showFileSelectorForCreate.value = true
+}
+
+function handleInitialFilesSelected(files: string[]) {
+    selectedFilesForCreate.value = new Set(files)
+    showFileSelectorForCreate.value = false
+}
+
 function openProject(id: string) {
     router.push(`/project/${id}`)
+}
+
+function handlePreview(file: ManifestEntry) {
+    previewFile.value = file
+}
+
+function closePreview() {
+    previewFile.value = null
+}
+
+function requestDelete(file: ManifestEntry) {
+    fileToDelete.value = file
+    showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+    if (!fileToDelete.value) return
+    try {
+        deleting.value = true
+        await deleteFile('default', fileToDelete.value.relPath)
+
+        await loadBankFiles()
+        showDeleteModal.value = false
+        fileToDelete.value = null
+    } catch (err) {
+        console.error("Failed to delete file:", err)
+    } finally {
+        deleting.value = false
+    }
+}
+
+function cancelDelete() {
+    showDeleteModal.value = false
+    fileToDelete.value = null
+}
+
+function handleDeleteProject(projectId: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (project) {
+        projectToDelete.value = project
+        showDeleteProjectModal.value = true
+    }
+}
+
+async function confirmDeleteProject() {
+    if (!projectToDelete.value) return
+    try {
+        deletingProject.value = true
+        await deleteProject(projectToDelete.value.id)
+        await loadProjects()
+        showDeleteProjectModal.value = false
+        projectToDelete.value = null
+    } catch (err) {
+        console.error("Failed to delete project:", err)
+    } finally {
+        deletingProject.value = false
+    }
+}
+
+function cancelDeleteProject() {
+    showDeleteProjectModal.value = false
+    projectToDelete.value = null
+}
+
+async function handleUploadComplete() {
+    await loadBankFiles()
+}
+
+function switchToBank() {
+    activeTab.value = 'bank'
+    if (bankFiles.value.length === 0) {
+        loadBankFiles()
+    }
 }
 
 onMounted(loadProjects)
@@ -78,30 +198,88 @@ onMounted(loadProjects)
             </div>
         </header>
 
+        <!-- Tabs -->
+        <div class="hub-tabs">
+            <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
+                <Search :size="16" />
+                <span>Projects</span>
+            </button>
+            <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
+                <FileText :size="16" />
+                <span>Reference Bank</span>
+            </button>
+        </div>
+
         <main class="hub-content">
-            <div v-if="loading" class="loading-state">
-                <Loader2 class="spinner" :size="32" />
-                <p>Loading your research space...</p>
-            </div>
+            <!-- Projects Tab -->
+            <div v-if="activeTab === 'projects'">
+                <div v-if="loading" class="loading-state">
+                    <Loader2 class="spinner" :size="32" />
+                    <p>Loading your research space...</p>
+                </div>
 
-            <div v-else-if="projects.length === 0" class="empty-state">
-                <div class="empty-icon">📂</div>
-                <h2>No studies yet</h2>
-                <p>Create your first research project to get started.</p>
-                <button class="btn-primary" @click="showCreateModal = true">
-                    <Plus :size="18" />
-                    <span>Create New Study</span>
-                </button>
-            </div>
+                <div v-else-if="projects.length === 0" class="empty-state">
+                    <div class="empty-icon">📂</div>
+                    <h2>No studies yet</h2>
+                    <p>Create your first research project to get started.</p>
+                    <button class="btn-primary" @click="showCreateModal = true">
+                        <Plus :size="18" />
+                        <span>Create New Study</span>
+                    </button>
+                </div>
 
-            <div v-else class="project-grid">
-                <ProjectCard v-for="p in projects" :key="p.id" :project="p" @open="openProject" />
+                <div v-else class="project-grid">
+                    <ProjectCard v-for="p in projects" :key="p.id" :project="p" @open="openProject"
+                        @delete="handleDeleteProject" />
 
-                <div class="create-card" @click="showCreateModal = true">
-                    <div class="plus-icon">
-                        <Plus :size="32" />
+                    <div class="create-card" @click="showCreateModal = true">
+                        <div class="plus-icon">
+                            <Plus :size="32" />
+                        </div>
+                        <span>Start New Project</span>
                     </div>
-                    <span>Start New Project</span>
+                </div>
+            </div>
+
+            <!-- Reference Bank Tab -->
+            <div v-else class="bank-content">
+                <div class="bank-header">
+                    <h2>Reference Bank</h2>
+                    <p>Upload and manage your research files. Files can be selected in any project.</p>
+                </div>
+
+                <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete" />
+
+                <div v-if="bankLoading" class="loading-state">
+                    <Loader2 class="spinner" :size="32" />
+                    <p>Loading files...</p>
+                </div>
+
+                <div v-else-if="bankFiles.length === 0" class="empty-state">
+                    <Upload :size="48" class="empty-icon-svg" />
+                    <h3>No files in Reference Bank</h3>
+                    <p>Upload files using the button above to get started.</p>
+                </div>
+
+                <div v-else class="file-grid">
+                    <div v-for="file in bankFiles" :key="file.relPath" class="file-card">
+                        <div class="file-icon">
+                            <FileText :size="24" />
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
+                            <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024)
+                                }}KB</div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="btn-icon" @click="handlePreview(file)" title="Preview">
+                                <Search :size="16" />
+                            </button>
+                            <button class="btn-icon delete" @click="requestDelete(file)" title="Delete">
+                                <Trash2 :size="16" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -119,6 +297,20 @@ onMounted(loadProjects)
                         <label>Description (Optional)</label>
                         <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
                     </div>
+                    <div class="form-group">
+                        <label>Initial Content (Optional)</label>
+                        <div class="file-select-row">
+                            <span class="file-count" v-if="selectedFilesForCreate.size > 0">
+                                {{ selectedFilesForCreate.size }} files selected
+                            </span>
+                            <span class="file-count placeholder" v-else>
+                                Start with some references...
+                            </span>
+                            <button class="btn-outline-sm" @click="openFileSelectorForCreate">
+                                Select Files
+                            </button>
+                        </div>
+                    </div>
                     <div class="modal-actions">
                         <button class="btn-secondary" @click="showCreateModal = false">Cancel</button>
                         <button class="btn-primary" :disabled="!newProjectName.trim() || creating"
@@ -130,6 +322,26 @@ onMounted(loadProjects)
                 </div>
             </div>
         </Transition>
+
+        <!-- File Preview Modal -->
+        <FilePreviewModal v-if="previewFile" :file="previewFile" @close="closePreview" />
+
+        <!-- Delete Confirmation Modal -->
+        <Transition name="fade">
+            <ConfirmationModal v-if="showDeleteModal && fileToDelete" title="Delete File?"
+                :message="`Delete '${fileToDelete.relPath}'? This will remove it from all projects. This action cannot be undone.`"
+                confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
+        </Transition>
+
+        <!-- Delete Project Confirmation Modal -->
+        <Transition name="fade">
+            <ConfirmationModal v-if="showDeleteProjectModal && projectToDelete" title="Delete Project?"
+                :message="`Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`"
+                confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
+        </Transition>
+        <!-- Initial File Selector -->
+        <BankFileSelectorModal v-if="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
+            @confirm="handleInitialFilesSelected" @close="showFileSelectorForCreate = false" />
     </div>
 </template>
 
@@ -357,5 +569,201 @@ onMounted(loadProjects)
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
+}
+
+/* Tabs */
+.hub-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 0 60px;
+    background: white;
+    border-bottom: 1px solid #eee;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: #f8f9fc;
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+
+/* Reference Bank */
+.bank-content {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.bank-header {
+    margin-bottom: 30px;
+}
+
+.bank-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.bank-header p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.file-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.file-card:hover {
+    border-color: var(--accent-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.file-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f3f8;
+    border-radius: 8px;
+    color: var(--accent-color);
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.file-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.file-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+
+.file-card:hover .file-actions {
+    opacity: 1;
+}
+
+/* File Selection in Create Modal */
+.file-select-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fc;
+    border: 1px solid #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.file-count {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.file-count.placeholder {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.btn-outline-sm {
+    background: white;
+    border: 1px solid #d1d5db;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+}
+
+.btn-outline-sm:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: #f0f0f0;
+    color: var(--text-primary);
+}
+
+.btn-icon.delete:hover {
+    background: #fff0f0;
+    color: #d32f2f;
+}
+
+.empty-icon-svg {
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.empty-state h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
 }
 </style>

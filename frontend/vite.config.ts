@@ -6,6 +6,16 @@ export default defineConfig({
   base: "/",  // Root-relative paths for bundled deployment
   server: {
     port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/files': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: "dist",

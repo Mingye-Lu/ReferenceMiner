@@ -4,7 +4,10 @@ import MessageItem from "./MessageItem.vue"
 import { streamAsk } from "../api/client"
 import type { ChatMessage, EvidenceChunk, Project } from "../types"
 
-const props = defineProps<{ history: ChatMessage[] }>()
+const props = defineProps<{
+  history: ChatMessage[],
+  highlightId?: string | null
+}>()
 defineEmits<{ (event: 'update:history', val: ChatMessage[]): void }>()
 
 const draftInput = ref("")
@@ -45,6 +48,20 @@ watch(() => props.history.length, () => {
   nextTick(() => scrollAnchor.value?.scrollIntoView({ behavior: "smooth" }))
 })
 
+
+watch(() => props.highlightId, (newId) => {
+  if (newId) {
+    nextTick(() => {
+      const el = document.getElementById(`msg-${newId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('flash-highlight')
+        setTimeout(() => el.classList.remove('flash-highlight'), 2000)
+      }
+    })
+  }
+})
+
 async function sendMessage() {
   if (!draftInput.value.trim() || isLoading.value) return
   const question = draftInput.value
@@ -66,11 +83,7 @@ async function sendMessage() {
   try {
     const context = Array.from(selectedFiles.value)
 
-    // Logic: If Note Mode is ON:
-    // 1. If individual notes are selected, use ONLY those.
-    // 2. If no notes selected, use ALL pinned notes.
-    // If Note Mode is OFF:
-    // Send empty notes (Server uses RAG on files).
+
     let notes: EvidenceChunk[] = []
     if (isNoteMode.value) {
       if (selectedNotes.value.size > 0) {
@@ -136,7 +149,7 @@ async function sendMessage() {
     </div>
 
     <div class="chat-container">
-      <MessageItem v-for="msg in history" :key="msg.id" :message="msg" />
+      <MessageItem v-for="msg in history" :key="msg.id" :id="'msg-' + msg.id" :message="msg" />
     </div>
     <div ref="scrollAnchor" style="height: 1px;"></div>
   </div>
@@ -336,10 +349,28 @@ async function sendMessage() {
   max-height: 200px;
 }
 
+
 .input-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-top: 8px;
+}
+
+@keyframes flash {
+  0% {
+    background-color: rgba(255, 235, 59, 0.4);
+    box-shadow: 0 0 10px rgba(255, 235, 59, 0.5);
+  }
+
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+:deep(.flash-highlight) {
+  animation: flash 2s ease-out;
+  border-radius: 8px;
 }
 </style>

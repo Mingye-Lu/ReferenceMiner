@@ -7,8 +7,8 @@ import { getFileUrl } from "../api/client"
 const props = defineProps<{ file: ManifestEntry | null }>()
 const emit = defineEmits<{ (event: 'close'): void }>()
 
-const currentProject = inject<Ref<Project | null>>("currentProject")!
-const projectId = computed(() => currentProject.value?.id || "default")
+const currentProject = inject<Ref<Project | null> | undefined>("currentProject", undefined)
+const projectId = computed(() => currentProject?.value?.id || "default")
 
 const docxContainer = ref<HTMLElement | null>(null)
 const isLoading = ref(false)

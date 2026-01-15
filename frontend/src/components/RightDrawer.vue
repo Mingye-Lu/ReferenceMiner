@@ -6,6 +6,7 @@ const props = defineProps<{
   tab: "reader" | "notebook"
   evidence: EvidenceChunk | null
   highlightNoteId: string | null
+  isOpen?: boolean
 }>()
 
 defineEmits<{ (event: 'close'): void }>()
@@ -34,15 +35,26 @@ function refreshNotebook() {
 
 // [逻辑修正] 在笔记本中点击取消钉选
 function handleNotebookUnpin(item: EvidenceChunk) {
-  // 1. 标记为待移除 (视觉变灰)
-  pendingRemovals.value.add(item.chunkId)
-  // 2. 全局状态移除 (影响其他地方的状态)
+  if (pendingRemovals.value.has(item.chunkId)) {
+    // 撤销待移除状态
+    pendingRemovals.value.delete(item.chunkId)
+  } else {
+    // 标记为待移除 (视觉变灰)
+    pendingRemovals.value.add(item.chunkId)
+  }
+  // 全局状态移除/恢复 (影响其他地方的状态)
   togglePin(item)
-  // 3. 但不从 notebookList 移除，直到 Refresh 或 Tab 切换
 }
 
 watch(currentTab, (val) => {
   if (val === 'notebook') refreshNotebook()
+})
+
+// [NEW] Refresh notebook when drawer closes to clean up pending removals
+watch(() => props.isOpen, (val) => {
+  if (val === false) {
+    refreshNotebook()
+  }
 })
 
 // 监听全局 Map 变化

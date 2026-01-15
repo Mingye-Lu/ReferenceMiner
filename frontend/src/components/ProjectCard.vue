@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { Project } from "../types"
-import { Folder, Clock, FileText, StickyNote } from "lucide-vue-next"
+import { Folder, Clock, FileText, StickyNote, Trash2 } from "lucide-vue-next"
 
-defineProps<{
+const props = defineProps<{
     project: Project
 }>()
 
 const emit = defineEmits<{
     (e: "open", id: string): void
+    (e: "delete", id: string): void
 }>()
 
 function formatTime(epoch: number) {
@@ -18,6 +19,11 @@ function formatTime(epoch: number) {
         minute: '2-digit'
     })
 }
+
+function handleDelete(e: Event) {
+    e.stopPropagation()
+    emit('delete', props.project.id)
+}
 </script>
 
 <template>
@@ -27,9 +33,14 @@ function formatTime(epoch: number) {
                 <Folder v-if="!project.icon" :size="24" />
                 <span v-else class="emoji-icon">{{ project.icon }}</span>
             </div>
-            <div class="last-active">
-                <Clock :size="12" />
-                <span>{{ formatTime(project.lastActive) }}</span>
+            <div class="card-top-right">
+                <button class="delete-btn" @click="handleDelete" title="Delete project">
+                    <Trash2 :size="14" />
+                </button>
+                <div class="last-active">
+                    <Clock :size="12" />
+                    <span>{{ formatTime(project.lastActive) }}</span>
+                </div>
             </div>
         </div>
 
@@ -76,6 +87,35 @@ function formatTime(epoch: number) {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+}
+
+.card-top-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transition: all 0.2s;
+}
+
+.project-card:hover .delete-btn {
+    opacity: 1;
+}
+
+.delete-btn:hover {
+    background: #fff0f0;
+    color: #d32f2f;
 }
 
 .project-icon {

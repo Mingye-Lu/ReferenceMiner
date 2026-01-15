@@ -252,6 +252,8 @@ def _stream_rag(
             yield _sse("answer_delta", {"delta": answer_markdown})
 
     yield _sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
+    # Send final done event to signal completion
+    yield _sse("done", {})
 
 
 @app.get("/api/projects/{project_id}/manifest")
@@ -268,6 +270,30 @@ async def get_bank_manifest():
     _ensure_index()
     entries = _load_manifest()
     return [asdict(entry) for entry in entries]
+
+
+@app.get("/api/bank/files/stats")
+async def get_file_stats():
+    """Get usage statistics for all files in the bank."""
+    projects = project_manager.get_projects()
+    
+    # Dictionary to store stats: {file_path: {usage_count, last_used}}
+    stats = {}
+    
+    for project in projects:
+        for file_path in project.selected_files:
+            if file_path not in stats:
+                stats[file_path] = {
+                    "usage_count": 0,
+                    "last_used": 0.0
+                }
+            
+            stats[file_path]["usage_count"] += 1
+            # Update last_used to the most recent project's last_active
+            if project.last_active > stats[file_path]["last_used"]:
+                stats[file_path]["last_used"] = project.last_active
+    
+    return stats
 
 
 @app.get("/api/projects/{project_id}/files")

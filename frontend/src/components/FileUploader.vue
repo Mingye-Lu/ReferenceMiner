@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import { uploadFileStream } from "../api/client"
-import type { UploadItem, ManifestEntry } from "../types"
+import { uploadFileStream, uploadFileToBankStream } from "../api/client"
+import type { UploadItem, ManifestEntry, UploadProgress } from "../types"
 
-const props = defineProps<{
-  projectId: string
-}>()
+const props = withDefaults(defineProps<{
+  projectId?: string
+  uploadMode?: 'bank' | 'project'
+}>(), {
+  uploadMode: 'project'
+})
 
 const emit = defineEmits<{
   (e: "upload-complete", entry: ManifestEntry): void
@@ -16,6 +19,8 @@ const uploads = ref<UploadItem[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const isOpen = ref(false)
+const activeUploads = ref(0)
+const MAX_CONCURRENT_UPLOADS = 3
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg", ".csv", ".xlsx"]
 
@@ -44,6 +49,21 @@ function addFiles(files: FileList | File[]) {
       progress: 0,
     }
     uploads.value.push(item)
+  }
+
+  // Start processing uploads with concurrency control
+  processQueue()
+}
+
+async function processQueue() {
+  // Find pending uploads
+  const pending = uploads.value.filter(u => u.status === "pending")
+
+  // Start uploads up to the concurrent limit
+  for (const item of pending) {
+    if (activeUploads.value >= MAX_CONCURRENT_UPLOADS) {
+      break
+    }
     processUpload(item)
   }
 }
@@ -66,23 +86,24 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
     }
   }
 
+  activeUploads.value++
   updateItem({ status: "uploading", progress: 0 })
 
   try {
-    const result = await uploadFileStream(props.projectId, item.file, {
-      onProgress: (progress) => {
+    const handlers = {
+      onProgress: (progress: UploadProgress) => {
         updateItem({
           status: "processing",
           progress: progress.percent ?? item.progress
         })
       },
-      onDuplicate: (_sha256, existingPath) => {
+      onDuplicate: (_sha256: string, existingPath: string) => {
         updateItem({
           status: "duplicate",
           duplicatePath: existingPath
         })
       },
-      onComplete: (result) => {
+      onComplete: (result: any) => {
         updateItem({
           status: "complete",
           progress: 100,
@@ -92,13 +113,18 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
           emit("upload-complete", result.manifestEntry)
         }
       },
-      onError: (_code, message) => {
+      onError: (_code: string, message: string) => {
         updateItem({
           status: "error",
           error: message
         })
       },
-    }, replace)
+    }
+
+    // Call appropriate upload function based on mode
+    const result = props.uploadMode === 'bank'
+      ? await uploadFileToBankStream(item.file, handlers, replace)
+      : await uploadFileStream(props.projectId!, item.file, handlers, replace)
 
     const currentItem = uploads.value.find(u => u.id === item.id)
     if (!result && currentItem) {
@@ -111,6 +137,10 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
       status: "error",
       error: e instanceof Error ? e.message : "Upload failed"
     })
+  } finally {
+    activeUploads.value--
+    // Process next item in queue
+    processQueue()
   }
 }
 
@@ -178,7 +208,8 @@ function getStatusLabel(status: string): string {
         <div class="modal-box upload-box">
           <header class="modal-header upload-header">
             <div class="header-content">
-              <h3 class="modal-title">Upload to Reference Bank</h3>
+              <h3 class="modal-title">{{ uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project' }}
+              </h3>
             </div>
             <button class="close-btn" @click="closeModal">×</button>
           </header>
@@ -210,6 +241,13 @@ function getStatusLabel(status: string): string {
                     <div class="item-info">
                       <span class="filename">{{ item.file.name }}</span>
                       <span class="status-badge" :class="item.status">{{ getStatusLabel(item.status) }}</span>
+                      <button v-if="item.status === 'complete'" class="btn-icon" @click="removeItem(item)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
                     </div>
 
                     <div v-if="item.status === 'uploading' || item.status === 'processing'" class="progress-bar">
@@ -226,22 +264,14 @@ function getStatusLabel(status: string): string {
                       <span class="error-text">{{ item.error }}</span>
                       <button class="btn-small btn-ghost" @click="removeItem(item)">Dismiss</button>
                     </div>
-
-                    <button v-if="item.status === 'complete'" class="btn-icon" @click="removeItem(item)">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
                   </div>
                 </div>
 
                 <div class="upload-actions">
                   <button class="btn-secondary" @click="fileInput?.click()">Add More</button>
                   <button class="btn-secondary" @click="folderInput?.click()">Add Folder</button>
-                  <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')" class="btn-ghost"
-                    @click="clearCompleted">Clear Done</button>
+                  <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')"
+                    class="btn-secondary" @click="clearCompleted">Clear Done</button>
                 </div>
                 <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect"
                   ref="fileInput" class="hidden-input" />
@@ -442,7 +472,7 @@ function getStatusLabel(status: string): string {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 200px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
@@ -557,9 +587,14 @@ function getStatusLabel(status: string): string {
 }
 
 .upload-item .btn-icon {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  /* No longer absolute */
+  flex-shrink: 0;
+  color: #999;
+}
+
+.upload-item .btn-icon:hover {
+  color: #666;
+  background-color: #f0f0f0;
 }
 
 .modal-enter-active,
@@ -585,5 +620,21 @@ function getStatusLabel(status: string): string {
 .modal-leave-to .modal-box {
   transform: scale(0.95) translateY(10px);
   opacity: 0;
+}
+
+.btn-ghost {
+  background: #f1f3f9;
+  color: var(--text-primary);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+  background: #e0e3e9;
 }
 </style>

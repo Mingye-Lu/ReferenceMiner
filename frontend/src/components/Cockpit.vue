@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, reactive, provide, onMounted, computed, watch } from "vue"
+import { ref, reactive, provide, onMounted, onUnmounted, computed, watch, nextTick } from "vue"
 import SidePanel from "./SidePanel.vue"
 import ChatWindow from "./ChatWindow.vue"
 import RightDrawer from "./RightDrawer.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
+import CommandPalette from "./CommandPalette.vue"
 import { fetchBankManifest, fetchProjectFiles, streamSummarize, activateProject, fetchProjects } from "../api/client"
 import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project } from "../types"
 import { useRouter } from "vue-router"
-import { Home, Settings, Search } from "lucide-vue-next"
+import { Home, Search, PanelRight } from "lucide-vue-next"
 
 const props = defineProps<{
   id: string
@@ -29,8 +30,15 @@ const pendingDeleteChatId = ref<string | null>(null)
 
 // Data state
 const manifest = ref<ManifestEntry[]>([])
+// Project Files: files belonging to this project
+const projectFiles = ref<Set<string>>(new Set())
+// Selected Files: files selected for AI context
 const selectedFiles = ref<Set<string>>(new Set())
 const selectedNotes = ref<Set<string>>(new Set())
+
+// Search State
+const isSearchOpen = ref(false)
+const highlightMessageId = ref<string | null>(null)
 
 // Chat + history store (supports switching)
 const currentChatId = ref("1")
@@ -128,6 +136,34 @@ function switchChat(id: string) {
   currentChatId.value = id
 }
 
+function openSearch() {
+  isSearchOpen.value = true
+}
+
+function handleSearchNavigate(item: any) {
+  if (item.type === 'chat') {
+    switchChat(item.data.sessionId)
+    if (item.data.messageId) {
+      // Force update if same ID
+      highlightMessageId.value = null
+      nextTick(() => {
+        highlightMessageId.value = item.data.messageId
+      })
+    }
+  } else if (item.type === 'note') {
+    openNoteLocation(item.data.chunkId)
+  } else if (item.type === 'file') {
+    openPreview(item.data)
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    openSearch()
+  }
+}
+
 // Auto-Title Generation Watcher
 const titleGeneratingFor = ref<string | null>(null)
 
@@ -177,6 +213,7 @@ provide("togglePin", togglePin)
 provide("isPinned", isPinned)
 provide("pinnedEvidenceMap", pinnedEvidenceMap)
 provide("manifest", manifest)
+provide("projectFiles", projectFiles)
 provide("selectedFiles", selectedFiles)
 provide("selectedNotes", selectedNotes)
 provide("chatSessions", chatSessions)
@@ -218,9 +255,17 @@ onMounted(async () => {
     const list = await fetchProjects()
     project.value = list.find(p => p.id === pid) || null
     manifest.value = await fetchBankManifest()
-    const selected = await fetchProjectFiles(pid)
-    selectedFiles.value = new Set(selected)
+    const pFiles = await fetchProjectFiles(pid)
+    projectFiles.value = new Set(pFiles)
+    // selectedFiles starts empty as requested
+    selectedFiles.value = new Set()
   } catch (e) { console.error(e) }
+
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 
 watch(() => currentChatId.value, (val) => localStorage.setItem(`active_chat_id_${props.id}`, val))
@@ -244,14 +289,14 @@ watch(() => pinnedEvidenceMap.value, (val) => {
         </div>
       </div>
       <div class="nav-center">
-        <div class="search-trigger">
+        <div class="search-trigger" @click="openSearch">
           <Search :size="16" />
-          <span>Search everything in this study... (⌘K)</span>
+          <span>Search everything in this study... (Ctrl+K)</span>
         </div>
       </div>
       <div class="nav-right">
-        <button class="nav-btn">
-          <Settings :size="18" />
+        <button class="nav-btn" @click="toggleDrawer()">
+          <PanelRight :size="18" />
         </button>
       </div>
     </header>
@@ -260,12 +305,12 @@ watch(() => pinnedEvidenceMap.value, (val) => {
       <SidePanel :active-chat-id="currentChatId" :highlighted-paths="highlightedPaths" @preview="openPreview"
         @select-chat="switchChat" @new-chat="handleNewChat" />
       <main class="workspace-shell">
-        <ChatWindow v-model:history="chatHistory" />
+        <ChatWindow v-model:history="chatHistory" :highlight-id="highlightMessageId" />
       </main>
     </div>
 
     <div class="drawer-overlay" :class="{ open: isDrawerOpen }" @click="toggleDrawer(false)"></div>
-    <RightDrawer :class="{ open: isDrawerOpen }" :tab="drawerTab" :evidence="activeEvidence"
+    <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
       :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
     <!-- File Preview Modal -->
     <Transition name="modal">
@@ -278,6 +323,10 @@ watch(() => pinnedEvidenceMap.value, (val) => {
         message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
         @confirm="confirmDeleteChat" @cancel="cancelDeleteChat" />
     </Transition>
+
+    <CommandPalette :visible="isSearchOpen" :project-files="projectFiles" :pinned-evidence="pinnedEvidenceMap"
+      :chat-store="chatStore" :chat-sessions="chatSessions" :manifest="manifest" @close="isSearchOpen = false"
+      @navigate="handleSearchNavigate" />
   </div>
 </template>
 
@@ -299,7 +348,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  z-index: 100;
+  z-index: 1;
   flex-shrink: 0;
 }
 
@@ -414,7 +463,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.2);
-  z-index: 90;
+  z-index: 50;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s;
