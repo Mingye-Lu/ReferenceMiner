@@ -2,10 +2,18 @@
 import { ref, inject, type Ref, computed } from "vue"
 import type { ManifestEntry, ChatSession, EvidenceChunk } from "../types"
 import FileUploader from "./FileUploader.vue"
+import ConfirmationModal from "./ConfirmationModal.vue"
+import AlertModal from "./AlertModal.vue"
 import { deleteFile, fetchManifest } from "../api/client"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
+
+// Modal state for file deletion
+const showDeleteFileModal = ref(false)
+const pendingDeleteFile = ref<ManifestEntry | null>(null)
+const showErrorModal = ref(false)
+const errorMessage = ref("")
 const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
 const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
@@ -71,27 +79,42 @@ async function handleUploadComplete(entry: ManifestEntry) {
   }
 }
 
-async function handleDeleteFile(file: ManifestEntry, e: Event) {
+function requestDeleteFile(file: ManifestEntry, e: Event) {
   e.stopPropagation()
   if (isDeleting.value) return
+  pendingDeleteFile.value = file
+  showDeleteFileModal.value = true
+}
 
-  if (!confirm(`Delete "${file.relPath}"? This action cannot be undone.`)) {
-    return
-  }
+function cancelDeleteFile() {
+  showDeleteFileModal.value = false
+  pendingDeleteFile.value = null
+}
 
+async function confirmDeleteFile() {
+  if (!pendingDeleteFile.value) return
+
+  const file = pendingDeleteFile.value
+  showDeleteFileModal.value = false
   isDeleting.value = file.relPath
+
   try {
     await deleteFile(file.relPath)
-    // Remove from selection
     selectedFiles.value.delete(file.relPath)
-    // Refresh manifest
     manifest.value = await fetchManifest()
   } catch (e) {
     console.error("Failed to delete file", e)
-    alert("Failed to delete file: " + (e instanceof Error ? e.message : "Unknown error"))
+    errorMessage.value = e instanceof Error ? e.message : "Unknown error"
+    showErrorModal.value = true
   } finally {
     isDeleting.value = null
+    pendingDeleteFile.value = null
   }
+}
+
+function closeErrorModal() {
+  showErrorModal.value = false
+  errorMessage.value = ""
 }
 </script>
 
@@ -152,7 +175,7 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
               <circle cx="12" cy="12" r="3" />
             </svg>
           </button>
-          <button class="icon-btn delete-btn" @click="(e) => handleDeleteFile(file, e)" title="Delete"
+          <button class="icon-btn delete-btn" @click="(e) => requestDeleteFile(file, e)" title="Delete"
             :disabled="isDeleting === file.relPath">
             <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -213,6 +236,29 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
         </div>
       </div>
     </div>
+
+    <!-- Delete File Confirmation Modal -->
+    <Transition name="modal">
+      <ConfirmationModal
+        v-if="showDeleteFileModal && pendingDeleteFile"
+        title="Delete File?"
+        :message="`Delete &quot;${pendingDeleteFile.relPath}&quot;? This action cannot be undone.`"
+        confirm-text="Delete"
+        @confirm="confirmDeleteFile"
+        @cancel="cancelDeleteFile"
+      />
+    </Transition>
+
+    <!-- Error Modal -->
+    <Transition name="modal">
+      <AlertModal
+        v-if="showErrorModal"
+        title="Delete Failed"
+        :message="errorMessage"
+        type="error"
+        @close="closeErrorModal"
+      />
+    </Transition>
   </aside>
 </template>
 
@@ -412,5 +458,31 @@ async function handleDeleteFile(file: ManifestEntry, e: Event) {
 .chat-meta {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* Modal transition animations */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-enter-active :deep(.modal-box),
+.modal-leave-active :deep(.modal-box) {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from :deep(.modal-box) {
+  transform: scale(0.95) translateY(-10px);
+  opacity: 0;
+}
+
+.modal-leave-to :deep(.modal-box) {
+  transform: scale(0.95) translateY(10px);
+  opacity: 0;
 }
 </style>

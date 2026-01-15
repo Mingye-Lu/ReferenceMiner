@@ -238,11 +238,47 @@ watch(pinnedEvidenceMap, (val) => {
       :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
 
     <!-- File Preview Modal -->
-    <FilePreviewModal v-if="previewFile" :file="previewFile" @close="previewFile = null" />
+    <Transition name="modal">
+      <FilePreviewModal v-if="previewFile" :file="previewFile" @close="previewFile = null" />
+    </Transition>
 
     <!-- Delete Confirmation Modal -->
-    <ConfirmationModal v-if="showDeleteModal" title="Delete Chat?"
-      message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
-      @confirm="confirmDeleteChat" @cancel="cancelDeleteChat" />
+    <Transition name="modal">
+      <ConfirmationModal v-if="showDeleteModal" title="Delete Chat?"
+        message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
+        @confirm="confirmDeleteChat" @cancel="cancelDeleteChat" />
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+/* Modal transition animations */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-enter-active :deep(.modal-box),
+.modal-enter-active :deep(.modal-content),
+.modal-leave-active :deep(.modal-box),
+.modal-leave-active :deep(.modal-content) {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from :deep(.modal-box),
+.modal-enter-from :deep(.modal-content) {
+  transform: scale(0.95) translateY(-10px);
+  opacity: 0;
+}
+
+.modal-leave-to :deep(.modal-box),
+.modal-leave-to :deep(.modal-content) {
+  transform: scale(0.95) translateY(10px);
+  opacity: 0;
+}
+</style>

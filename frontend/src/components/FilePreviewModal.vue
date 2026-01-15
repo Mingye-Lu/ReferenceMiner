@@ -52,10 +52,10 @@ function handleClose() {
 </script>
 
 <template>
-  <div v-if="file" class="modal-backdrop" @click.self="handleClose">
+  <div class="modal-backdrop" @click.self="handleClose">
     <div class="modal-content">
       <header class="modal-header">
-        <div class="modal-title">{{ file.relPath }}</div>
+        <div class="modal-title">{{ file?.relPath }}</div>
         <button class="close-btn" @click="handleClose">×</button>
       </header>
       <div class="modal-body">
@@ -66,7 +66,7 @@ function handleClose() {
           <div ref="docxContainer" class="docx-container"></div>
         </div>
         <div v-else class="preview-text">
-          <p>Preview not available for this file type ({{ file.fileType }}).</p>
+          <p>Preview not available for this file type ({{ file?.fileType }}).</p>
           <p><a :href="fileUrl" target="_blank">Download File</a></p>
         </div>
       </div>
