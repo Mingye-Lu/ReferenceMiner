@@ -120,6 +120,11 @@ async function sendMessage() {
         currentAiMsg.content += (payload.delta || "")
         scrollToBottom()
       }
+      if (event === "error") {
+        currentAiMsg.content += `\n\n> **Error:** ${payload.message || "An error occurred"}`
+        currentAiMsg.isStreaming = false
+        scrollToBottom()
+      }
       if (event === "answer_done" || event === "done") {
         currentAiMsg.isStreaming = false
       }

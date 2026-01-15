@@ -21,11 +21,12 @@ from refminer.ingest.incremental import full_ingest_single_file, remove_file_fro
 from refminer.ingest.manifest import SUPPORTED_EXTENSIONS, load_manifest
 from refminer.ingest.pipeline import ingest_all
 from refminer.ingest.registry import check_duplicate, load_registry, save_registry
-from refminer.llm.deepseek import blocks_to_markdown, generate_answer, stream_answer, DeepSeekClient, _load_config
+from refminer.llm.deepseek import blocks_to_markdown, generate_answer, stream_answer, DeepSeekClient, _load_config, set_settings_manager
 from refminer.retrieve.search import retrieve
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
 from refminer.projects.manager import ProjectManager
+from refminer.settings import SettingsManager
 
 
 def _get_base_dir() -> Path:
@@ -55,6 +56,10 @@ def _get_frontend_dir() -> Path:
 # Root directory of the repository
 BASE_DIR = _get_base_dir()
 project_manager = ProjectManager(str(BASE_DIR))
+
+# Settings manager for API key and other configuration
+settings_manager = SettingsManager(get_index_dir(BASE_DIR))
+set_settings_manager(settings_manager)
 
 
 from fastapi.staticfiles import StaticFiles
@@ -106,6 +111,67 @@ async def delete_project(project_id: str):
 async def activate_project(project_id: str):
     project_manager.update_activity(project_id)
     return {"success": True}
+
+
+# --- Settings Endpoints ---
+
+class ApiKeyRequest(BaseModel):
+    api_key: str
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """Get current settings (API key is masked)."""
+    return {
+        "has_api_key": settings_manager.has_api_key(),
+        "masked_api_key": settings_manager.get_masked_api_key(),
+        "base_url": settings_manager.get_base_url(),
+        "model": settings_manager.get_model(),
+    }
+
+
+@app.post("/api/settings/api-key")
+async def save_api_key(req: ApiKeyRequest):
+    """Save the DeepSeek API key."""
+    api_key = req.api_key.strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    settings_manager.set_api_key(api_key)
+    return {
+        "success": True,
+        "has_api_key": True,
+        "masked_api_key": settings_manager.get_masked_api_key(),
+    }
+
+
+@app.delete("/api/settings/api-key")
+async def delete_api_key():
+    """Remove the saved API key."""
+    settings_manager.clear_api_key()
+    return {"success": True, "has_api_key": settings_manager.has_api_key()}
+
+
+@app.post("/api/settings/validate")
+async def validate_api_key():
+    """Test if the current API key is valid by making a small request."""
+    config = settings_manager.get_deepseek_config()
+    if not config:
+        raise HTTPException(status_code=400, detail="No API key configured")
+
+    try:
+        from refminer.llm.deepseek import DeepSeekConfig, DeepSeekClient
+        ds_config = DeepSeekConfig(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            model=config.model,
+            timeout=10.0,
+        )
+        client = DeepSeekClient(ds_config)
+        # Make a minimal request to validate the key
+        client.chat([{"role": "user", "content": "Hi"}])
+        return {"valid": True}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 
 class AskRequest(BaseModel):
@@ -241,15 +307,30 @@ def _stream_rag(
     analysis = analyze(question, evidence)
 
     yield _sse("step", {"step": "answer", "title": "Generating Answer", "timestamp": time.time()})
-    stream_result = stream_answer(question, evidence, analysis.get("keywords", []))
-    if stream_result:
-        stream_iter, _citations = stream_result
-        for delta in stream_iter:
-            yield _sse("answer_delta", {"delta": delta})
-    else:
-        _, answer_markdown = _fallback_answer(analysis, evidence)
-        if answer_markdown:
-            yield _sse("answer_delta", {"delta": answer_markdown})
+    try:
+        stream_result = stream_answer(question, evidence, analysis.get("keywords", []))
+        if stream_result:
+            stream_iter, _citations = stream_result
+            for delta in stream_iter:
+                yield _sse("answer_delta", {"delta": delta})
+        else:
+            _, answer_markdown = _fallback_answer(analysis, evidence)
+            if answer_markdown:
+                yield _sse("answer_delta", {"delta": answer_markdown})
+    except Exception as e:
+        error_msg = str(e)
+        # Parse DeepSeek error messages for user-friendly display
+        if "Content Exists Risk" in error_msg:
+            yield _sse("error", {
+                "code": "CONTENT_FILTERED",
+                "message": "The AI provider flagged this content. Try rephrasing your question or using different references."
+            })
+        else:
+            yield _sse("error", {
+                "code": "LLM_ERROR",
+                "message": f"AI generation failed: {error_msg[:200]}"
+            })
+        return
 
     yield _sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
     # Send final done event to signal completion

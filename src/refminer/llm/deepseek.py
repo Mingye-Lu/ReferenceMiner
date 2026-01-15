@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import Iterable, Iterator
+from typing import TYPE_CHECKING, Iterable, Iterator, Optional
 
 import httpx
 
@@ -16,6 +16,18 @@ if load_dotenv:
     load_dotenv()
 
 from refminer.analyze.workflow import EvidenceChunk
+
+if TYPE_CHECKING:
+    from refminer.settings import SettingsManager
+
+# Global settings manager instance (set by server at startup)
+_settings_manager: Optional["SettingsManager"] = None
+
+
+def set_settings_manager(manager: "SettingsManager") -> None:
+    """Set the global settings manager for config loading."""
+    global _settings_manager
+    _settings_manager = manager
 
 
 CITATION_RE = re.compile(r"\[C(\d+)\]")
@@ -72,7 +84,14 @@ class DeepSeekClient:
         }
         with httpx.Client(timeout=self._config.timeout) as client:
             with client.stream("POST", url, headers=headers, json=payload) as response:
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    # Read error body before raising
+                    error_body = response.read().decode("utf-8", errors="replace")
+                    raise httpx.HTTPStatusError(
+                        f"HTTP {response.status_code}: {error_body}",
+                        request=response.request,
+                        response=response
+                    )
                 for line in response.iter_lines():
                     if not line or not line.startswith("data:"):
                         continue
@@ -185,6 +204,16 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
 
 
 def _load_config() -> DeepSeekConfig | None:
+    # Try settings manager first (if configured by server)
+    if _settings_manager is not None:
+        config = _settings_manager.get_deepseek_config()
+        if config:
+            return DeepSeekConfig(
+                api_key=config.api_key,
+                base_url=config.base_url,
+                model=config.model
+            )
+    # Fall back to environment variables
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         return None

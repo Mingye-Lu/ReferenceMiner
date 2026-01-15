@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue"
+import { ref, onMounted } from "vue"
 import { useRouter } from "vue-router"
 import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles } from "../api/client"
 import type { Project, ManifestEntry } from "../types"
@@ -8,7 +8,8 @@ import FileUploader from "./FileUploader.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
-import { Plus, Search, Loader2, Upload, FileText, Trash2 } from "lucide-vue-next"
+import SettingsModal from "./SettingsModal.vue"
+import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings } from "lucide-vue-next"
 
 const router = useRouter()
 const activeTab = ref<'projects' | 'bank'>('projects')
@@ -30,6 +31,7 @@ const projectToDelete = ref<Project | null>(null)
 const deletingProject = ref(false)
 const showFileSelectorForCreate = ref(false)
 const selectedFilesForCreate = ref<Set<string>>(new Set())
+const showSettingsModal = ref(false)
 
 async function loadProjects() {
     try {
@@ -191,6 +193,9 @@ onMounted(loadProjects)
                     <Search :size="16" />
                     <input v-model="searchQuery" placeholder="Search studies..." />
                 </div>
+                <button class="btn-icon-header" @click="showSettingsModal = true" title="Settings">
+                    <Settings :size="20" />
+                </button>
                 <button class="btn-primary" @click="showCreateModal = true">
                     <Plus :size="18" />
                     <span>New Study</span>
@@ -342,6 +347,9 @@ onMounted(loadProjects)
         <!-- Initial File Selector -->
         <BankFileSelectorModal v-if="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
             @confirm="handleInitialFilesSelected" @close="showFileSelectorForCreate = false" />
+
+        <!-- Settings Modal -->
+        <SettingsModal v-if="showSettingsModal" @close="showSettingsModal = false" />
     </div>
 </template>
 
@@ -381,8 +389,26 @@ onMounted(loadProjects)
 
 .header-right {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     align-items: center;
+}
+
+.btn-icon-header {
+    background: transparent;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-icon-header:hover {
+    background: #f1f3f9;
+    color: var(--text-primary);
 }
 
 .search-bar {

@@ -141,3 +141,16 @@ export interface ProjectCreate {
   name: string
   description?: string
 }
+
+// Settings types
+export interface Settings {
+  hasApiKey: boolean
+  maskedApiKey: string | null
+  baseUrl: string
+  model: string
+}
+
+export interface ValidateResult {
+  valid: boolean
+  error?: string
+}

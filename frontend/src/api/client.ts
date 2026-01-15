@@ -11,7 +11,9 @@ import type {
   UploadResult,
   Project,
   ProjectCreate,
-  ChatMessage
+  ChatMessage,
+  Settings,
+  ValidateResult
 } from "../types"
 
 // When bundled, frontend is served from the same server - use relative URLs
@@ -572,4 +574,50 @@ export async function deleteProject(projectId: string): Promise<void> {
 
 export async function activateProject(projectId: string): Promise<void> {
   await fetchJson(`/api/projects/${projectId}/activate`, { method: "POST" })
+}
+
+// =============================================================================
+// Settings API
+// =============================================================================
+
+export async function getSettings(): Promise<Settings> {
+  const data = await fetchJson<any>("/api/settings")
+  return {
+    hasApiKey: data.has_api_key ?? false,
+    maskedApiKey: data.masked_api_key ?? null,
+    baseUrl: data.base_url ?? "https://api.deepseek.com",
+    model: data.model ?? "deepseek-chat",
+  }
+}
+
+export async function saveApiKey(apiKey: string): Promise<{ success: boolean; maskedApiKey: string }> {
+  const data = await fetchJson<any>("/api/settings/api-key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  })
+  return {
+    success: data.success ?? false,
+    maskedApiKey: data.masked_api_key ?? "",
+  }
+}
+
+export async function deleteApiKey(): Promise<{ success: boolean; hasApiKey: boolean }> {
+  const data = await fetchJson<any>("/api/settings/api-key", {
+    method: "DELETE",
+  })
+  return {
+    success: data.success ?? false,
+    hasApiKey: data.has_api_key ?? false,
+  }
+}
+
+export async function validateApiKey(): Promise<ValidateResult> {
+  const data = await fetchJson<any>("/api/settings/validate", {
+    method: "POST",
+  })
+  return {
+    valid: data.valid ?? false,
+    error: data.error,
+  }
 }
