@@ -14,6 +14,8 @@ const emit = defineEmits<{
 const isDragOver = ref(false)
 const uploads = ref<UploadItem[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
+const isOpen = ref(false)
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg", ".csv", ".xlsx"]
 
@@ -44,6 +46,15 @@ function addFiles(files: FileList | File[]) {
     uploads.value.push(item)
     processUpload(item)
   }
+}
+
+function openModal() {
+  isOpen.value = true
+}
+
+function closeModal() {
+  isOpen.value = false
+  isDragOver.value = false
 }
 
 async function processUpload(item: UploadItem, replace: boolean = false) {
@@ -118,6 +129,14 @@ function handleFileSelect(event: Event) {
   }
 }
 
+function handleFolderSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (target.files) {
+    addFiles(target.files)
+    target.value = ""
+  }
+}
+
 function replaceFile(item: UploadItem) {
   const idx = uploads.value.findIndex(u => u.id === item.id)
   if (idx !== -1) {
@@ -136,6 +155,7 @@ function clearCompleted() {
   uploads.value = uploads.value.filter((u) => u.status !== "complete" && u.status !== "error")
 }
 
+
 function getStatusLabel(status: string): string {
   switch (status) {
     case "pending": return "Pending"
@@ -151,70 +171,179 @@ function getStatusLabel(status: string): string {
 
 <template>
   <div class="file-uploader">
-    <div class="drop-zone" :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
-      @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleDrop">
-      <template v-if="uploads.length === 0">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" x2="12" y1="3" y2="15" />
-        </svg>
-        <p class="drop-text">Drop files here or click to browse</p>
-        <p class="drop-hint">PDF, DOCX, TXT, MD, Images (PNG, JPG)</p>
-        <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect" ref="fileInput"
-          class="hidden-input" />
-        <button class="btn-secondary" @click="fileInput?.click()">Select Files</button>
-      </template>
+    <button class="upload-trigger" @click="openModal">Upload Files</button>
 
-      <template v-else>
-        <div class="upload-queue">
-          <div v-for="item in uploads" :key="item.id" class="upload-item" :class="item.status">
-            <div class="item-info">
-              <span class="filename">{{ item.file.name }}</span>
-              <span class="status-badge" :class="item.status">{{ getStatusLabel(item.status) }}</span>
+    <Transition name="modal">
+      <div v-if="isOpen" class="modal-backdrop" @click.self="closeModal">
+        <div class="modal-box upload-box">
+          <header class="modal-header upload-header">
+            <div class="header-content">
+              <h3 class="modal-title">Upload to Reference Bank</h3>
             </div>
+            <button class="close-btn" @click="closeModal">×</button>
+          </header>
+          <div class="modal-body upload-body">
+            <div class="drop-zone" :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
+              @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleDrop">
+              <template v-if="uploads.length === 0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" x2="12" y1="3" y2="15" />
+                </svg>
+                <p class="drop-text">Drop files here or click to browse</p>
+                <p class="drop-hint">PDF, DOCX, TXT, MD, Images (PNG, JPG). Folder upload supported.</p>
+                <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect"
+                  ref="fileInput" class="hidden-input" />
+                <input type="file" webkitdirectory directory @change="handleFolderSelect" ref="folderInput"
+                  class="hidden-input" />
+                <div class="upload-actions">
+                  <button class="btn-secondary" @click="fileInput?.click()">Select Files</button>
+                  <button class="btn-secondary" @click="folderInput?.click()">Select Folder</button>
+                </div>
+              </template>
 
-            <div v-if="item.status === 'uploading' || item.status === 'processing'" class="progress-bar">
-              <div class="progress-fill" :style="{ width: item.progress + '%' }"></div>
+              <template v-else>
+                <div class="upload-queue">
+                  <div v-for="item in uploads" :key="item.id" class="upload-item" :class="item.status">
+                    <div class="item-info">
+                      <span class="filename">{{ item.file.name }}</span>
+                      <span class="status-badge" :class="item.status">{{ getStatusLabel(item.status) }}</span>
+                    </div>
+
+                    <div v-if="item.status === 'uploading' || item.status === 'processing'" class="progress-bar">
+                      <div class="progress-fill" :style="{ width: item.progress + '%' }"></div>
+                    </div>
+
+                    <div v-if="item.status === 'duplicate'" class="duplicate-info">
+                      <span class="duplicate-text">Same as: {{ item.duplicatePath }}</span>
+                      <button class="btn-small" @click="replaceFile(item)">Replace</button>
+                      <button class="btn-small btn-ghost" @click="removeItem(item)">Skip</button>
+                    </div>
+
+                    <div v-if="item.status === 'error'" class="error-info">
+                      <span class="error-text">{{ item.error }}</span>
+                      <button class="btn-small btn-ghost" @click="removeItem(item)">Dismiss</button>
+                    </div>
+
+                    <button v-if="item.status === 'complete'" class="btn-icon" @click="removeItem(item)">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="upload-actions">
+                  <button class="btn-secondary" @click="fileInput?.click()">Add More</button>
+                  <button class="btn-secondary" @click="folderInput?.click()">Add Folder</button>
+                  <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')" class="btn-ghost"
+                    @click="clearCompleted">Clear Done</button>
+                </div>
+                <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect"
+                  ref="fileInput" class="hidden-input" />
+                <input type="file" webkitdirectory directory @change="handleFolderSelect" ref="folderInput"
+                  class="hidden-input" />
+              </template>
             </div>
-
-            <div v-if="item.status === 'duplicate'" class="duplicate-info">
-              <span class="duplicate-text">Same as: {{ item.duplicatePath }}</span>
-              <button class="btn-small" @click="replaceFile(item)">Replace</button>
-              <button class="btn-small btn-ghost" @click="removeItem(item)">Skip</button>
-            </div>
-
-            <div v-if="item.status === 'error'" class="error-info">
-              <span class="error-text">{{ item.error }}</span>
-              <button class="btn-small btn-ghost" @click="removeItem(item)">Dismiss</button>
-            </div>
-
-            <button v-if="item.status === 'complete'" class="btn-icon" @click="removeItem(item)">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
           </div>
         </div>
+      </div>
+    </Transition>
 
-        <div class="upload-actions">
-          <button class="btn-secondary" @click="fileInput?.click()">Add More</button>
-          <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')" class="btn-ghost"
-            @click="clearCompleted">Clear Done</button>
-        </div>
-        <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect" ref="fileInput"
-          class="hidden-input" />
-      </template>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .file-uploader {
   margin-bottom: 16px;
+}
+
+.upload-trigger {
+  width: 100%;
+  padding: 10px 12px;
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.upload-trigger:hover {
+  opacity: 0.9;
+}
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-box {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 720px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: #666;
+}
+
+.modal-body {
+  padding: 24px 20px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  background: #fafafa;
 }
 
 .drop-zone {
@@ -431,5 +560,30 @@ function getStatusLabel(status: string): string {
   position: absolute;
   top: 8px;
   right: 8px;
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-box,
+.modal-leave-active .modal-box {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.modal-enter-from .modal-box {
+  transform: scale(0.95) translateY(-10px);
+  opacity: 0;
+}
+
+.modal-leave-to .modal-box {
+  transform: scale(0.95) translateY(10px);
+  opacity: 0;
 }
 </style>

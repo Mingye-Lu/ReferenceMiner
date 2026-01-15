@@ -26,7 +26,7 @@ from refminer.utils.paths import get_index_dir, get_references_dir
 from refminer.projects.manager import ProjectManager
 
 # Root directory of the repository
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 project_manager = ProjectManager(str(BASE_DIR))
 
 
