@@ -224,21 +224,14 @@ def remove_file_from_index(rel_path: str, root: Path | None = None) -> int:
         if bm25_path.exists():
             bm25_path.unlink()
 
-    # 4. Rebuild FAISS (simpler than selective removal)
+    # 4. Remove FAISS index (rebuilding is too expensive; BM25 will handle search)
+    #    User can rebuild vectors later with `python referenceminer.py ingest` if needed
     vectors_path = index_dir / "vectors.faiss"
     if vectors_path.exists():
-        if remaining_chunks:
-            try:
-                from refminer.index.vectors import build_vectors, save_vectors
-                vector_index = build_vectors(remaining_chunks)
-                save_vectors(vector_index, vectors_path)
-            except RuntimeError:
-                pass
-        else:
-            vectors_path.unlink()
-            meta_path = vectors_path.with_suffix(".meta.npz")
-            if meta_path.exists():
-                meta_path.unlink()
+        vectors_path.unlink()
+        meta_path = vectors_path.with_suffix(".meta.npz")
+        if meta_path.exists():
+            meta_path.unlink()
 
     # 5. Update hash registry
     registry = load_registry(root)

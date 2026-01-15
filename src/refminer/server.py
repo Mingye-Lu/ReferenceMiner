@@ -472,7 +472,7 @@ async def upload_stream(
     )
 
 
-@app.delete("/files/{rel_path:path}")
+@app.delete("/reference/{rel_path:path}")
 def delete_file(rel_path: str) -> dict[str, Any]:
     """Delete a file and remove it from the index."""
     references_dir = get_references_dir()

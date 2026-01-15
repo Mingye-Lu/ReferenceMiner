@@ -322,7 +322,7 @@ export async function uploadFileStream(
 }
 
 export async function deleteFile(relPath: string): Promise<DeleteResult> {
-  const response = await fetch(`${API_BASE}/files/${encodeURIComponent(relPath)}`, {
+  const response = await fetch(`${API_BASE}/reference/${encodeURIComponent(relPath)}`, {
     method: "DELETE",
   })
 
