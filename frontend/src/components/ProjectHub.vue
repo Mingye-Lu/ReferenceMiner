@@ -355,12 +355,12 @@ onMounted(loadProjects)
 
 <style scoped>
 .project-hub-container {
-    min-height: 100vh;
     height: 100vh;
     background: #f8f9fc;
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .hub-header {

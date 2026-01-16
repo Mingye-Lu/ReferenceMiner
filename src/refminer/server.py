@@ -27,6 +27,7 @@ from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
 from refminer.projects.manager import ProjectManager
 from refminer.settings import SettingsManager
+from refminer.chats import ChatManager
 
 
 def _get_base_dir() -> Path:
@@ -60,6 +61,9 @@ project_manager = ProjectManager(str(BASE_DIR))
 # Settings manager for API key and other configuration
 settings_manager = SettingsManager(get_index_dir(BASE_DIR))
 set_settings_manager(settings_manager)
+
+# Chat manager for persistent chat sessions
+chat_manager = ChatManager(get_index_dir(BASE_DIR))
 
 
 from fastapi.staticfiles import StaticFiles
@@ -174,11 +178,95 @@ async def validate_api_key():
         return {"valid": False, "error": str(e)}
 
 
+# --- Chat Session Endpoints ---
+
+class ChatSessionCreate(BaseModel):
+    title: str = "New Chat"
+
+
+class ChatSessionUpdate(BaseModel):
+    title: Optional[str] = None
+    messages: Optional[list[dict]] = None
+
+
+class ChatMessageAdd(BaseModel):
+    message: dict
+
+
+class ChatMessageUpdate(BaseModel):
+    message_id: str
+    updates: dict
+
+
+@app.get("/api/projects/{project_id}/chats")
+async def get_chat_sessions(project_id: str):
+    """Get all chat sessions for a project (without messages)."""
+    sessions = chat_manager.get_sessions(project_id)
+    return [s.to_dict() for s in sessions]
+
+
+@app.post("/api/projects/{project_id}/chats")
+async def create_chat_session(project_id: str, req: ChatSessionCreate):
+    """Create a new chat session."""
+    session = chat_manager.create_session(project_id, req.title)
+    return session.to_dict()
+
+
+@app.get("/api/projects/{project_id}/chats/{session_id}")
+async def get_chat_session(project_id: str, session_id: str):
+    """Get a specific chat session with all messages."""
+    session = chat_manager.get_session(project_id, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session.to_dict()
+
+
+@app.put("/api/projects/{project_id}/chats/{session_id}")
+async def update_chat_session(project_id: str, session_id: str, req: ChatSessionUpdate):
+    """Update a chat session (title and/or messages)."""
+    session = chat_manager.update_session(
+        project_id, session_id,
+        title=req.title,
+        messages=req.messages
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session.to_dict()
+
+
+@app.delete("/api/projects/{project_id}/chats/{session_id}")
+async def delete_chat_session(project_id: str, session_id: str):
+    """Delete a chat session."""
+    success = chat_manager.delete_session(project_id, session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"success": True}
+
+
+@app.post("/api/projects/{project_id}/chats/{session_id}/messages")
+async def add_chat_message(project_id: str, session_id: str, req: ChatMessageAdd):
+    """Add a message to a chat session."""
+    session = chat_manager.add_message(project_id, session_id, req.message)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session.to_dict()
+
+
+@app.patch("/api/projects/{project_id}/chats/{session_id}/messages")
+async def update_chat_message(project_id: str, session_id: str, req: ChatMessageUpdate):
+    """Update a specific message in a chat session."""
+    session = chat_manager.update_message(project_id, session_id, req.message_id, req.updates)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session.to_dict()
+
+
 class AskRequest(BaseModel):
     question: str
     context: Optional[list[str]] = None
     use_notes: bool = False
     notes: Optional[list[dict]] = None
+    history: Optional[list[dict]] = None
 
 
 def _get_bank_paths() -> tuple[Path, Path]:
@@ -272,6 +360,7 @@ def _stream_rag(
     context: Optional[list[str]] = None,
     use_notes: bool = False,
     notes: Optional[list[dict]] = None,
+    history: Optional[list[dict]] = None,
 ) -> Iterator[str]:
     # Load manifest and ensure it exists
     if not _bm25_path().exists():
@@ -308,7 +397,7 @@ def _stream_rag(
 
     yield _sse("step", {"step": "answer", "title": "Generating Answer", "timestamp": time.time()})
     try:
-        stream_result = stream_answer(question, evidence, analysis.get("keywords", []))
+        stream_result = stream_answer(question, evidence, analysis.get("keywords", []), history=history)
         if stream_result:
             stream_iter, _citations = stream_result
             for delta in stream_iter:
@@ -449,7 +538,7 @@ async def ask(project_id: str, req: AskRequest):
 
     answer_blocks = None
     try:
-        answer_blocks = generate_answer(req.question, evidence, analysis.get("keywords", []))
+        answer_blocks = generate_answer(req.question, evidence, analysis.get("keywords", []), history=req.history)
     except Exception:
         answer_blocks = None
 
@@ -479,6 +568,7 @@ async def ask_stream(project_id: str, req: AskRequest) -> StreamingResponse:
         context=req.context,
         use_notes=req.use_notes,
         notes=req.notes,
+        history=req.history,
     )
     return StreamingResponse(generator, media_type="text/event-stream")
 

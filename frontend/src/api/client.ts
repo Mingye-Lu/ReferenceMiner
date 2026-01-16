@@ -127,13 +127,15 @@ export async function streamAsk(
   onEvent: StreamEventHandler,
   context?: string[],
   useNotes?: boolean,
-  notes?: EvidenceChunk[]
+  notes?: EvidenceChunk[],
+  history?: ChatMessage[]
 ): Promise<void> {
   const body = {
     question,
     context: context && context.length > 0 ? context : undefined,
     use_notes: useNotes,
-    notes: notes && notes.length > 0 ? notes : undefined
+    notes: notes && notes.length > 0 ? notes : undefined,
+    history: history && history.length > 0 ? history : undefined
   }
 
   const response = await fetch(`${API_BASE}/api/projects/${projectId}/ask/stream`, {
@@ -620,4 +622,108 @@ export async function validateApiKey(): Promise<ValidateResult> {
     valid: data.valid ?? false,
     error: data.error,
   }
+}
+
+// =============================================================================
+// Chat Session API
+// =============================================================================
+
+import type { ChatSession } from "../types"
+
+interface ChatSessionWithMessages extends ChatSession {
+  messages: ChatMessage[]
+}
+
+function mapChatMessage(item: any): ChatMessage {
+  return {
+    id: item.id,
+    role: item.role,
+    content: item.content,
+    timestamp: item.timestamp,
+    timeline: item.timeline ?? [],
+    sources: (item.sources ?? []).map(mapEvidence),
+    keywords: item.keywords ?? [],
+    isStreaming: item.isStreaming ?? false,
+    completedAt: item.completedAt,
+  }
+}
+
+function mapChatSession(item: any): ChatSession {
+  return {
+    id: item.id,
+    title: item.title,
+    lastActive: item.lastActive,
+    messageCount: item.messageCount ?? 0,
+    preview: item.preview ?? "",
+  }
+}
+
+function mapChatSessionWithMessages(item: any): ChatSessionWithMessages {
+  return {
+    ...mapChatSession(item),
+    messages: (item.messages ?? []).map(mapChatMessage),
+  }
+}
+
+export async function fetchChatSessions(projectId: string): Promise<ChatSession[]> {
+  const data = await fetchJson<any[]>(`/api/projects/${projectId}/chats`)
+  return data.map(mapChatSession)
+}
+
+export async function createChatSession(projectId: string, title: string = "New Chat"): Promise<ChatSession> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/chats`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  })
+  return mapChatSession(data)
+}
+
+export async function fetchChatSession(projectId: string, sessionId: string): Promise<ChatSessionWithMessages> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/chats/${sessionId}`)
+  return mapChatSessionWithMessages(data)
+}
+
+export async function updateChatSession(
+  projectId: string,
+  sessionId: string,
+  updates: { title?: string; messages?: ChatMessage[] }
+): Promise<ChatSessionWithMessages> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/chats/${sessionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  })
+  return mapChatSessionWithMessages(data)
+}
+
+export async function deleteChatSession(projectId: string, sessionId: string): Promise<void> {
+  await fetchJson(`/api/projects/${projectId}/chats/${sessionId}`, { method: "DELETE" })
+}
+
+export async function addChatMessage(
+  projectId: string,
+  sessionId: string,
+  message: ChatMessage
+): Promise<ChatSessionWithMessages> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/chats/${sessionId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  })
+  return mapChatSessionWithMessages(data)
+}
+
+export async function updateChatMessage(
+  projectId: string,
+  sessionId: string,
+  messageId: string,
+  updates: Partial<ChatMessage>
+): Promise<ChatSessionWithMessages> {
+  const data = await fetchJson<any>(`/api/projects/${projectId}/chats/${sessionId}/messages`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message_id: messageId, updates }),
+  })
+  return mapChatSessionWithMessages(data)
 }

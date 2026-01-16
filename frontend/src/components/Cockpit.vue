@@ -6,7 +6,18 @@ import RightDrawer from "./RightDrawer.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import CommandPalette from "./CommandPalette.vue"
-import { fetchBankManifest, fetchProjectFiles, streamSummarize, activateProject, fetchProjects } from "../api/client"
+import {
+  fetchBankManifest,
+  fetchProjectFiles,
+  streamSummarize,
+  activateProject,
+  fetchProjects,
+  fetchChatSessions,
+  fetchChatSession,
+  createChatSession,
+  updateChatSession,
+  deleteChatSession
+} from "../api/client"
 import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project } from "../types"
 import { useRouter } from "vue-router"
 import { Home, Search, PanelRight } from "lucide-vue-next"
@@ -41,15 +52,21 @@ const isSearchOpen = ref(false)
 const highlightMessageId = ref<string | null>(null)
 
 // Chat + history store (supports switching)
-const currentChatId = ref("1")
-const chatStore = reactive<Record<string, ChatMessage[]>>({ "1": [] })
-const chatSessions = ref<ChatSession[]>([
-  { id: "1", title: "New Chat", lastActive: Date.now(), messageCount: 0, preview: "Start a new conversation" }
-])
+const currentChatId = ref<string | null>(null)
+const chatStore = reactive<Record<string, ChatMessage[]>>({})
+const chatSessions = ref<ChatSession[]>([])
+const isLoadingChats = ref(true)
+const savePending = ref(false)
+const saveDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const chatHistory = computed({
-  get: () => chatStore[currentChatId.value] || [],
-  set: (val: ChatMessage[]) => { chatStore[currentChatId.value] = val }
+  get: () => currentChatId.value ? (chatStore[currentChatId.value] || []) : [],
+  set: (val: ChatMessage[]) => {
+    if (currentChatId.value) {
+      chatStore[currentChatId.value] = val
+      debouncedSaveSession()
+    }
+  }
 })
 
 // Global pinning (notebook)
@@ -90,17 +107,46 @@ function setHighlightedPaths(paths: string[]) {
   highlightedPaths.value = new Set(paths)
 }
 
-function handleNewChat() {
-  const newId = Date.now().toString()
-  chatStore[newId] = []
-  chatSessions.value.unshift({
-    id: newId,
-    title: "New Chat",
-    lastActive: Date.now(),
-    messageCount: 0,
-    preview: "Start a new conversation"
-  })
-  currentChatId.value = newId
+// Debounced save to avoid too many API calls
+function debouncedSaveSession() {
+  if (saveDebounceTimer.value) {
+    clearTimeout(saveDebounceTimer.value)
+  }
+  savePending.value = true
+  saveDebounceTimer.value = setTimeout(async () => {
+    await saveCurrentSession()
+    savePending.value = false
+  }, 1000)
+}
+
+async function saveCurrentSession() {
+  if (!currentChatId.value) return
+  const messages = chatStore[currentChatId.value]
+  if (!messages) return
+
+  try {
+    await updateChatSession(props.id, currentChatId.value, { messages })
+    // Update local session metadata
+    const session = chatSessions.value.find(s => s.id === currentChatId.value)
+    if (session && messages.length > 0) {
+      session.messageCount = messages.length
+      session.lastActive = messages[messages.length - 1].timestamp
+      session.preview = messages[messages.length - 1].content.slice(0, 50)
+    }
+  } catch (e) {
+    console.error("Failed to save session:", e)
+  }
+}
+
+async function handleNewChat() {
+  try {
+    const session = await createChatSession(props.id, "New Chat")
+    chatStore[session.id] = []
+    chatSessions.value.unshift(session)
+    currentChatId.value = session.id
+  } catch (e) {
+    console.error("Failed to create chat session:", e)
+  }
 }
 
 function requestDeleteChat(id: string) {
@@ -113,15 +159,25 @@ function cancelDeleteChat() {
   pendingDeleteChatId.value = null
 }
 
-function confirmDeleteChat() {
+async function confirmDeleteChat() {
   if (pendingDeleteChatId.value) {
     const id = pendingDeleteChatId.value
-    const idx = chatSessions.value.findIndex(s => s.id === id)
-    if (idx !== -1) chatSessions.value.splice(idx, 1)
-    delete chatStore[id]
-    if (currentChatId.value === id) {
-      if (chatSessions.value.length > 0) currentChatId.value = chatSessions.value[0].id
-      else handleNewChat()
+    try {
+      await deleteChatSession(props.id, id)
+      const idx = chatSessions.value.findIndex(s => s.id === id)
+      if (idx !== -1) chatSessions.value.splice(idx, 1)
+      delete chatStore[id]
+      if (currentChatId.value === id) {
+        if (chatSessions.value.length > 0) {
+          currentChatId.value = chatSessions.value[0].id
+          // Load messages for the new current session
+          await loadSessionMessages(currentChatId.value)
+        } else {
+          await handleNewChat()
+        }
+      }
+    } catch (e) {
+      console.error("Failed to delete chat session:", e)
     }
   }
   cancelDeleteChat()
@@ -131,9 +187,33 @@ function openPreview(file: ManifestEntry) {
   previewFile.value = file
 }
 
-function switchChat(id: string) {
-  if (!chatStore[id]) chatStore[id] = []
+async function loadSessionMessages(sessionId: string) {
+  if (chatStore[sessionId] && chatStore[sessionId].length > 0) {
+    // Already loaded
+    return
+  }
+  try {
+    const session = await fetchChatSession(props.id, sessionId)
+    chatStore[sessionId] = session.messages
+  } catch (e) {
+    console.error("Failed to load session messages:", e)
+    chatStore[sessionId] = []
+  }
+}
+
+async function switchChat(id: string) {
+  // Save current session before switching
+  if (currentChatId.value && savePending.value) {
+    if (saveDebounceTimer.value) {
+      clearTimeout(saveDebounceTimer.value)
+      saveDebounceTimer.value = null
+    }
+    await saveCurrentSession()
+    savePending.value = false
+  }
+
   currentChatId.value = id
+  await loadSessionMessages(id)
 }
 
 function openSearch() {
@@ -170,13 +250,18 @@ const titleGeneratingFor = ref<string | null>(null)
 
 watch(chatStore, async (newStore) => {
   const currentId = currentChatId.value
+  if (!currentId) return
+
   const messages = newStore[currentId]
   const session = chatSessions.value.find(s => s.id === currentId)
 
-  if (session && messages.length > 0) {
+  if (session && messages && messages.length > 0) {
     session.messageCount = messages.length
     session.lastActive = messages[messages.length - 1].timestamp
     session.preview = messages[messages.length - 1].content.slice(0, 50)
+
+    // Trigger debounced save
+    debouncedSaveSession()
 
     if (messages.length >= 2 && session.title === "New Chat" && titleGeneratingFor.value !== currentId) {
       const aiMsg = messages.find(m => m.role === 'ai')
@@ -188,9 +273,15 @@ watch(chatStore, async (newStore) => {
             props.id,
             messages,
             (delta) => { session.title += delta },
-            (title) => {
+            async (title) => {
               session.title = title
               titleGeneratingFor.value = null
+              // Save the updated title to backend
+              try {
+                await updateChatSession(props.id, currentId, { title })
+              } catch (e) {
+                console.error("Failed to save title:", e)
+              }
             }
           )
         } catch (e) {
@@ -225,31 +316,37 @@ onMounted(async () => {
   const pid = props.id
   try { await activateProject(pid) } catch (e) { }
 
-  // Project-specific storage
-  const savedChatId = localStorage.getItem(`active_chat_id_${pid}`)
-  if (savedChatId) currentChatId.value = savedChatId
-
-  const savedChats = localStorage.getItem(`chat_store_${pid}`)
-  if (savedChats) {
-    try {
-      const parsed = JSON.parse(savedChats)
-      Object.assign(chatStore, parsed)
-    } catch (e) { }
-  }
-
-  const savedSessions = localStorage.getItem(`chat_sessions_${pid}`)
-  if (savedSessions) {
-    try {
-      chatSessions.value = JSON.parse(savedSessions)
-    } catch (e) { }
-  }
-
+  // Load pinned evidence from localStorage (shared across sessions)
   const savedPins = localStorage.getItem(`pinned_evidence_${pid}`)
   if (savedPins) {
     try {
       const parsed = JSON.parse(savedPins)
       pinnedEvidenceMap.value = new Map(parsed)
     } catch (e) { }
+  }
+
+  // Load chat sessions from backend
+  isLoadingChats.value = true
+  try {
+    const sessions = await fetchChatSessions(pid)
+    chatSessions.value = sessions
+
+    if (sessions.length > 0) {
+      // Load the most recent session
+      const lastSessionId = localStorage.getItem(`active_chat_id_${pid}`)
+      const targetSession = sessions.find(s => s.id === lastSessionId) || sessions[0]
+      currentChatId.value = targetSession.id
+      await loadSessionMessages(targetSession.id)
+    } else {
+      // Create a new session if none exist
+      await handleNewChat()
+    }
+  } catch (e) {
+    console.error("Failed to load chat sessions:", e)
+    // Create a new session on error
+    await handleNewChat()
+  } finally {
+    isLoadingChats.value = false
   }
 
   try {
@@ -265,13 +362,23 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeydown)
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeydown)
+  // Save any pending changes before unmounting
+  if (savePending.value && currentChatId.value) {
+    if (saveDebounceTimer.value) {
+      clearTimeout(saveDebounceTimer.value)
+    }
+    await saveCurrentSession()
+  }
 })
 
-watch(() => currentChatId.value, (val) => localStorage.setItem(`active_chat_id_${props.id}`, val))
-watch(() => chatStore, (val) => localStorage.setItem(`chat_store_${props.id}`, JSON.stringify(val)), { deep: true })
-watch(() => chatSessions.value, (val) => localStorage.setItem(`chat_sessions_${props.id}`, JSON.stringify(val)), { deep: true })
+// Save active chat ID to localStorage for persistence across page reloads
+watch(() => currentChatId.value, (val) => {
+  if (val) localStorage.setItem(`active_chat_id_${props.id}`, val)
+})
+
+// Save pinned evidence to localStorage (shared across sessions)
 watch(() => pinnedEvidenceMap.value, (val) => {
   localStorage.setItem(`pinned_evidence_${props.id}`, JSON.stringify(Array.from(val.entries())))
 }, { deep: true })
@@ -303,7 +410,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
     </header>
 
     <div class="main-layout">
-      <SidePanel :active-chat-id="currentChatId" :highlighted-paths="highlightedPaths" @preview="openPreview"
+      <SidePanel :active-chat-id="currentChatId ?? undefined" :highlighted-paths="highlightedPaths" @preview="openPreview"
         @select-chat="switchChat" @new-chat="handleNewChat" />
       <main class="workspace-shell">
         <ChatWindow v-model:history="chatHistory" :highlight-id="highlightMessageId" />

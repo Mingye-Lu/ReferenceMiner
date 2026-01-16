@@ -83,6 +83,8 @@ async function sendMessage() {
   try {
     const context = Array.from(selectedFiles.value)
 
+    // Get history before the current question (exclude the last 2 messages: current user + ai)
+    const previousHistory = props.history.slice(0, -2)
 
     let notes: EvidenceChunk[] = []
     if (isNoteMode.value) {
@@ -128,7 +130,7 @@ async function sendMessage() {
       if (event === "answer_done" || event === "done") {
         currentAiMsg.isStreaming = false
       }
-    }, context, isNoteMode.value, notes)
+    }, context, isNoteMode.value, notes, previousHistory)
   } catch (e) {
     const currentAiMsg = props.history.find(m => m.id === aiMsgId)
     if (currentAiMsg) {

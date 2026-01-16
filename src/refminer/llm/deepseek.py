@@ -179,7 +179,7 @@ def _parse_sections(text: str, citations: dict[int, str]) -> list[AnswerBlock]:
     return blocks
 
 
-def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list[str]) -> list[dict]:
+def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list[str], history: Optional[list[dict]] = None) -> list[dict]:
     evidence_lines, _ = _format_evidence(evidence)
     language_hint = "Use Chinese." if _contains_cjk(question) else "Use English."
     system = (
@@ -197,10 +197,22 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
         "Evidence:\n"
         + "\n".join(evidence_lines)
     )
-    return [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user},
-    ]
+
+    messages = [{"role": "system", "content": system}]
+
+    # Include chat history if provided (exclude system messages from history)
+    if history:
+        for msg in history:
+            if msg.get("role") in ["user", "assistant"]:
+                messages.append({
+                    "role": msg.get("role"),
+                    "content": msg.get("content", "")
+                })
+
+    # Add the current question
+    messages.append({"role": "user", "content": user})
+
+    return messages
 
 
 def _load_config() -> DeepSeekConfig | None:
@@ -238,23 +250,23 @@ def blocks_to_markdown(blocks: Iterable[AnswerBlock]) -> str:
     return "\n".join(parts).strip()
 
 
-def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str]) -> list[AnswerBlock] | None:
+def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str], history: Optional[list[dict]] = None) -> list[AnswerBlock] | None:
     config = _load_config()
     if not config:
         return None
     client = DeepSeekClient(config)
-    messages = _build_messages(question, evidence, keywords)
+    messages = _build_messages(question, evidence, keywords, history=history)
     response = client.chat(messages)
     _, citations = _format_evidence(evidence)
     return _parse_sections(response, citations)
 
 
-def stream_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str]) -> tuple[Iterator[str], dict[int, str]] | None:
+def stream_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str], history: Optional[list[dict]] = None) -> tuple[Iterator[str], dict[int, str]] | None:
     config = _load_config()
     if not config:
         return None
     client = DeepSeekClient(config)
-    messages = _build_messages(question, evidence, keywords)
+    messages = _build_messages(question, evidence, keywords, history=history)
     _, citations = _format_evidence(evidence)
     return client.stream_chat(messages), citations
 
