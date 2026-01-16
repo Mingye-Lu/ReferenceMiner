@@ -22,6 +22,7 @@ const showCreateModal = ref(false)
 const newProjectName = ref("")
 const newProjectDesc = ref("")
 const creating = ref(false)
+const showPreviewModal = ref(false)
 const previewFile = ref<ManifestEntry | null>(null)
 const showDeleteModal = ref(false)
 const fileToDelete = ref<ManifestEntry | null>(null)
@@ -102,10 +103,7 @@ function openProject(id: string) {
 
 function handlePreview(file: ManifestEntry) {
     previewFile.value = file
-}
-
-function closePreview() {
-    previewFile.value = null
+    showPreviewModal.value = true
 }
 
 function requestDelete(file: ManifestEntry) {
@@ -329,27 +327,24 @@ onMounted(loadProjects)
         </Transition>
 
         <!-- File Preview Modal -->
-        <FilePreviewModal v-if="previewFile" :file="previewFile" @close="closePreview" />
+        <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
         <!-- Delete Confirmation Modal -->
-        <Transition name="fade">
-            <ConfirmationModal v-if="showDeleteModal && fileToDelete" title="Delete File?"
-                :message="`Delete '${fileToDelete.relPath}'? This will remove it from all projects. This action cannot be undone.`"
-                confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
-        </Transition>
+        <ConfirmationModal v-model="showDeleteModal" title="Delete File?"
+            :message="fileToDelete ? `Delete '${fileToDelete.relPath}'? This will remove it from all projects. This action cannot be undone.` : ''"
+            confirmText="Delete" @confirm="confirmDelete" />
 
         <!-- Delete Project Confirmation Modal -->
-        <Transition name="fade">
-            <ConfirmationModal v-if="showDeleteProjectModal && projectToDelete" title="Delete Project?"
-                :message="`Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`"
-                confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
-        </Transition>
+        <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?"
+            :message="projectToDelete ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.` : ''"
+            confirmText="Delete" @confirm="confirmDeleteProject" />
+
         <!-- Initial File Selector -->
-        <BankFileSelectorModal v-if="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
-            @confirm="handleInitialFilesSelected" @close="showFileSelectorForCreate = false" />
+        <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
+            @confirm="handleInitialFilesSelected" />
 
         <!-- Settings Modal -->
-        <SettingsModal v-if="showSettingsModal" @close="showSettingsModal = false" />
+        <SettingsModal v-model="showSettingsModal" />
     </div>
 </template>
 

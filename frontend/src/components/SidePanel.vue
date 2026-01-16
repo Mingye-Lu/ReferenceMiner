@@ -517,37 +517,26 @@ async function confirmBatchDelete() {
     </div>
 
     <!-- Delete File Confirmation Modal -->
-    <Transition name="modal">
-      <ConfirmationModal v-if="showDeleteFileModal && pendingDeleteFile" title="Remove File?"
-        :message="`Remove \&quot;${pendingDeleteFile.relPath}\&quot; from this project? The file will remain in the Reference Bank.`"
-        confirmText="Remove" @confirm="confirmDeleteFile" @cancel="cancelDeleteFile" />
-    </Transition>
+    <ConfirmationModal v-model="showDeleteFileModal" title="Remove File?"
+      :message="pendingDeleteFile ? `Remove \&quot;${pendingDeleteFile.relPath}\&quot; from this project? The file will remain in the Reference Bank.` : ''"
+      confirmText="Remove" @confirm="confirmDeleteFile" />
 
     <!-- Batch Delete Confirmation Modal -->
-    <Transition name="modal">
-      <ConfirmationModal v-if="showBatchDeleteModal && batchSelected.size > 0" title="Remove Files?"
-        :message="`Remove ${batchSelected.size} files from this project? They will remain in the Reference Bank.`"
-        confirmText="Remove" @confirm="confirmBatchDelete" @cancel="cancelBatchDelete" />
-    </Transition>
+    <ConfirmationModal v-model="showBatchDeleteModal" title="Remove Files?"
+      :message="`Remove ${batchSelected.size} files from this project? They will remain in the Reference Bank.`"
+      confirmText="Remove" @confirm="confirmBatchDelete" />
 
     <!-- Unpin Note Confirmation Modal -->
-    <Transition name="modal">
-      <ConfirmationModal v-if="showUnpinNoteModal && pendingUnpinNote" title="Unpin Note?"
-        :message="`Unpin note: &quot;${pendingUnpinNote.text.slice(0, 50)}${pendingUnpinNote.text.length > 50 ? '...' : ''}&quot;?`"
-        confirmText="Unpin" @confirm="confirmUnpinNote" @cancel="cancelUnpinNote" />
-    </Transition>
+    <ConfirmationModal v-model="showUnpinNoteModal" title="Unpin Note?"
+      :message="pendingUnpinNote ? `Unpin note: &quot;${pendingUnpinNote.text.slice(0, 50)}${pendingUnpinNote.text.length > 50 ? '...' : ''}&quot;?` : ''"
+      confirmText="Unpin" @confirm="confirmUnpinNote" />
 
     <!-- Bank File Selector Modal -->
-    <Transition name="modal">
-      <BankFileSelectorModal v-if="showBankSelector" :project-id="projectId" :selected-files="projectFiles"
-        @close="showBankSelector = false" @confirm="handleBankFilesSelected" />
-    </Transition>
+    <BankFileSelectorModal v-model="showBankSelector" :project-id="projectId" :selected-files="projectFiles"
+      @confirm="handleBankFilesSelected" />
 
     <!-- Error Alert Modal -->
-    <Transition name="modal">
-      <AlertModal v-if="showErrorModal" title="Delete Failed" :message="errorMessage" type="error"
-        @close="closeErrorModal" />
-    </Transition>
+    <AlertModal v-model="showErrorModal" title="Delete Failed" :message="errorMessage" type="error" />
   </aside>
 </template>
 

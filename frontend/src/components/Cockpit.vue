@@ -33,6 +33,7 @@ const project = ref<Project | null>(null)
 const isDrawerOpen = ref(false)
 const drawerTab = ref<"reader" | "notebook">("reader")
 const activeEvidence = ref<EvidenceChunk | null>(null)
+const showPreviewModal = ref(false)
 const previewFile = ref<ManifestEntry | null>(null)
 const targetNoteId = ref<string | null>(null)
 const highlightedPaths = ref<Set<string>>(new Set())
@@ -185,6 +186,7 @@ async function confirmDeleteChat() {
 
 function openPreview(file: ManifestEntry) {
   previewFile.value = file
+  showPreviewModal.value = true
 }
 
 async function loadSessionMessages(sessionId: string) {
@@ -421,16 +423,12 @@ watch(() => pinnedEvidenceMap.value, (val) => {
     <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
       :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
     <!-- File Preview Modal -->
-    <Transition name="modal">
-      <FilePreviewModal v-if="previewFile" :file="previewFile" @close="previewFile = null" />
-    </Transition>
+    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
     <!-- Delete Confirmation Modal -->
-    <Transition name="modal">
-      <ConfirmationModal v-if="showDeleteModal" title="Delete Chat?"
-        message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
-        @confirm="confirmDeleteChat" @cancel="cancelDeleteChat" />
-    </Transition>
+    <ConfirmationModal v-model="showDeleteModal" title="Delete Chat?"
+      message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
+      @confirm="confirmDeleteChat" />
 
     <CommandPalette :visible="isSearchOpen" :project-files="projectFiles" :pinned-evidence="pinnedEvidenceMap"
       :chat-store="chatStore" :chat-sessions="chatSessions" :manifest="manifest" @close="isSearchOpen = false"

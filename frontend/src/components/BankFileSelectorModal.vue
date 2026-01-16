@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
+import BaseModal from "./BaseModal.vue"
+import FilePreviewModal from "./FilePreviewModal.vue"
 import { fetchBankManifest, fetchFileStats } from "../api/client"
 import type { ManifestEntry } from "../types"
-import FilePreviewModal from "./FilePreviewModal.vue"
 import { Search, X, FileText, Loader2 } from "lucide-vue-next"
 
 const props = defineProps<{
+  modelValue: boolean
   projectId?: string
   selectedFiles: Set<string>
 }>()
 
 const emit = defineEmits<{
+  (e: "update:modelValue", value: boolean): void
   (e: "confirm", files: string[]): void
   (e: "close"): void
 }>()
@@ -20,12 +23,11 @@ const fileStats = ref<Record<string, { usage_count: number; last_used: number }>
 const loading = ref(true)
 const searchQuery = ref("")
 const localSelected = ref<Set<string>>(new Set())
+const showPreview = ref(false)
 const previewFile = ref<ManifestEntry | null>(null)
-
 
 const filteredFiles = computed(() => {
   let files = bankFiles.value
-
 
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase()
@@ -35,27 +37,22 @@ const filteredFiles = computed(() => {
     )
   }
 
-
   return sortFiles(files)
 })
 
 function sortFiles(files: ManifestEntry[]): ManifestEntry[] {
   return [...files].sort((a, b) => {
-
     const usageA = fileStats.value[a.relPath]?.usage_count || 0
     const usageB = fileStats.value[b.relPath]?.usage_count || 0
     if (usageA !== usageB) return usageB - usageA
-
 
     const timeA = fileStats.value[a.relPath]?.last_used || 0
     const timeB = fileStats.value[b.relPath]?.last_used || 0
     if (timeA !== timeB) return timeB - timeA
 
-
     if (a.fileType !== b.fileType) {
       return a.fileType.localeCompare(b.fileType)
     }
-
 
     return a.relPath.localeCompare(b.relPath)
   })
@@ -82,17 +79,21 @@ function selectAll() {
 function handlePreview(file: ManifestEntry, e: Event) {
   e.stopPropagation()
   previewFile.value = file
+  showPreview.value = true
 }
 
 function closePreview() {
+  showPreview.value = false
   previewFile.value = null
 }
 
 function handleConfirm() {
   emit("confirm", Array.from(localSelected.value))
+  emit("update:modelValue", false)
 }
 
 function handleClose() {
+  emit("update:modelValue", false)
   emit("close")
 }
 
@@ -119,12 +120,13 @@ onMounted(loadData)
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="handleClose">
-    <div class="modal-container">
-      <!-- Header -->
-      <div class="modal-header">
+  <BaseModal :model-value="modelValue" title="Manage Project Files" size="xlarge" @update:model-value="handleClose"
+    :hide-header="true">
+    <!-- Custom Header with Search -->
+    <div class="custom-modal-layout">
+      <div class="modal-header-custom">
         <h2>Manage Project Files</h2>
-        <button class="close-btn" @click="handleClose">
+        <button class="close-btn-custom" @click="handleClose">
           <X :size="20" />
         </button>
       </div>
@@ -144,7 +146,7 @@ onMounted(loadData)
       </div>
 
       <!-- File List -->
-      <div class="modal-body">
+      <div class="modal-body-custom">
         <div v-if="loading" class="loading-state">
           <Loader2 class="spinner" :size="32" />
           <p>Loading files...</p>
@@ -183,60 +185,45 @@ onMounted(loadData)
       </div>
 
       <!-- Footer -->
-      <div class="modal-footer">
+      <div class="modal-footer-custom">
         <button class="btn-secondary" @click="handleClose">Cancel</button>
         <button class="btn-primary" @click="handleConfirm" :disabled="loading">
           <Loader2 v-if="loading" class="spin" :size="16" style="margin-right:6px" />
           Update
         </button>
       </div>
-
-      <!-- Preview Modal -->
-      <FilePreviewModal v-if="previewFile" :file="previewFile" @close="closePreview" />
     </div>
-  </div>
+
+    <!-- Preview Modal -->
+    <FilePreviewModal v-model="showPreview" :file="previewFile" @close="closePreview" />
+  </BaseModal>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.modal-container {
-  background: white;
-  border-radius: 16px;
-  width: 90%;
-  max-width: 900px;
-  max-height: 85vh;
+.custom-modal-layout {
+  margin: -24px -20px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  height: calc(85vh - 48px);
 }
 
-.modal-header {
+.modal-header-custom {
   padding: 20px 24px;
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
-.modal-header h2 {
+.modal-header-custom h2 {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
-.close-btn {
+.close-btn-custom {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -248,7 +235,7 @@ onMounted(loadData)
   transition: all 0.2s;
 }
 
-.close-btn:hover {
+.close-btn-custom:hover {
   background: #f0f0f0;
   color: var(--text-primary);
 }
@@ -256,6 +243,7 @@ onMounted(loadData)
 .search-section {
   padding: 16px 24px;
   border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
 }
 
 .search-input-wrapper {
@@ -309,7 +297,7 @@ onMounted(loadData)
   background: rgba(var(--accent-color-rgb), 0.1);
 }
 
-.modal-body {
+.modal-body-custom {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
@@ -454,12 +442,13 @@ onMounted(loadData)
   color: var(--text-primary);
 }
 
-.modal-footer {
+.modal-footer-custom {
   padding: 16px 24px;
   border-top: 1px solid #e0e0e0;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .btn-secondary {
@@ -488,6 +477,8 @@ onMounted(loadData)
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
 }
 
 .btn-primary:hover:not(:disabled) {

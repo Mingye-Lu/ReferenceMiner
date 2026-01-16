@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import BaseModal from './BaseModal.vue'
 import { getSettings, saveApiKey, validateApiKey, deleteApiKey } from '../api/client'
 import type { Settings } from '../types'
 
+defineProps<{
+  modelValue: boolean
+}>()
+
 const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
   (event: 'close'): void
 }>()
 
@@ -88,152 +94,103 @@ async function handleDelete() {
     isSaving.value = false
   }
 }
+
+function handleClose() {
+  emit('update:modelValue', false)
+  emit('close')
+}
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-box">
-      <div class="modal-header">
-        <div class="header-content">
-          <span class="icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+  <BaseModal :model-value="modelValue" size="medium" @update:model-value="handleClose">
+    <template #header-content>
+      <span class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path
+            d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      </span>
+      <h3 class="modal-title">Settings</h3>
+    </template>
+
+    <div v-if="isLoading" class="loading">Loading settings...</div>
+
+    <template v-else>
+      <div class="form-section">
+        <label class="form-label">DeepSeek API Key</label>
+        <p class="form-hint">Required for AI-powered answers. Get your key from <a href="https://platform.deepseek.com"
+            target="_blank">platform.deepseek.com</a></p>
+
+        <div class="current-key" v-if="settings?.hasApiKey">
+          <span class="key-status valid">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-              <circle cx="12" cy="12" r="3"/>
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
+            Key configured
           </span>
-          <h3 class="modal-title">Settings</h3>
+          <span class="masked-key">{{ settings.maskedApiKey }}</span>
+          <button class="btn-link danger" @click="handleDelete" :disabled="isSaving">Remove</button>
         </div>
-        <button class="close-btn" @click="emit('close')">×</button>
+
+        <div class="input-group">
+          <input v-model="apiKeyInput" :type="showApiKey ? 'text' : 'password'" class="form-input"
+            :placeholder="settings?.hasApiKey ? 'Enter new key to replace' : 'sk-xxxxxxxxxxxxxxxx'" />
+          <button class="input-addon" @click="showApiKey = !showApiKey" type="button">
+            <svg v-if="showApiKey" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+              <line x1="1" x2="23" y1="1" y2="23" />
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="saveError" class="error-message">{{ saveError }}</div>
+
+        <div class="validation-result" v-if="validationStatus !== 'none'">
+          <span v-if="validationStatus === 'valid'" class="status valid">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            API key is valid
+          </span>
+          <span v-else class="status invalid">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" x2="9" y1="9" y2="15" />
+              <line x1="9" x2="15" y1="9" y2="15" />
+            </svg>
+            Invalid: {{ validationError || 'API key verification failed' }}
+          </span>
+        </div>
       </div>
+    </template>
 
-      <div class="modal-body">
-        <div v-if="isLoading" class="loading">Loading settings...</div>
-
-        <template v-else>
-          <div class="form-section">
-            <label class="form-label">DeepSeek API Key</label>
-            <p class="form-hint">Required for AI-powered answers. Get your key from <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a></p>
-
-            <div class="current-key" v-if="settings?.hasApiKey">
-              <span class="key-status valid">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
-                Key configured
-              </span>
-              <span class="masked-key">{{ settings.maskedApiKey }}</span>
-              <button class="btn-link danger" @click="handleDelete" :disabled="isSaving">Remove</button>
-            </div>
-
-            <div class="input-group">
-              <input
-                v-model="apiKeyInput"
-                :type="showApiKey ? 'text' : 'password'"
-                class="form-input"
-                :placeholder="settings?.hasApiKey ? 'Enter new key to replace' : 'sk-xxxxxxxxxxxxxxxx'"
-              />
-              <button class="input-addon" @click="showApiKey = !showApiKey" type="button">
-                <svg v-if="showApiKey" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" x2="23" y1="1" y2="23"/>
-                </svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-            </div>
-
-            <div v-if="saveError" class="error-message">{{ saveError }}</div>
-
-            <div class="validation-result" v-if="validationStatus !== 'none'">
-              <span v-if="validationStatus === 'valid'" class="status valid">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
-                API key is valid
-              </span>
-              <span v-else class="status invalid">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="15" x2="9" y1="9" y2="15" />
-                  <line x1="9" x2="15" y1="9" y2="15" />
-                </svg>
-                Invalid: {{ validationError || 'API key verification failed' }}
-              </span>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">Cancel</button>
-        <button
-          class="btn btn-outline"
-          @click="handleValidate"
-          :disabled="isValidating || (!apiKeyInput && !settings?.hasApiKey)"
-        >
-          {{ isValidating ? 'Validating...' : 'Validate' }}
-        </button>
-        <button
-          class="btn btn-primary"
-          @click="handleSave"
-          :disabled="isSaving || !apiKeyInput"
-        >
-          {{ isSaving ? 'Saving...' : 'Save' }}
-        </button>
-      </div>
-    </div>
-  </div>
+    <template #footer>
+      <button class="btn btn-secondary" @click="handleClose">Cancel</button>
+      <button class="btn btn-outline" @click="handleValidate"
+        :disabled="isValidating || (!apiKeyInput && !settings?.hasApiKey)">
+        {{ isValidating ? 'Validating...' : 'Validate' }}
+      </button>
+      <button class="btn btn-primary" @click="handleSave" :disabled="isSaving || !apiKeyInput">
+        {{ isSaving ? 'Saving...' : 'Save' }}
+      </button>
+    </template>
+  </BaseModal>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-box {
-  background: #fff;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 560px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .icon {
   display: flex;
   align-items: center;
@@ -246,26 +203,6 @@ async function handleDelete() {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #999;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.close-btn:hover {
-  color: #666;
-}
-
-.modal-body {
-  padding: 24px 20px;
-  color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.5;
 }
 
 .loading {
@@ -405,15 +342,6 @@ async function handleDelete() {
 
 .validation-result .status.invalid {
   color: #d32f2f;
-}
-
-.modal-footer {
-  padding: 16px 20px;
-  background: #f9f9f9;
-  border-radius: 0 0 12px 12px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
 }
 
 .btn {
