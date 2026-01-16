@@ -398,8 +398,8 @@ async function confirmBatchDelete() {
         </button>
       </div> -->
 
-      <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Add from Reference Bank" to
-        add files.</div>
+      <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Manage Project Files" to add
+        files.</div>
 
       <div v-for="file in displayedFiles" :key="file.relPath" class="file-item" :class="{
         deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)),
@@ -519,24 +519,25 @@ async function confirmBatchDelete() {
     <!-- Delete File Confirmation Modal -->
     <ConfirmationModal v-model="showDeleteFileModal" title="Remove File?"
       :message="pendingDeleteFile ? `Remove \&quot;${pendingDeleteFile.relPath}\&quot; from this project? The file will remain in the Reference Bank.` : ''"
-      confirmText="Remove" @confirm="confirmDeleteFile" />
+      confirmText="Remove" @confirm="confirmDeleteFile" @cancel="cancelDeleteFile" />
 
     <!-- Batch Delete Confirmation Modal -->
     <ConfirmationModal v-model="showBatchDeleteModal" title="Remove Files?"
       :message="`Remove ${batchSelected.size} files from this project? They will remain in the Reference Bank.`"
-      confirmText="Remove" @confirm="confirmBatchDelete" />
+      confirmText="Remove" @confirm="confirmBatchDelete" @cancel="cancelBatchDelete" />
 
     <!-- Unpin Note Confirmation Modal -->
     <ConfirmationModal v-model="showUnpinNoteModal" title="Unpin Note?"
       :message="pendingUnpinNote ? `Unpin note: &quot;${pendingUnpinNote.text.slice(0, 50)}${pendingUnpinNote.text.length > 50 ? '...' : ''}&quot;?` : ''"
-      confirmText="Unpin" @confirm="confirmUnpinNote" />
+      confirmText="Unpin" @confirm="confirmUnpinNote" @cancel="cancelUnpinNote" />
 
     <!-- Bank File Selector Modal -->
     <BankFileSelectorModal v-model="showBankSelector" :project-id="projectId" :selected-files="projectFiles"
       @confirm="handleBankFilesSelected" />
 
     <!-- Error Alert Modal -->
-    <AlertModal v-model="showErrorModal" title="Delete Failed" :message="errorMessage" type="error" />
+    <AlertModal v-model="showErrorModal" title="Delete Failed" :message="errorMessage" type="error"
+      @close="closeErrorModal" />
   </aside>
 </template>
 
@@ -544,7 +545,7 @@ async function confirmBatchDelete() {
 .empty-msg {
   padding: 10px 20px;
   font-size: 12px;
-  color: #888;
+  color: var(--color-neutral-550);
   text-align: center;
 }
 
@@ -554,11 +555,11 @@ async function confirmBatchDelete() {
   gap: 8px;
   padding: 12px;
   margin-bottom: 16px;
-  background: #e3f2fd;
-  border: 1px solid #90caf9;
+  background: var(--color-info-90);
+  border: 1px solid var(--color-info-350);
   border-radius: 8px;
   font-size: 12px;
-  color: #1565c0;
+  color: var(--color-info-800);
 }
 
 .info-banner svg {
@@ -584,7 +585,7 @@ async function confirmBatchDelete() {
   width: 100%;
   padding: 10px 12px;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, var(--accent-color) 0%, #5e72e4 100%);
+  background: linear-gradient(135deg, var(--accent-color) 0%, var(--color-accent-400) 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -596,12 +597,12 @@ async function confirmBatchDelete() {
   justify-content: center;
   gap: 8px;
   transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--alpha-black-10);
 }
 
 .add-from-bank-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 8px var(--alpha-black-15);
 }
 
 .add-from-bank-btn:active {
@@ -622,7 +623,7 @@ async function confirmBatchDelete() {
 }
 
 .batch-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--alpha-black-05);
   color: var(--text-primary);
 }
 
@@ -636,7 +637,7 @@ async function confirmBatchDelete() {
   display: flex;
   gap: 8px;
   padding: 8px 10px;
-  background: #f8f9fa;
+  background: var(--color-neutral-100);
   border-radius: 6px;
   margin-bottom: 8px;
 }
@@ -653,7 +654,7 @@ async function confirmBatchDelete() {
 }
 
 .batch-select-all:hover {
-  background: #f0f0f0;
+  background: var(--color-neutral-220);
 }
 
 .batch-delete-btn {
@@ -661,7 +662,7 @@ async function confirmBatchDelete() {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #ff4d4f;
+  background: var(--color-danger-500);
   border: none;
   border-radius: 4px;
   color: white;
@@ -672,7 +673,7 @@ async function confirmBatchDelete() {
 }
 
 .batch-delete-btn:hover:not(:disabled) {
-  background: #ff1f1f;
+  background: var(--color-danger-600);
 }
 
 .batch-delete-btn:disabled {
@@ -681,12 +682,12 @@ async function confirmBatchDelete() {
 }
 
 .file-item.batch-selected {
-  background: #fff1f0;
-  border-color: #ffccc7;
+  background: var(--color-danger-30);
+  border-color: var(--color-danger-140);
 }
 
 .batch-checkbox:checked {
-  accent-color: #ff4d4f;
+  accent-color: var(--color-danger-500);
 }
 
 .file-item {
@@ -702,17 +703,17 @@ async function confirmBatchDelete() {
 }
 
 .file-item:hover {
-  background: #fff;
+  background: var(--color-white);
   border-color: var(--border-color);
 }
 
 .file-item.selected {
-  background: #eef1f8;
+  background: var(--color-accent-50);
   border-color: transparent;
 }
 
 .file-item.highlighted {
-  background: #fff8e1;
+  background: var(--color-warning-75);
 }
 
 .file-info {
@@ -747,7 +748,7 @@ async function confirmBatchDelete() {
 }
 
 .icon-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--alpha-black-05);
   color: var(--text-primary);
 }
 
@@ -768,7 +769,7 @@ async function confirmBatchDelete() {
 }
 
 .delete-btn:hover {
-  color: #ff4d4f !important;
+  color: var(--color-danger-500) !important;
 }
 
 .delete-btn:disabled {
@@ -798,7 +799,7 @@ async function confirmBatchDelete() {
 .add-files-btn {
   width: 100%;
   padding: 10px;
-  background: #fff;
+  background: var(--color-white);
   color: var(--text-primary);
   border: 1px dashed var(--border-color);
   border-radius: 8px;
@@ -816,14 +817,14 @@ async function confirmBatchDelete() {
 .add-files-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
-  background: #f8faff;
+  background: var(--color-neutral-90);
 }
 
 .new-chat-btn {
   width: 100%;
   padding: 10px;
   background: var(--text-primary);
-  color: #fff;
+  color: var(--color-white);
   border: none;
   border-radius: 8px;
   margin-bottom: 16px;
@@ -856,7 +857,7 @@ async function confirmBatchDelete() {
 .delete-chat-btn {
   background: transparent;
   border: none;
-  color: #ccc;
+  color: var(--color-neutral-400);
   cursor: pointer;
   padding: 4px;
   opacity: 0;
@@ -868,16 +869,16 @@ async function confirmBatchDelete() {
 }
 
 .delete-chat-btn:hover {
-  color: #ff4d4f;
+  color: var(--color-danger-500);
 }
 
 .chat-item:hover {
-  background: #fff;
+  background: var(--color-white);
   border-color: var(--border-color);
 }
 
 .chat-item.active {
-  background: #fff;
+  background: var(--color-white);
   border-color: var(--accent-color);
   box-shadow: var(--shadow-sm);
 }
@@ -928,9 +929,9 @@ async function confirmBatchDelete() {
   margin: 0 16px 12px 16px;
   /* Below header */
   padding: 8px;
-  background: #f0f4ff;
+  background: var(--color-neutral-150);
   border-radius: 8px;
-  border: 1px dashed #aabbdd;
+  border: 1px dashed var(--color-accent-200);
 }
 
 .batch-tool-btn {
@@ -938,38 +939,38 @@ async function confirmBatchDelete() {
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 4px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-neutral-240);
   background: white;
-  color: #555;
+  color: var(--color-neutral-700);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .batch-tool-btn:hover {
-  background: #f9f9f9;
-  border-color: #ccc;
-  color: #333;
+  background: var(--color-neutral-85);
+  border-color: var(--color-neutral-400);
+  color: var(--color-neutral-800);
 }
 
 .batch-tool-btn.delete {
-  background: #fff0f0;
-  color: #d32f2f;
-  border-color: #ffcccc;
+  background: var(--color-danger-25);
+  color: var(--color-danger-700);
+  border-color: var(--color-danger-150);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .batch-tool-btn.delete:hover {
-  background: #ffe0e0;
-  border-color: #ffaaaa;
+  background: var(--color-danger-75);
+  border-color: var(--color-danger-200);
 }
 
 .batch-tool-btn.delete:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f5f5f5;
-  color: #aaa;
+  background: var(--color-neutral-130);
+  color: var(--color-neutral-450);
   border-color: transparent;
 }
 
@@ -979,7 +980,7 @@ async function confirmBatchDelete() {
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  color: #999;
+  color: var(--color-neutral-500);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -988,12 +989,12 @@ async function confirmBatchDelete() {
 }
 
 .batch-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #333;
+  background: var(--alpha-black-05);
+  color: var(--color-neutral-800);
 }
 
 .batch-toggle-btn.active {
-  background: #e6f0ff;
-  color: #3b82f6;
+  background: var(--color-info-80);
+  color: var(--color-info-600);
 }
 </style>

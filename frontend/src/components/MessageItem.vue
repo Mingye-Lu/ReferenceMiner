@@ -313,7 +313,7 @@ function handleBodyClick(event: MouseEvent) {
 
 /* Reverting layout styles */
 .user-bubble {
-  background: #f0f2f5;
+  background: var(--color-neutral-190);
   padding: 12px 18px;
   border-radius: 12px;
   border-bottom-right-radius: 2px;
@@ -360,7 +360,7 @@ function handleBodyClick(event: MouseEvent) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--accent-color);
   color: var(--accent-color);
   padding: 6px 12px;
@@ -368,7 +368,7 @@ function handleBodyClick(event: MouseEvent) {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px var(--alpha-black-08);
   transition: all 0.2s;
   position: relative;
   height: 30px;
@@ -377,7 +377,7 @@ function handleBodyClick(event: MouseEvent) {
 
 .source-capsule:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 6px 16px var(--alpha-black-12);
 }
 
 .capsule-icon-area {
@@ -392,9 +392,9 @@ function handleBodyClick(event: MouseEvent) {
   top: calc(100% + 8px);
   right: 0;
   left: auto;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px var(--alpha-black-15);
   border-radius: 12px;
   width: 280px;
   max-height: 300px;
@@ -462,7 +462,7 @@ function handleBodyClick(event: MouseEvent) {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 20px;
-  background: #fff;
+  background: var(--color-white);
   overflow: hidden;
 }
 
@@ -472,12 +472,12 @@ function handleBodyClick(event: MouseEvent) {
   align-items: center;
   padding: 10px 14px;
   cursor: pointer;
-  background: #fcfcfc;
+  background: var(--color-neutral-70);
   transition: background 0.2s;
 }
 
 .timeline-trigger:hover {
-  background: #f5f5f7;
+  background: var(--color-neutral-120);
 }
 
 .trigger-left {
@@ -504,12 +504,12 @@ function handleBodyClick(event: MouseEvent) {
 }
 
 .check-icon {
-  color: #22c55e;
+  color: var(--color-success-500);
 }
 
 .chevron {
   transition: transform 0.3s ease;
-  color: #aaa;
+  color: var(--color-neutral-450);
 }
 
 .timeline-content {
@@ -554,7 +554,7 @@ function handleBodyClick(event: MouseEvent) {
 .step-time {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #999;
+  color: var(--color-neutral-500);
   min-width: 50px;
   text-align: right;
 }
@@ -580,12 +580,12 @@ function handleBodyClick(event: MouseEvent) {
 
 .keyword-tag {
   font-size: 11px;
-  background: #eef1f8;
+  background: var(--color-accent-50);
   color: var(--text-secondary);
   padding: 3px 8px;
   border-radius: 6px;
   font-weight: 500;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--alpha-black-05);
 }
 
 /* --- Evidence Stream --- */
@@ -616,7 +616,7 @@ function handleBodyClick(event: MouseEvent) {
 .stream-card {
   min-width: 200px;
   max-width: 200px;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 10px;
@@ -673,7 +673,7 @@ function handleBodyClick(event: MouseEvent) {
 
 .card-loc {
   font-size: 10px;
-  color: #999;
+  color: var(--color-neutral-500);
   font-family: var(--font-mono);
   margin-right: auto;
 }
@@ -683,7 +683,7 @@ function handleBodyClick(event: MouseEvent) {
   width: 16px;
   background: transparent;
   border: none;
-  color: #ccc;
+  color: var(--color-neutral-400);
   cursor: pointer;
   padding: 2px;
   transition: color 0.2s;

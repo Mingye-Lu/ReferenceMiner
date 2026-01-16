@@ -209,7 +209,7 @@ onMounted(loadData)
 
 .modal-header-custom {
   padding: 20px 24px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--color-neutral-240);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -236,13 +236,13 @@ onMounted(loadData)
 }
 
 .close-btn-custom:hover {
-  background: #f0f0f0;
+  background: var(--color-neutral-220);
   color: var(--text-primary);
 }
 
 .search-section {
   padding: 16px 24px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--color-neutral-240);
   flex-shrink: 0;
 }
 
@@ -262,7 +262,7 @@ onMounted(loadData)
 .search-input {
   width: 100%;
   padding: 10px 12px 10px 36px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-neutral-350);
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.2s;
@@ -315,7 +315,7 @@ onMounted(loadData)
 }
 
 .empty-icon {
-  color: #ccc;
+  color: var(--color-neutral-400);
   margin-bottom: 12px;
 }
 
@@ -345,7 +345,7 @@ onMounted(loadData)
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #fafafa;
+  background: var(--color-neutral-80);
   border: 2px solid transparent;
   border-radius: 10px;
   cursor: pointer;
@@ -354,12 +354,12 @@ onMounted(loadData)
 
 .file-card:hover {
   background: white;
-  border-color: #e0e0e0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: var(--color-neutral-240);
+  box-shadow: 0 2px 8px var(--alpha-black-08);
 }
 
 .file-card.selected {
-  background: #e3f2fd;
+  background: var(--color-info-90);
   border-color: var(--accent-color);
 }
 
@@ -411,8 +411,8 @@ onMounted(loadData)
 }
 
 .usage-badge {
-  background: #fff3e0;
-  color: #e65100;
+  background: var(--color-warning-100);
+  color: var(--color-warning-800);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
@@ -438,13 +438,13 @@ onMounted(loadData)
 }
 
 .preview-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--alpha-black-05);
   color: var(--text-primary);
 }
 
 .modal-footer-custom {
   padding: 16px 24px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--color-neutral-240);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -453,7 +453,7 @@ onMounted(loadData)
 
 .btn-secondary {
   padding: 10px 20px;
-  background: #f1f3f9;
+  background: var(--color-neutral-170);
   color: var(--text-primary);
   border: none;
   border-radius: 8px;
@@ -464,7 +464,7 @@ onMounted(loadData)
 }
 
 .btn-secondary:hover {
-  background: #e0e3e9;
+  background: var(--color-neutral-230);
 }
 
 .btn-primary {

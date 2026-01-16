@@ -137,7 +137,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--alpha-black-50);
   backdrop-filter: blur(2px);
   z-index: 200;
   display: flex;
@@ -148,9 +148,9 @@ onUnmounted(() => {
 
 /* Modal Box */
 .modal-box {
-  background: #fff;
+  background: var(--color-white);
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 40px var(--alpha-black-20);
   display: flex;
   flex-direction: column;
   max-height: 90vh;
@@ -187,7 +187,7 @@ onUnmounted(() => {
 /* Header */
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-neutral-220);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -212,7 +212,7 @@ onUnmounted(() => {
   background: none;
   border: none;
   font-size: 24px;
-  color: #999;
+  color: var(--color-neutral-500);
   cursor: pointer;
   line-height: 1;
   padding: 0;
@@ -227,8 +227,8 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  color: #666;
-  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-neutral-650);
+  background: var(--alpha-black-05);
 }
 
 /* Body */
@@ -241,8 +241,8 @@ onUnmounted(() => {
 /* Footer */
 .modal-footer {
   padding: 16px 20px;
-  background: #f9f9f9;
-  border-top: 1px solid #f0f0f0;
+  background: var(--color-neutral-85);
+  border-top: 1px solid var(--color-neutral-220);
   border-radius: 0 0 12px 12px;
   display: flex;
   justify-content: flex-end;

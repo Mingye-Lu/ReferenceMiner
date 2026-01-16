@@ -222,14 +222,12 @@ function openSearch() {
   isSearchOpen.value = true
 }
 
-function handleSearchNavigate(item: any) {
+async function handleSearchNavigate(item: any) {
   if (item.type === 'chat') {
     if (item.data.sessionId) {
-      switchChat(item.data.sessionId)
-      // Wait for chat to switch and DOM to render
-      setTimeout(() => {
-        highlightMessageId.value = item.data.messageId
-      }, 100)
+      await switchChat(item.data.sessionId)
+      await nextTick()
+      highlightMessageId.value = item.data.messageId
     }
   } else if (item.type === 'note') {
     openNoteLocation(item.data.chunkId)
@@ -469,7 +467,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   height: 36px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background: #f8f9fc;
+  background: var(--color-neutral-95);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -477,7 +475,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 }
 
 .nav-home:hover {
-  background: #f0f3f8;
+  background: var(--color-neutral-180);
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
@@ -510,7 +508,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 
 .search-trigger {
   width: 100%;
-  background: #f1f4f9;
+  background: var(--color-neutral-160);
   padding: 8px 16px;
   border-radius: 20px;
   color: var(--text-secondary);
@@ -546,7 +544,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 }
 
 .nav-btn:hover {
-  background: #f1f4f9;
+  background: var(--color-neutral-160);
   color: var(--text-primary);
 }
 
@@ -568,7 +566,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--alpha-black-20);
   z-index: 50;
   opacity: 0;
   pointer-events: none;

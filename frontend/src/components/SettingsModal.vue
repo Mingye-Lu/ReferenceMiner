@@ -195,7 +195,7 @@ function handleClose() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-color, #2c3b67);
+  color: var(--accent-color, var(--color-accent-600));
 }
 
 .modal-title {
@@ -230,7 +230,7 @@ function handleClose() {
 }
 
 .form-hint a {
-  color: var(--accent-color, #2c3b67);
+  color: var(--accent-color, var(--color-accent-600));
 }
 
 .current-key {
@@ -238,7 +238,7 @@ function handleClose() {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #f8f9fa;
+  background: var(--color-neutral-100);
   border-radius: 8px;
   font-size: 13px;
 }
@@ -251,7 +251,7 @@ function handleClose() {
 }
 
 .key-status.valid {
-  color: #2e7d32;
+  color: var(--color-success-700);
 }
 
 .masked-key {
@@ -273,7 +273,7 @@ function handleClose() {
 }
 
 .btn-link.danger {
-  color: #d32f2f;
+  color: var(--color-danger-700);
 }
 
 .btn-link.danger:hover {
@@ -282,14 +282,14 @@ function handleClose() {
 
 .input-group {
   display: flex;
-  border: 1px solid #e1e1e6;
+  border: 1px solid var(--color-neutral-250);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .input-group:focus-within {
-  border-color: var(--accent-color, #2c3b67);
-  box-shadow: 0 0 0 2px rgba(44, 59, 103, 0.1);
+  border-color: var(--accent-color, var(--color-accent-600));
+  box-shadow: 0 0 0 2px var(--alpha-accent-10);
 }
 
 .form-input {
@@ -306,20 +306,20 @@ function handleClose() {
   align-items: center;
   justify-content: center;
   padding: 0 12px;
-  background: #f8f9fa;
+  background: var(--color-neutral-100);
   border: none;
-  border-left: 1px solid #e1e1e6;
+  border-left: 1px solid var(--color-neutral-250);
   cursor: pointer;
   color: var(--text-secondary);
 }
 
 .input-addon:hover {
   color: var(--text-primary);
-  background: #f0f0f0;
+  background: var(--color-neutral-220);
 }
 
 .error-message {
-  color: #d32f2f;
+  color: var(--color-danger-700);
   font-size: 13px;
 }
 
@@ -337,11 +337,11 @@ function handleClose() {
 }
 
 .validation-result .status.valid {
-  color: #2e7d32;
+  color: var(--color-success-700);
 }
 
 .validation-result .status.invalid {
-  color: #d32f2f;
+  color: var(--color-danger-700);
 }
 
 .btn {
@@ -360,31 +360,31 @@ function handleClose() {
 }
 
 .btn-primary {
-  background: var(--accent-color, #2c3b67);
-  color: #fff;
+  background: var(--accent-color, var(--color-accent-600));
+  color: var(--color-white);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #3d4f7a;
+  background: var(--color-accent-700);
 }
 
 .btn-secondary {
-  background: #fff;
+  background: var(--color-white);
   color: var(--text-primary);
-  border-color: #e1e1e6;
+  border-color: var(--color-neutral-250);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #f8f9fa;
+  background: var(--color-neutral-100);
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--accent-color, #2c3b67);
-  border-color: var(--accent-color, #2c3b67);
+  color: var(--accent-color, var(--color-accent-600));
+  border-color: var(--accent-color, var(--color-accent-600));
 }
 
 .btn-outline:hover:not(:disabled) {
-  background: var(--accent-soft, #eef1f8);
+  background: var(--accent-soft, var(--color-accent-50));
 }
 </style>

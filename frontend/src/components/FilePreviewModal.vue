@@ -88,7 +88,7 @@ function handleClose() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f9f9f9;
+  background: var(--color-neutral-85);
   margin: -24px -20px;
   padding: 0;
 }
@@ -107,20 +107,20 @@ function handleClose() {
 
 .preview-text {
   text-align: center;
-  color: #555;
+  color: var(--color-neutral-700);
 }
 
 .docx-preview-area {
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  background: #e0e0e0;
+  background: var(--color-neutral-240);
   position: relative;
 }
 
 .docx-container {
   background: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px var(--alpha-black-10);
   min-height: 100%;
 }
 
@@ -130,12 +130,12 @@ function handleClose() {
   left: 50%;
   transform: translate(-50%, -50%);
   font-weight: 600;
-  color: #666;
+  color: var(--color-neutral-650);
 }
 
 /* docx-preview specific overrides if needed */
 :deep(.docx-wrapper) {
-  background: #ffffff;
+  background: var(--color-white);
   padding: 40px !important;
 }
 </style>

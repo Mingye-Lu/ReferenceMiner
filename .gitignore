@@ -29,3 +29,6 @@ dist/
 clean-css.py
 tool/
 *.log
+
+CLAUDE.md
+.*/

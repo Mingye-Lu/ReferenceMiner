@@ -56,24 +56,24 @@ function handleConfirm() {
 }
 
 .btn-secondary {
-  background: #fff;
-  border-color: #ddd;
-  color: #333;
+  background: var(--color-white);
+  border-color: var(--color-neutral-350);
+  color: var(--color-neutral-800);
 }
 
 .btn-secondary:hover {
-  background: #f5f5f5;
-  border-color: #ccc;
+  background: var(--color-neutral-130);
+  border-color: var(--color-neutral-400);
 }
 
 .btn-danger {
-  background: #fff0f0;
-  color: #d32f2f;
-  border-color: #ffcdd2;
+  background: var(--color-danger-25);
+  color: var(--color-danger-700);
+  border-color: var(--color-danger-100);
 }
 
 .btn-danger:hover {
-  background: #ffebee;
-  border-color: #ef9a9a;
+  background: var(--color-danger-50);
+  border-color: var(--color-danger-250);
 }
 </style>

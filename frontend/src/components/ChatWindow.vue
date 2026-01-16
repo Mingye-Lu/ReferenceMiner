@@ -146,7 +146,7 @@ async function sendMessage() {
 
   <div class="chat-scroll-area" ref="scrollContainer" @scroll="handleScroll">
     <div v-if="history.length === 0" class="empty-welcome">
-      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e1e1e6"
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-250)"
         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -199,7 +199,7 @@ async function sendMessage() {
     <div class="input-box">
       <textarea v-model="draftInput" placeholder="Ask a question..." @keydown.enter.prevent="sendMessage"></textarea>
       <div class="input-footer">
-        <span style="font-size: 11px; color: #aaa;">Enter to send</span>
+        <span style="font-size: 11px; color: var(--color-neutral-450);">Enter to send</span>
         <button class="btn-primary" :disabled="!draftInput || isLoading" @click="sendMessage">Run Analysis</button>
       </div>
     </div>
@@ -214,7 +214,7 @@ async function sendMessage() {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--alpha-white-90);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
@@ -231,7 +231,7 @@ async function sendMessage() {
 }
 
 .header-icon-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--alpha-black-05);
   color: var(--text-primary);
 }
 
@@ -295,7 +295,7 @@ async function sendMessage() {
 .file-chip {
   font-size: 11px;
   padding: 4px 10px;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   border-radius: 99px;
   white-space: nowrap;
@@ -310,7 +310,7 @@ async function sendMessage() {
 .note-chip {
   font-size: 11px;
   padding: 4px 10px;
-  background: #f1f1f1;
+  background: var(--color-neutral-210);
   border: 1px solid transparent;
   border-radius: 99px;
   color: var(--text-secondary);
@@ -320,9 +320,9 @@ async function sendMessage() {
 }
 
 .note-chip.active {
-  background: #fff8c5;
-  color: #5f4b0e;
-  border-color: #ffeba6;
+  background: var(--color-gold-100);
+  color: var(--color-gold-900);
+  border-color: var(--color-gold-200);
 }
 
 .context-divider {
@@ -333,7 +333,7 @@ async function sendMessage() {
 }
 
 .input-box {
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 12px;
@@ -366,8 +366,8 @@ async function sendMessage() {
 
 @keyframes flash {
   0% {
-    background-color: rgba(255, 235, 59, 0.4);
-    box-shadow: 0 0 10px rgba(255, 235, 59, 0.5);
+    background-color: var(--alpha-highlight-40);
+    box-shadow: 0 0 10px var(--alpha-highlight-50);
   }
 
   100% {

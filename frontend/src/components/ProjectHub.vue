@@ -351,7 +351,7 @@ onMounted(loadProjects)
 <style scoped>
 .project-hub-container {
     height: 100vh;
-    background: #f8f9fc;
+    background: var(--color-neutral-95);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
@@ -364,7 +364,7 @@ onMounted(loadProjects)
     justify-content: space-between;
     align-items: center;
     background: white;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--color-neutral-215);
 }
 
 .header-left .logo {
@@ -403,7 +403,7 @@ onMounted(loadProjects)
 }
 
 .btn-icon-header:hover {
-    background: #f1f3f9;
+    background: var(--color-neutral-170);
     color: var(--text-primary);
 }
 
@@ -411,7 +411,7 @@ onMounted(loadProjects)
     display: flex;
     align-items: center;
     gap: 10px;
-    background: #f1f3f9;
+    background: var(--color-neutral-170);
     padding: 10px 16px;
     border-radius: 99px;
     min-width: 300px;
@@ -441,7 +441,7 @@ onMounted(loadProjects)
 }
 
 .create-card {
-    border: 2px dashed #ddd;
+    border: 2px dashed var(--color-neutral-350);
     background: transparent;
     border-radius: 12px;
     display: flex;
@@ -465,7 +465,7 @@ onMounted(loadProjects)
     width: 60px;
     height: 60px;
     border-radius: 50%;
-    background: #f0f3f8;
+    background: var(--color-neutral-180);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -499,7 +499,7 @@ onMounted(loadProjects)
 .modal-mask {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--alpha-black-40);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -512,7 +512,7 @@ onMounted(loadProjects)
     width: 500px;
     padding: 30px;
     border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 40px var(--alpha-black-10);
 }
 
 .modal-container h2 {
@@ -535,7 +535,7 @@ onMounted(loadProjects)
 .form-group textarea {
     width: 100%;
     padding: 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-neutral-350);
     border-radius: 8px;
     font-size: 14px;
 }
@@ -561,7 +561,7 @@ onMounted(loadProjects)
 }
 
 .btn-secondary {
-    background: #f1f3f9;
+    background: var(--color-neutral-170);
     color: var(--text-primary);
     border: none;
     padding: 12px 24px;
@@ -600,7 +600,7 @@ onMounted(loadProjects)
     gap: 8px;
     padding: 0 60px;
     background: white;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--color-neutral-215);
 }
 
 .tab-btn {
@@ -620,7 +620,7 @@ onMounted(loadProjects)
 
 .tab-btn:hover {
     color: var(--text-primary);
-    background: #f8f9fc;
+    background: var(--color-neutral-95);
 }
 
 .tab-btn.active {
@@ -663,7 +663,7 @@ onMounted(loadProjects)
     gap: 12px;
     padding: 16px;
     background: white;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--color-neutral-240);
     border-radius: 12px;
     transition: all 0.2s;
     cursor: pointer;
@@ -671,7 +671,7 @@ onMounted(loadProjects)
 
 .file-card:hover {
     border-color: var(--accent-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px var(--alpha-black-08);
 }
 
 .file-icon {
@@ -681,7 +681,7 @@ onMounted(loadProjects)
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f0f3f8;
+    background: var(--color-neutral-180);
     border-radius: 8px;
     color: var(--accent-color);
 }
@@ -724,8 +724,8 @@ onMounted(loadProjects)
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #f8f9fc;
-    border: 1px solid #e0e0e0;
+    background: var(--color-neutral-95);
+    border: 1px solid var(--color-neutral-240);
     padding: 8px 12px;
     border-radius: 8px;
 }
@@ -743,7 +743,7 @@ onMounted(loadProjects)
 
 .btn-outline-sm {
     background: white;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--color-neutral-300);
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -771,17 +771,17 @@ onMounted(loadProjects)
 }
 
 .btn-icon:hover {
-    background: #f0f0f0;
+    background: var(--color-neutral-220);
     color: var(--text-primary);
 }
 
 .btn-icon.delete:hover {
-    background: #fff0f0;
-    color: #d32f2f;
+    background: var(--color-danger-25);
+    color: var(--color-danger-700);
 }
 
 .empty-icon-svg {
-    color: #ccc;
+    color: var(--color-neutral-400);
     margin-bottom: 16px;
 }
 

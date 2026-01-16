@@ -79,7 +79,7 @@ function handleDelete(e: Event) {
 
 .project-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 12px 24px var(--alpha-black-08);
     border-color: var(--accent-color);
 }
 
@@ -114,14 +114,14 @@ function handleDelete(e: Event) {
 }
 
 .delete-btn:hover {
-    background: #fff0f0;
-    color: #d32f2f;
+    background: var(--color-danger-25);
+    color: var(--color-danger-700);
 }
 
 .project-icon {
     width: 44px;
     height: 44px;
-    background: #f0f4ff;
+    background: var(--color-neutral-150);
     color: var(--accent-color);
     border-radius: 10px;
     display: flex;
@@ -166,7 +166,7 @@ function handleDelete(e: Event) {
     display: flex;
     gap: 16px;
     padding-top: 16px;
-    border-top: 1px solid #f5f5f5;
+    border-top: 1px solid var(--color-neutral-130);
 }
 
 .stat {

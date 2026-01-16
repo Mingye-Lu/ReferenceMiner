@@ -265,14 +265,14 @@ function handleOpenDoc() {
   align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
-  background: #fcfcfc;
+  background: var(--color-neutral-70);
   border-radius: 12px 12px 0 0;
 }
 
 .drawer-tabs {
   display: flex;
   gap: 8px;
-  background: #f0f0f5;
+  background: var(--color-neutral-200);
   padding: 4px;
   border-radius: 8px;
 }
@@ -290,14 +290,14 @@ function handleOpenDoc() {
 }
 
 .tab-btn.active {
-  background: #fff;
+  background: var(--color-white);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px var(--alpha-black-05);
 }
 
 .badge {
   background: var(--accent-color);
-  color: #fff;
+  color: var(--color-white);
   padding: 1px 5px;
   border-radius: 99px;
   font-size: 9px;
@@ -316,15 +316,15 @@ function handleOpenDoc() {
   background: none;
   border: none;
   cursor: pointer;
-  color: #999;
+  color: var(--color-neutral-500);
   display: flex;
   align-items: center;
   padding: 4px;
 }
 
 .close-btn:hover {
-  color: #333;
-  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-neutral-800);
+  background: var(--alpha-black-05);
   border-radius: 4px;
 }
 
@@ -339,7 +339,7 @@ function handleOpenDoc() {
 
 .icon-btn:hover {
   color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--alpha-black-05);
   border-radius: 4px;
 }
 
@@ -375,11 +375,11 @@ function handleOpenDoc() {
   font-size: 12px;
   font-weight: 600;
   padding: 6px 12px;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   border-radius: 99px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px var(--alpha-black-08);
   transition: all 0.2s;
   color: var(--text-secondary);
   opacity: 0.9;
@@ -393,9 +393,9 @@ function handleOpenDoc() {
 }
 
 .pill-btn.active {
-  background: #fffdf5;
-  color: #5f4b0e;
-  border-color: #e0c060;
+  background: var(--color-gold-50);
+  color: var(--color-gold-900);
+  border-color: var(--color-gold-400);
 }
 
 .doc-header {
@@ -431,18 +431,18 @@ function handleOpenDoc() {
 }
 
 .evidence-highlight-box {
-  background: #fffeed;
-  border: 1px solid #f3c969;
+  background: var(--color-gold-25);
+  border: 1px solid var(--color-gold-300);
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 4px 12px rgba(243, 201, 105, 0.1);
+  box-shadow: 0 4px 12px var(--alpha-gold-10);
 }
 
 /* ... rest styles ... */
 .highlight-text {
   font-size: 15px;
   line-height: 1.8;
-  color: #2c2c2c;
+  color: var(--color-neutral-850);
   white-space: pre-wrap;
 }
 
@@ -453,7 +453,7 @@ function handleOpenDoc() {
 }
 
 .note-item {
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   padding: 12px;
   border-radius: 8px;
@@ -463,7 +463,7 @@ function handleOpenDoc() {
 /* 视觉上置灰 */
 .note-item.pending-removal {
   opacity: 0.5;
-  background: #f9f9f9;
+  background: var(--color-neutral-85);
   border-style: dashed;
 }
 
@@ -480,7 +480,7 @@ function handleOpenDoc() {
   }
 
   100% {
-    background-color: #fff;
+    background-color: var(--color-white);
   }
 }
 
@@ -494,14 +494,14 @@ function handleOpenDoc() {
 
 .note-text {
   font-size: 12px;
-  color: #555;
+  color: var(--color-neutral-700);
   line-height: 1.5;
   margin-bottom: 8px;
 }
 
 .note-loc {
   font-size: 10px;
-  color: #999;
+  color: var(--color-neutral-500);
   font-family: monospace;
 }
 
@@ -521,6 +521,6 @@ function handleOpenDoc() {
 
 .empty-icon {
   margin-bottom: 12px;
-  color: #ccc;
+  color: var(--color-neutral-400);
 }
 </style>

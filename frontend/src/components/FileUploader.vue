@@ -73,9 +73,11 @@ function openModal() {
   isOpen.value = true
 }
 
-function closeModal() {
-  isOpen.value = false
-  isDragOver.value = false
+function closeModal(value: boolean) {
+  isOpen.value = value
+  if (!value) {
+    isDragOver.value = false
+  }
 }
 
 async function processUpload(item: UploadItem, replace: boolean = false) {
@@ -203,7 +205,12 @@ function getStatusLabel(status: string): string {
   <div class="file-uploader">
     <button class="upload-trigger" @click="openModal">Upload Files</button>
 
-    <BaseModal v-model="isOpen" size="large" :title="uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project'">
+    <BaseModal
+      :model-value="isOpen"
+      size="large"
+      :title="uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project'"
+      @update:model-value="closeModal"
+    >
       <div class="drop-zone" :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
         @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleDrop">
         <template v-if="uploads.length === 0">
@@ -281,8 +288,8 @@ function getStatusLabel(status: string): string {
 .upload-trigger {
   width: 100%;
   padding: 10px 12px;
-  background: #111;
-  color: #fff;
+  background: var(--color-neutral-950);
+  color: var(--color-white);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -300,14 +307,14 @@ function getStatusLabel(status: string): string {
   padding: 16px;
   text-align: center;
   transition: all 0.2s;
-  background: #fafafa;
+  background: var(--color-neutral-80);
   margin: -24px -20px;
   padding: 40px 20px;
 }
 
 .drop-zone.dragover {
   border-color: var(--accent-color);
-  background: #f0f7ff;
+  background: var(--color-neutral-140);
 }
 
 .drop-zone.has-items {
@@ -316,7 +323,7 @@ function getStatusLabel(status: string): string {
 }
 
 .drop-zone svg {
-  color: #999;
+  color: var(--color-neutral-500);
   margin-bottom: 8px;
 }
 
@@ -339,7 +346,7 @@ function getStatusLabel(status: string): string {
 .btn-secondary {
   padding: 8px 16px;
   font-size: 12px;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
@@ -347,8 +354,8 @@ function getStatusLabel(status: string): string {
 }
 
 .btn-secondary:hover {
-  background: #f5f5f5;
-  border-color: #ccc;
+  background: var(--color-neutral-130);
+  border-color: var(--color-neutral-400);
 }
 
 .btn-small {
@@ -372,7 +379,7 @@ function getStatusLabel(status: string): string {
 }
 
 .btn-ghost:hover {
-  background: #f5f5f5;
+  background: var(--color-neutral-130);
 }
 
 .btn-icon {
@@ -385,7 +392,7 @@ function getStatusLabel(status: string): string {
 }
 
 .btn-icon:hover {
-  background: #f0f0f0;
+  background: var(--color-neutral-220);
 }
 
 .upload-queue {
@@ -402,25 +409,25 @@ function getStatusLabel(status: string): string {
   flex-direction: column;
   gap: 6px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   position: relative;
 }
 
 .upload-item.complete {
-  border-color: #4caf50;
-  background: #f8fff8;
+  border-color: var(--color-success-600);
+  background: var(--color-success-25);
 }
 
 .upload-item.error {
-  border-color: #f44336;
-  background: #fff8f8;
+  border-color: var(--color-danger-400);
+  background: var(--color-danger-20);
 }
 
 .upload-item.duplicate {
-  border-color: #ff9800;
-  background: #fffaf0;
+  border-color: var(--color-warning-600);
+  background: var(--color-warning-50);
 }
 
 .item-info {
@@ -443,35 +450,35 @@ function getStatusLabel(status: string): string {
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 99px;
-  background: #eee;
-  color: #666;
+  background: var(--color-neutral-215);
+  color: var(--color-neutral-650);
   flex-shrink: 0;
 }
 
 .status-badge.complete {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--color-success-50);
+  color: var(--color-success-700);
 }
 
 .status-badge.error {
-  background: #ffebee;
-  color: #c62828;
+  background: var(--color-danger-50);
+  color: var(--color-danger-800);
 }
 
 .status-badge.duplicate {
-  background: #fff3e0;
-  color: #e65100;
+  background: var(--color-warning-100);
+  color: var(--color-warning-800);
 }
 
 .status-badge.uploading,
 .status-badge.processing {
-  background: #e3f2fd;
-  color: #1565c0;
+  background: var(--color-info-90);
+  color: var(--color-info-800);
 }
 
 .progress-bar {
   height: 4px;
-  background: #e0e0e0;
+  background: var(--color-neutral-240);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -491,12 +498,12 @@ function getStatusLabel(status: string): string {
 }
 
 .duplicate-text {
-  color: #e65100;
+  color: var(--color-warning-800);
   flex: 1;
 }
 
 .error-text {
-  color: #c62828;
+  color: var(--color-danger-800);
   flex: 1;
 }
 

@@ -179,7 +179,7 @@ function selectItem(item: SearchResult) {
 .palette-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--alpha-black-40);
     backdrop-filter: blur(2px);
     z-index: 1000;
     display: flex;
@@ -193,7 +193,7 @@ function selectItem(item: SearchResult) {
     max-width: 90%;
     background: white;
     border-radius: 12px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 20px 50px var(--alpha-black-20);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -203,12 +203,12 @@ function selectItem(item: SearchResult) {
     display: flex;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--color-neutral-220);
     gap: 12px;
 }
 
 .search-icon {
-    color: #999;
+    color: var(--color-neutral-500);
 }
 
 .palette-input {
@@ -216,15 +216,15 @@ function selectItem(item: SearchResult) {
     border: none;
     font-size: 16px;
     outline: none;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .palette-esc {
     font-size: 11px;
-    background: #f0f0f0;
+    background: var(--color-neutral-220);
     padding: 4px 8px;
     border-radius: 4px;
-    color: #777;
+    color: var(--color-neutral-600);
 }
 
 .palette-body {
@@ -235,7 +235,7 @@ function selectItem(item: SearchResult) {
 .empty-state {
     padding: 32px;
     text-align: center;
-    color: #999;
+    color: var(--color-neutral-500);
     font-size: 14px;
 }
 
@@ -249,12 +249,12 @@ function selectItem(item: SearchResult) {
 }
 
 .result-item.selected {
-    background: #f5f7fa;
+    background: var(--color-neutral-110);
     border-left-color: var(--accent-color);
 }
 
 .result-icon {
-    color: #777;
+    color: var(--color-neutral-600);
 }
 
 .result-content {
@@ -265,7 +265,7 @@ function selectItem(item: SearchResult) {
 .result-title {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: var(--color-neutral-800);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -273,14 +273,14 @@ function selectItem(item: SearchResult) {
 
 .result-subtitle {
     font-size: 12px;
-    color: #888;
+    color: var(--color-neutral-550);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .enter-icon {
-    color: #999;
+    color: var(--color-neutral-500);
 }
 
 .fade-enter-active,
