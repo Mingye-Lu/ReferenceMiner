@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
+import ftfy
+
 
 ABSTRACT_RE = re.compile(
     r"^\s*(?:abstract|摘要|摘\s*要)\s*[:：\-–—]?\s*(.*)$",
@@ -20,9 +22,48 @@ SECTION_BREAK_RE = re.compile(
 
 
 def normalize_text(text: str) -> str:
+    """
+    Normalize text by fixing encoding issues, converting fullwidth characters,
+    and cleaning whitespace.
+
+    This handles:
+    - Fullwidth characters
+    - Mojibake and encoding errors
+    - HTML entities
+    - Hyphenation artifacts from PDFs (e.g., "compre-\nhensive" -> "comprehensive")
+    - Special dashes and hyphens (em dash, en dash, minus)
+    - Non-breaking spaces and zero-width characters
+    - Excessive whitespace
+    """
+    # Apply ftfy to fix encoding issues and convert fullwidth characters
+    text = ftfy.fix_text(text)
+
+    # Normalize line breaks
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Remove non-breaking spaces and zero-width characters
+    text = text.replace("\xa0", " ")  # Non-breaking space
+    text = text.replace("\u200b", "")  # Zero-width space
+    text = text.replace("\u200c", "")  # Zero-width non-joiner
+    text = text.replace("\u200d", "")  # Zero-width joiner
+    text = text.replace("\ufeff", "")  # Zero-width no-break space (BOM)
+
+    # Normalize special dashes to standard hyphen
+    text = text.replace("—", "-")  # Em dash
+    text = text.replace("–", "-")  # En dash
+    text = text.replace("−", "-")  # Minus sign
+
+    # Fix hyphenation artifacts (words split across lines)
+    # Match: word + hyphen + optional whitespace + newline + optional whitespace + word
+    text = re.sub(r"(\w+)-\s*\n\s*(\w+)", r"\1\2", text)
+
+    # Normalize excessive whitespace within lines (multiple spaces/tabs -> single space)
+    text = re.sub(r"[ \t]+", " ", text)
+
+    # Strip and filter empty lines
     lines = [line.strip() for line in text.split("\n")]
     lines = [line for line in lines if line]
+
     return "\n".join(lines)
 
 

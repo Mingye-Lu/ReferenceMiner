@@ -332,12 +332,12 @@ onMounted(loadProjects)
         <!-- Delete Confirmation Modal -->
         <ConfirmationModal v-model="showDeleteModal" title="Delete File?"
             :message="fileToDelete ? `Delete '${fileToDelete.relPath}'? This will remove it from all projects. This action cannot be undone.` : ''"
-            confirmText="Delete" @confirm="confirmDelete" />
+            confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
 
         <!-- Delete Project Confirmation Modal -->
         <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?"
             :message="projectToDelete ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.` : ''"
-            confirmText="Delete" @confirm="confirmDeleteProject" />
+            confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
 
         <!-- Initial File Selector -->
         <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
