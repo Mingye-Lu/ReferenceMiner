@@ -4,6 +4,7 @@ import BaseModal from "./BaseModal.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import { fetchBankManifest, fetchFileStats } from "../api/client"
 import type { ManifestEntry } from "../types"
+import { getFileName } from "../utils"
 import { Search, X, FileText, Loader2 } from "lucide-vue-next"
 
 const props = defineProps<{
@@ -32,7 +33,7 @@ const filteredFiles = computed(() => {
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase()
     files = files.filter(f =>
-      f.relPath.toLowerCase().includes(query) ||
+      getFileName(f.relPath).toLowerCase().includes(query) ||
       f.fileType.toLowerCase().includes(query)
     )
   }
@@ -54,8 +55,12 @@ function sortFiles(files: ManifestEntry[]): ManifestEntry[] {
       return a.fileType.localeCompare(b.fileType)
     }
 
-    return a.relPath.localeCompare(b.relPath)
+    return getFileName(a.relPath).localeCompare(getFileName(b.relPath))
   })
+}
+
+function displayName(path: string) {
+  return getFileName(path)
 }
 
 function toggleSelection(filePath: string) {
@@ -168,7 +173,7 @@ onMounted(loadData)
               <FileText :size="20" />
             </div>
             <div class="file-info">
-              <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
+              <div class="file-name" :title="displayName(file.relPath)">{{ displayName(file.relPath) }}</div>
               <div class="file-meta">
                 {{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
                 <span v-if="fileStats[file.relPath]?.usage_count" class="usage-badge">

@@ -14,3 +14,10 @@ export function highlightTerms(text: string, terms: string[]): string {
   const regex = new RegExp(`(${validTerms.join("|")})`, "gi")
   return text.replace(regex, '<mark style="background-color: #f3c969; color: #0f2a1d; padding: 0 2px; border-radius: 2px;">$1</mark>')
 }
+
+export function getFileName(path: string): string {
+  if (!path) return ""
+  const normalized = path.replace(/\\/g, "/")
+  const parts = normalized.split("/")
+  return parts[parts.length - 1] || path
+}

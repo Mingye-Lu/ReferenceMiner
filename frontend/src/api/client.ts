@@ -15,6 +15,7 @@ import type {
   Settings,
   ValidateResult
 } from "../types"
+import { getFileName } from "../utils"
 
 // When bundled, frontend is served from the same server - use relative URLs
 // In development, VITE_API_URL can be set to point to the backend
@@ -260,7 +261,7 @@ export async function uploadFileStream(
   replaceExisting: boolean = false
 ): Promise<UploadResult | null> {
   const formData = new FormData()
-  formData.append("file", file)
+  formData.append("file", file, getFileName(file.name))
   formData.append("replace_existing", String(replaceExisting))
 
   console.log("[upload] Starting upload for:", file.name)
@@ -370,7 +371,7 @@ export async function uploadFileToBankStream(
   replaceExisting: boolean = false
 ): Promise<UploadResult | null> {
   const formData = new FormData()
-  formData.append("file", file)
+  formData.append("file", file, getFileName(file.name))
   formData.append("replace_existing", String(replaceExisting))
 
   console.log("[bank-upload] Starting upload for:", file.name)
@@ -480,7 +481,8 @@ export async function fetchFileStats(): Promise<Record<string, { usage_count: nu
 
 
 export async function deleteFile(projectId: string, relPath: string): Promise<DeleteResult> {
-  const response = await fetch(`${API_BASE}/api/projects/${projectId}/files/${encodeURIComponent(relPath)}`, {
+  const fileName = getFileName(relPath)
+  const response = await fetch(`${API_BASE}/api/projects/${projectId}/files/${encodeURIComponent(fileName)}`, {
     method: "DELETE",
   })
 
@@ -498,10 +500,11 @@ export async function deleteFile(projectId: string, relPath: string): Promise<De
 }
 
 export async function batchDeleteFiles(projectId: string, relPaths: string[]): Promise<BatchDeleteResult> {
+  const fileNames = relPaths.map(getFileName)
   const response = await fetch(`${API_BASE}/api/projects/${projectId}/files/batch-delete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rel_paths: relPaths }),
+    body: JSON.stringify({ rel_paths: fileNames }),
   })
 
   if (!response.ok) {

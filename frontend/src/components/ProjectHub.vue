@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue"
+import { ref, onMounted, computed } from "vue"
 import { useRouter } from "vue-router"
 import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles } from "../api/client"
 import type { Project, ManifestEntry } from "../types"
@@ -10,6 +10,7 @@ import ConfirmationModal from "./ConfirmationModal.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
 import SettingsModal from "./SettingsModal.vue"
 import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings } from "lucide-vue-next"
+import { getFileName } from "../utils"
 
 const router = useRouter()
 const activeTab = ref<'projects' | 'bank'>('projects')
@@ -88,6 +89,26 @@ async function handleCreate() {
     }
 }
 
+const sortedBankFiles = computed(() => {
+    return [...bankFiles.value].sort((a, b) => {
+        const nameA = getFileName(a.relPath).toLowerCase()
+        const nameB = getFileName(b.relPath).toLowerCase()
+        if (nameA !== nameB) return nameA.localeCompare(nameB)
+        return a.relPath.localeCompare(b.relPath)
+    })
+})
+
+function upsertBankFile(entry: ManifestEntry) {
+    const idx = bankFiles.value.findIndex(item => item.relPath === entry.relPath)
+    if (idx === -1) {
+        bankFiles.value = [...bankFiles.value, entry]
+        return
+    }
+    const next = [...bankFiles.value]
+    next[idx] = entry
+    bankFiles.value = next
+}
+
 function openFileSelectorForCreate() {
     showFileSelectorForCreate.value = true
 }
@@ -115,12 +136,13 @@ async function confirmDelete() {
     if (!fileToDelete.value) return
     try {
         deleting.value = true
-        await deleteFile('default', fileToDelete.value.relPath)
-
-        await loadBankFiles()
+        const relPath = fileToDelete.value.relPath
+        bankFiles.value = bankFiles.value.filter(file => file.relPath !== relPath)
+        await deleteFile('default', relPath)
         showDeleteModal.value = false
         fileToDelete.value = null
     } catch (err) {
+        await loadBankFiles()
         console.error("Failed to delete file:", err)
     } finally {
         deleting.value = false
@@ -160,8 +182,22 @@ function cancelDeleteProject() {
     projectToDelete.value = null
 }
 
-async function handleUploadComplete() {
-    await loadBankFiles()
+async function handleUploadComplete(entry: ManifestEntry) {
+    upsertBankFile(entry)
+}
+
+function handleBeforeLeave(el: Element) {
+    const element = el as HTMLElement
+    const parent = element.parentElement
+    if (!parent) return
+
+    const rect = element.getBoundingClientRect()
+    const parentRect = parent.getBoundingClientRect()
+    element.style.position = "absolute"
+    element.style.top = `${rect.top - parentRect.top}px`
+    element.style.left = `${rect.left - parentRect.left}px`
+    element.style.width = `${rect.width}px`
+    element.style.height = `${rect.height}px`
 }
 
 function switchToBank() {
@@ -264,13 +300,13 @@ onMounted(loadProjects)
                     <p>Upload files using the button above to get started.</p>
                 </div>
 
-                <div v-else class="file-grid">
-                    <div v-for="file in bankFiles" :key="file.relPath" class="file-card">
+                <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
+                    <div v-for="file in sortedBankFiles" :key="file.relPath" class="file-card">
                         <div class="file-icon">
                             <FileText :size="24" />
                         </div>
                         <div class="file-info">
-                            <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
+                            <div class="file-name" :title="getFileName(file.relPath)">{{ getFileName(file.relPath) }}</div>
                             <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024)
                                 }}KB</div>
                         </div>
@@ -283,7 +319,7 @@ onMounted(loadProjects)
                             </button>
                         </div>
                     </div>
-                </div>
+                </TransitionGroup>
             </div>
         </main>
 
@@ -331,7 +367,7 @@ onMounted(loadProjects)
 
         <!-- Delete Confirmation Modal -->
         <ConfirmationModal v-model="showDeleteModal" title="Delete File?"
-            :message="fileToDelete ? `Delete '${fileToDelete.relPath}'? This will remove it from all projects. This action cannot be undone.` : ''"
+            :message="fileToDelete ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.` : ''"
             confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
 
         <!-- Delete Project Confirmation Modal -->
@@ -651,10 +687,34 @@ onMounted(loadProjects)
 }
 
 .file-grid {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
     margin-top: 24px;
+}
+
+.file-list-move {
+    transition: transform 360ms ease-out;
+}
+
+.file-list-enter-active,
+.file-list-leave-active {
+    transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.file-list-enter-from,
+.file-list-leave-to {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+}
+
+.file-list-leave-active {
+    pointer-events: none;
+}
+
+.file-card {
+    will-change: transform;
 }
 
 .file-card {

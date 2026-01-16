@@ -295,6 +295,23 @@ def _load_manifest() -> list:
     except Exception:
         return []
 
+def _resolve_rel_path(rel_path: str) -> str:
+    ref_dir, _ = _get_bank_paths()
+    file_path = ref_dir / rel_path
+    if file_path.exists():
+        return rel_path
+
+    name = Path(rel_path).name
+    if not name:
+        return rel_path
+
+    matches = [entry.rel_path for entry in _load_manifest() if Path(entry.rel_path).name == name]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise HTTPException(status_code=409, detail=f"Multiple files named '{name}'. Provide full path.")
+    return rel_path
+
 def _count_chunks() -> int:
     path = _chunks_path()
     if not path.exists():
@@ -428,7 +445,6 @@ def _stream_rag(
 
 @app.get("/api/projects/{project_id}/manifest")
 async def get_manifest(project_id: str):
-    _ensure_index()
     entries = _load_manifest()
     selected = set(project_manager.get_selected_files(project_id))
     filtered = entries if not selected else [e for e in entries if e.rel_path in selected]
@@ -437,7 +453,6 @@ async def get_manifest(project_id: str):
 
 @app.get("/api/bank/manifest")
 async def get_bank_manifest():
-    _ensure_index()
     entries = _load_manifest()
     return [asdict(entry) for entry in entries]
 
@@ -789,25 +804,26 @@ async def delete_file_api(project_id: str, rel_path: str):
     """Delete a file from the bank and remove it from the index."""
     _, idx_dir = _get_bank_paths()
     ref_dir, _ = _get_bank_paths()
-    file_path = ref_dir / rel_path
+    resolved_path = _resolve_rel_path(rel_path)
+    file_path = ref_dir / resolved_path
 
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
 
     # Remove from index (which also updates registry and unlinks file if called via higher level)
     # Actually remove_file_from_index does: manifest update, chunks update, index rebuild, AND registry update.
-    removed_chunks = remove_file_from_index(rel_path, index_dir=idx_dir, references_dir=ref_dir)
+    removed_chunks = remove_file_from_index(resolved_path, index_dir=idx_dir, references_dir=ref_dir)
 
     # Delete the actual file
     if file_path.exists():
         file_path.unlink()
 
-    project_manager.remove_file_from_all_projects(rel_path)
+    project_manager.remove_file_from_all_projects(resolved_path)
 
     return {
         "success": True,
         "removed_chunks": removed_chunks,
-        "message": f"Deleted {rel_path} and removed {removed_chunks} chunks from index",
+        "message": f"Deleted {resolved_path} and removed {removed_chunks} chunks from index",
     }
 
 
@@ -826,22 +842,26 @@ async def batch_delete_files_api(project_id: str, req: BatchDeleteRequest):
     failed_count = 0
 
     for rel_path in req.rel_paths:
-        file_path = ref_dir / rel_path
         try:
+            resolved_path = _resolve_rel_path(rel_path)
+            file_path = ref_dir / resolved_path
             if not file_path.exists():
-                results.append({"rel_path": rel_path, "success": False, "error": "File not found"})
+                results.append({"rel_path": resolved_path, "success": False, "error": "File not found"})
                 failed_count += 1
                 continue
 
-            removed_chunks = remove_file_from_index(rel_path, index_dir=idx_dir, references_dir=ref_dir)
+            removed_chunks = remove_file_from_index(resolved_path, index_dir=idx_dir, references_dir=ref_dir)
             total_chunks_removed += removed_chunks
 
             if file_path.exists():
                 file_path.unlink()
 
-            project_manager.remove_file_from_all_projects(rel_path)
-            results.append({"rel_path": rel_path, "success": True, "removed_chunks": removed_chunks})
+            project_manager.remove_file_from_all_projects(resolved_path)
+            results.append({"rel_path": resolved_path, "success": True, "removed_chunks": removed_chunks})
             deleted_count += 1
+        except HTTPException as e:
+            results.append({"rel_path": rel_path, "success": False, "error": str(e.detail)})
+            failed_count += 1
         except Exception as e:
             results.append({"rel_path": rel_path, "success": False, "error": str(e)})
             failed_count += 1

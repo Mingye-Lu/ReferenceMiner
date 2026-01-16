@@ -4,6 +4,7 @@ import BaseModal from "./BaseModal.vue"
 import type { ManifestEntry, Project } from "../types"
 import { renderAsync } from "docx-preview"
 import { getFileUrl } from "../api/client"
+import { getFileName } from "../utils"
 
 const props = defineProps<{
   modelValue: boolean
@@ -65,7 +66,7 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal :model-value="modelValue" :title="file?.relPath || 'Preview'" size="fullscreen" @update:model-value="handleClose">
+  <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'" size="fullscreen" @update:model-value="handleClose">
     <div class="preview-content">
       <iframe v-if="isPdf" :src="fileUrl" class="preview-frame"></iframe>
       <img v-else-if="isImage" :src="fileUrl" class="preview-image" />
@@ -89,8 +90,6 @@ function handleClose() {
   align-items: center;
   justify-content: center;
   background: var(--color-neutral-85);
-  margin: -24px -20px;
-  padding: 0;
 }
 
 .preview-frame {
@@ -137,5 +136,10 @@ function handleClose() {
 :deep(.docx-wrapper) {
   background: var(--color-white);
   padding: 40px !important;
+}
+
+:deep(.modal-body) {
+  padding: 0;
+  overflow: hidden;
 }
 </style>

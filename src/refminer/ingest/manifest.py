@@ -82,5 +82,15 @@ def load_manifest(root: Path | None = None, index_dir: Path | None = None) -> li
     manifest_path = idx_dir / "manifest.json"
     if not manifest_path.exists():
         return []
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw = manifest_path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        try:
+            data, _ = decoder.raw_decode(raw)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(data, list):
+        return []
     return [ManifestEntry(**item) for item in data]
