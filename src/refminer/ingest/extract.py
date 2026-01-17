@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -23,6 +23,7 @@ class ExtractedDocument:
     page_count: int | None
     image_metadata: ImageMetadata | None
     title: str | None
+    bbox_map: list[list[dict] | None] | None = None
 
 
 def _pdf_title(path: Path) -> str | None:
@@ -42,6 +43,11 @@ def extract_document(path: Path, file_type: str) -> ExtractedDocument:
         text_blocks = [block.text for block in blocks]
         page_map = [block.page for block in blocks]
         section_map = [None for _ in blocks]
+        # Extract bbox data, converting BoundingBox objects to dicts
+        bbox_map = [
+            [asdict(bbox) for bbox in block.bbox] if block.bbox else None
+            for block in blocks
+        ]
         abstract = detect_abstract("\n".join(text_blocks).split("\n"))
         title = _pdf_title(path) or (text_blocks[0].split("\n")[0] if text_blocks else None)
         return ExtractedDocument(
@@ -54,6 +60,7 @@ def extract_document(path: Path, file_type: str) -> ExtractedDocument:
             page_count=page_count,
             image_metadata=None,
             title=title,
+            bbox_map=bbox_map,
         )
     if file_type == "docx":
         blocks = extract_docx_text(path)

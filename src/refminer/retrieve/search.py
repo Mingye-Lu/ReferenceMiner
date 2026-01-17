@@ -84,6 +84,7 @@ def retrieve(
                 section=item.get("section"),
                 text=item["text"],
                 score=score,
+                bbox=item.get("bbox"),
             )
         )
     return evidence

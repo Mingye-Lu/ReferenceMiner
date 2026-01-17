@@ -50,6 +50,7 @@ function mapEvidence(item: any): EvidenceChunk {
     section: item.section ?? null,
     text: item.text ?? "",
     score: item.score ?? 0,
+    bbox: item.bbox ?? null,
   }
 }
 
@@ -617,9 +618,11 @@ export async function deleteApiKey(): Promise<{ success: boolean; hasApiKey: boo
   }
 }
 
-export async function validateApiKey(): Promise<ValidateResult> {
+export async function validateApiKey(apiKey?: string): Promise<ValidateResult> {
   const data = await fetchJson<any>("/api/settings/validate", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey ?? "" }),
   })
   return {
     valid: data.valid ?? false,

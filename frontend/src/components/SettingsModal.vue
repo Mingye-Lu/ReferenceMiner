@@ -50,24 +50,15 @@ async function handleValidate() {
   validationError.value = ''
 
   try {
-    // If there's input, save first then validate
-    if (apiKeyInput.value) {
-      await saveApiKey(apiKeyInput.value)
-    }
-    const result = await validateApiKey()
+    const result = await validateApiKey(apiKeyInput.value || undefined)
     validationStatus.value = result.valid ? 'valid' : 'invalid'
-    validationError.value = result.error || ''
+    validationError.value = formatValidationError(result.error)
     balanceInfos.value = result.balanceInfos ?? []
     balanceAvailable.value = typeof result.isAvailable === 'boolean' ? result.isAvailable : null
 
-    // Reload settings if we saved
-    if (apiKeyInput.value) {
-      settings.value = await getSettings()
-      apiKeyInput.value = ''
-    }
   } catch (e: any) {
     validationStatus.value = 'invalid'
-    validationError.value = e.message || 'Validation failed'
+    validationError.value = formatValidationError(e.message || 'Validation failed')
     balanceInfos.value = []
     balanceAvailable.value = null
   } finally {
@@ -144,6 +135,25 @@ async function handleResetConfirm() {
 function handleClose() {
   emit('update:modelValue', false)
   emit('close')
+}
+
+function formatValidationError(error?: string): string {
+  if (!error) return ''
+  const trimmed = error.trim()
+  const jsonStart = trimmed.indexOf('{')
+  if (jsonStart !== -1) {
+    const maybeJson = trimmed.slice(jsonStart)
+    try {
+      const parsed = JSON.parse(maybeJson)
+      const message = parsed?.error?.message
+      if (typeof message === 'string' && message.trim()) {
+        return message.trim()
+      }
+    } catch {
+      // Ignore JSON parsing errors and fall back to raw text.
+    }
+  }
+  return trimmed
 }
 </script>
 

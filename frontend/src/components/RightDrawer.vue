@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, inject, watch, nextTick, type Ref } from "vue"
+import { ref, inject, watch, nextTick, computed, type Ref } from "vue"
 import type { EvidenceChunk, ManifestEntry } from "../types"
+import PdfViewer from "./PdfViewer.vue"
+import { getFileUrl } from "../api/client"
 
 const props = defineProps<{
   tab: "reader" | "notebook"
@@ -14,8 +16,9 @@ defineEmits<{ (event: 'close'): void }>()
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")!
 const isPinned = inject<(id: string) => boolean>("isPinned")!
 const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
-const openPreview = inject<(file: ManifestEntry) => void>("openPreview")!
 const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
+const currentProject = inject<Ref<{ id: string } | null> | undefined>("currentProject", undefined)
+const projectId = computed(() => currentProject?.value?.id || "default")
 
 const currentTab = ref(props.tab)
 watch(() => props.tab, (v) => currentTab.value = v)
@@ -81,6 +84,20 @@ watch(pinnedEvidenceMap, (newMap) => {
 }, { deep: true })
 
 const contentRef = ref<HTMLElement | null>(null)
+const previewFile = computed<ManifestEntry | null>(() => {
+  if (!props.evidence) return null
+  const entry = manifest.value.find(f => f.relPath === props.evidence?.path)
+  if (entry) return entry
+  return { relPath: props.evidence.path, fileType: "text" } as ManifestEntry
+})
+const previewFileUrl = computed(() => {
+  if (!previewFile.value) return ""
+  return getFileUrl(projectId.value, previewFile.value.relPath)
+})
+const previewHighlights = computed(() => props.evidence?.bbox ?? undefined)
+const canRenderPdfPreview = computed(() => {
+  return previewFile.value?.fileType === "pdf" && previewHighlights.value && previewHighlights.value.length > 0
+})
 watch(() => props.evidence, (newVal) => {
   if (newVal) {
     currentTab.value = 'reader'
@@ -109,25 +126,6 @@ function handlePin() {
   if (props.evidence) togglePin(props.evidence)
 }
 
-function handleOpenDoc() {
-  if (props.evidence) {
-    let fType: "pdf" | "docx" | "image" | "table" | "text" = "pdf"
-
-    const entry = manifest.value.find(f => f.relPath === props.evidence?.path)
-
-    if (entry) {
-      fType = entry.fileType
-    } else {
-      const lower = props.evidence.path.toLowerCase()
-      if (lower.endsWith(".docx") || lower.endsWith(".doc")) fType = "docx"
-      else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")) fType = "image"
-      else if (lower.endsWith(".txt") || lower.endsWith(".md")) fType = "text"
-      else if (lower.endsWith(".csv") || lower.endsWith(".xlsx")) fType = "table"
-    }
-
-    openPreview({ relPath: props.evidence.path, fileType: fType } as ManifestEntry)
-  }
-}
 </script>
 
 <template>
@@ -180,15 +178,6 @@ function handleOpenDoc() {
 
         <!-- Sticky Floating Actions (Top Right Overlay) -->
         <div class="sticky-actions">
-          <button class="pill-btn" @click="handleOpenDoc" title="Open Full Document">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 3h6v6" />
-              <path d="M10 14 21 3" />
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-            </svg>
-            Open
-          </button>
           <button class="pill-btn" :class="{ active: isPinned(props.evidence.chunkId) }" @click="handlePin"
             title="Pin to Notebook">
             <svg v-if="isPinned(props.evidence.chunkId)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
@@ -209,12 +198,21 @@ function handleOpenDoc() {
             <span class="meta-tag" v-if="props.evidence.page">Page {{ props.evidence.page }}</span>
             <span class="meta-tag">Score: {{ props.evidence.score.toFixed(2) }}</span>
           </div>
-          <div class="doc-path">{{ props.evidence.path }}</div>
-        </div>
+        <div class="doc-path">{{ props.evidence.path }}</div>
+      </div>
 
-        <div class="evidence-highlight-box">
-          <div class="highlight-text">{{ props.evidence.text }}</div>
-        </div>
+      <div v-if="canRenderPdfPreview" class="reader-preview">
+        <PdfViewer
+          :file-url="previewFileUrl"
+          :highlights="previewHighlights"
+          :initial-page="props.evidence.page ?? undefined"
+          class="reader-pdf"
+        />
+      </div>
+
+      <div v-else class="evidence-highlight-box">
+        <div class="highlight-text">{{ props.evidence.text }}</div>
+      </div>
       </div>
       <div v-else class="empty-state">
         <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
@@ -353,6 +351,21 @@ function handleOpenDoc() {
 .reader-container {
   position: relative;
   min-height: 100%;
+}
+
+.reader-preview {
+  width: 100%;
+  height: calc(100vh - 260px);
+  border: 1px solid var(--color-neutral-250);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-neutral-100);
+  margin-bottom: 16px;
+}
+
+.reader-pdf {
+  width: 100%;
+  height: 100%;
 }
 
 /* Sticky Actions */

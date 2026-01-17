@@ -19,6 +19,7 @@ class EvidenceSource:
     section: Optional[str] = None
     text: str = ""
     score: float = 0.0
+    bbox: Optional[list[dict]] = None
 
 
 @dataclass

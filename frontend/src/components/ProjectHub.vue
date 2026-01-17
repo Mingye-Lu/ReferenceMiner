@@ -207,6 +207,15 @@ function switchToBank() {
     }
 }
 
+async function handleDataReset() {
+    // Reload projects list after data reset
+    await loadProjects()
+    // Reload bank files if currently viewing bank tab
+    if (activeTab.value === 'bank') {
+        await loadBankFiles()
+    }
+}
+
 onMounted(loadProjects)
 </script>
 
@@ -380,7 +389,7 @@ onMounted(loadProjects)
             @confirm="handleInitialFilesSelected" />
 
         <!-- Settings Modal -->
-        <SettingsModal v-model="showSettingsModal" />
+        <SettingsModal v-model="showSettingsModal" @reset="handleDataReset" />
     </div>
 </template>
 

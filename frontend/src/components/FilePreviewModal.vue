@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, inject, type Ref } from "vue"
 import BaseModal from "./BaseModal.vue"
-import type { ManifestEntry, Project } from "../types"
+import PdfViewer from "./PdfViewer.vue"
+import type { ManifestEntry, Project, BoundingBox } from "../types"
 import { renderAsync } from "docx-preview"
 import { getFileUrl } from "../api/client"
 import { getFileName } from "../utils"
@@ -9,6 +10,7 @@ import { getFileName } from "../utils"
 const props = defineProps<{
   modelValue: boolean
   file: ManifestEntry | null
+  highlights?: BoundingBox[]
 }>()
 
 const emit = defineEmits<{
@@ -30,6 +32,13 @@ const fileUrl = computed(() => {
 const isPdf = computed(() => props.file?.fileType === "pdf")
 const isImage = computed(() => ["png", "jpg", "jpeg", "gif", "webp"].includes(props.file?.fileType || ""))
 const isDocx = computed(() => ["docx", "doc"].includes(props.file?.fileType || ""))
+const usePdfViewer = computed(() => {
+  return isPdf.value && props.highlights && props.highlights.length > 0
+})
+const initialPage = computed(() => {
+  if (!props.highlights || props.highlights.length === 0) return undefined
+  return props.highlights[0].page
+})
 
 async function loadDocx() {
   if (!isDocx.value || !fileUrl.value) return
@@ -68,7 +77,8 @@ function handleClose() {
 <template>
   <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'" size="fullscreen" @update:model-value="handleClose">
     <div class="preview-content">
-      <iframe v-if="isPdf" :src="fileUrl" class="preview-frame"></iframe>
+      <PdfViewer v-if="usePdfViewer" :file-url="fileUrl" :highlights="highlights" :initial-page="initialPage" class="pdf-viewer-wrapper" />
+      <iframe v-else-if="isPdf" :src="fileUrl" class="preview-frame"></iframe>
       <img v-else-if="isImage" :src="fileUrl" class="preview-image" />
       <div v-else-if="isDocx" class="docx-preview-area">
         <div v-if="isLoading" class="loading">Loading document...</div>
@@ -92,7 +102,8 @@ function handleClose() {
   background: var(--color-neutral-85);
 }
 
-.preview-frame {
+.preview-frame,
+.pdf-viewer-wrapper {
   width: 100%;
   height: 100%;
   border: none;

@@ -12,6 +12,7 @@ class EvidenceChunk:
     section: str | None
     text: str
     score: float
+    bbox: list[dict] | None = None
 
 
 def derive_scope(question: str) -> list[str]:

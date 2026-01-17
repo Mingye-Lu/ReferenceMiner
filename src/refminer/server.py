@@ -124,6 +124,10 @@ class ApiKeyRequest(BaseModel):
     api_key: str
 
 
+class ApiKeyValidateRequest(BaseModel):
+    api_key: Optional[str] = None
+
+
 @app.get("/api/settings")
 async def get_settings():
     """Get current settings (API key is masked)."""
@@ -157,17 +161,23 @@ async def delete_api_key():
 
 
 @app.post("/api/settings/validate")
-async def validate_api_key():
+async def validate_api_key(req: ApiKeyValidateRequest):
     """Test if the current API key is valid by fetching the user balance."""
     config = settings_manager.get_deepseek_config()
-    if not config:
-        raise HTTPException(status_code=400, detail="No API key configured")
+    api_key = (req.api_key or "").strip() if req else ""
+    if api_key:
+        base_url = config.base_url if config else "https://api.deepseek.com"
+    else:
+        if not config:
+            raise HTTPException(status_code=400, detail="No API key configured")
+        api_key = config.api_key
+        base_url = config.base_url
 
     try:
-        url = f"{config.base_url.rstrip('/')}/user/balance"
+        url = f"{base_url.rstrip('/')}/user/balance"
         headers = {
             "Accept": "application/json",
-            "Authorization": f"Bearer {config.api_key}",
+            "Authorization": f"Bearer {api_key}",
         }
         with httpx.Client(timeout=10.0) as client:
             response = client.get(url, headers=headers)

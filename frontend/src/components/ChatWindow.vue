@@ -115,7 +115,8 @@ async function sendMessage() {
           page: item.page,
           section: item.section,
           text: item.text,
-          score: item.score
+          score: item.score,
+          bbox: item.bbox ?? null
         }))
       }
       if (event === "answer_delta") {

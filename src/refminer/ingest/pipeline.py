@@ -9,7 +9,7 @@ from refminer.ingest.manifest import build_manifest, write_manifest
 from refminer.index.bm25 import build_bm25, save_bm25
 from refminer.index.chunk import chunk_text
 from refminer.index.vectors import build_vectors, save_vectors
-from refminer.utils.paths import get_index_dir
+from refminer.utils.paths import get_index_dir, get_references_dir
 
 
 def ingest_all(
@@ -46,6 +46,7 @@ def ingest_all(
                 texts=extracted.text_blocks,
                 page_map=extracted.page_map,
                 section_map=extracted.section_map,
+                bbox_map=extracted.bbox_map,
             )
             for chunk in chunks:
                 chunks_payload.append(asdict(chunk))
