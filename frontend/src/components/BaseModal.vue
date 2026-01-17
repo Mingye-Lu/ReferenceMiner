@@ -139,7 +139,7 @@ onUnmounted(() => {
   bottom: 0;
   background: var(--alpha-black-50);
   backdrop-filter: blur(2px);
-  z-index: 200;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;

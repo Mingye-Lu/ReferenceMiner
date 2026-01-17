@@ -267,7 +267,7 @@ onMounted(loadData)
 .search-input {
   width: 100%;
   padding: 10px 12px 10px 36px;
-  border: 1px solid var(--color-neutral-350);
+  border: 1px solid var(--color-neutral-250);
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.2s;
@@ -276,6 +276,7 @@ onMounted(loadData)
 .search-input:focus {
   outline: none;
   border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px var(--accent-soft, var(--color-accent-50));
 }
 
 .selection-info {
@@ -299,7 +300,7 @@ onMounted(loadData)
 }
 
 .link-btn:hover {
-  background: rgba(var(--accent-color-rgb), 0.1);
+  background: var(--accent-soft, var(--color-accent-50));
 }
 
 .modal-body-custom {
@@ -350,21 +351,21 @@ onMounted(loadData)
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--color-neutral-80);
-  border: 2px solid transparent;
+  background: var(--color-neutral-60);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .file-card:hover {
-  background: white;
-  border-color: var(--color-neutral-240);
+  background: var(--color-neutral-80);
+  border-color: var(--accent-soft, var(--color-accent-100));
   box-shadow: 0 2px 8px var(--alpha-black-08);
 }
 
 .file-card.selected {
-  background: var(--color-info-90);
+  background: var(--accent-soft, var(--color-accent-50));
   border-color: var(--accent-color);
 }
 
@@ -386,7 +387,7 @@ onMounted(loadData)
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--accent-soft, var(--color-accent-50));
   border-radius: 8px;
   color: var(--accent-color);
 }
@@ -416,8 +417,8 @@ onMounted(loadData)
 }
 
 .usage-badge {
-  background: var(--color-warning-100);
-  color: var(--color-warning-800);
+  background: var(--color-neutral-120);
+  color: var(--text-secondary);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
@@ -458,7 +459,7 @@ onMounted(loadData)
 
 .btn-secondary {
   padding: 10px 20px;
-  background: var(--color-neutral-170);
+  background: var(--color-neutral-120);
   color: var(--text-primary);
   border: none;
   border-radius: 8px;
@@ -469,14 +470,14 @@ onMounted(loadData)
 }
 
 .btn-secondary:hover {
-  background: var(--color-neutral-230);
+  background: var(--color-neutral-170);
 }
 
 .btn-primary {
   padding: 10px 20px;
   background: var(--accent-color);
-  color: white;
-  border: none;
+  color: var(--color-white);
+  border: 1px solid var(--accent-color);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
@@ -487,7 +488,7 @@ onMounted(loadData)
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 .btn-primary:disabled {
