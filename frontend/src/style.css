@@ -132,6 +132,10 @@
   --bg-panel: var(--color-white);
   --bg-drawer: var(--color-white);
 
+  /* Modal and Header Backgrounds */
+  --bg-modal: var(--color-white);
+  --bg-header: var(--color-white);
+
   --border-color: var(--color-neutral-250);
   --border-hover: var(--color-neutral-260);
 
@@ -143,13 +147,159 @@
   --accent-soft: var(--color-accent-50);
   --gold-highlight: var(--color-gold-100);
 
-  --shadow-sm: 0 1px 3px var(--alpha-black-05);
-  --shadow-md: 0 4px 12px var(--alpha-black-08);
-  --shadow-drawer: -4px 0 24px var(--alpha-black-12);
-
   --radius-lg: 12px;
   --radius-md: 8px;
   --radius-sm: 6px;
+
+  /* Card & Interactive Elements */
+  --bg-card: var(--color-white);
+  --bg-card-hover: var(--color-neutral-100);
+  --bg-input: var(--color-white);
+  --bg-button: var(--color-neutral-150);
+  --bg-button-hover: var(--color-neutral-200);
+  --bg-selected: var(--color-accent-50);
+  --bg-icon-hover: var(--color-neutral-150);
+
+  /* Border Colors */
+  --border-card: var(--color-neutral-240);
+  --border-card-hover: var(--color-neutral-350);
+  --border-input: var(--color-neutral-300);
+  --border-input-focus: var(--accent-color);
+
+  /* Accent & Hover Colors */
+  --accent-hover: #5e72e4;
+  --accent-bright: #7c8ef0;
+
+  /* Button Text Colors */
+  --text-button: var(--text-primary);
+  --text-button-secondary: var(--text-secondary);
+
+  /* Citation/Reference Colors */
+  --color-citation: var(--accent-color);
+  --bg-citation: var(--accent-soft);
+
+  /* Red/Danger Colors */
+  --color-red-50: #ffebee;
+  --color-red-200: #ffaaaa;
+  --color-red-600: #ff1f1f;
+  --color-red-700: #d32f2f;
+}
+
+[data-theme="dark"] {
+  --bg-app: #121212;
+  --bg-sidebar: #1e1e1e;
+  --bg-panel: #252525;
+  --bg-drawer: #1e1e1e;
+
+  --border-color: #333333;
+  --border-hover: #444444;
+
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-accent: #7eaaffa;
+
+  --color-white: #252525;
+  --color-neutral-100: #1e1e1e;
+  --color-neutral-105: #2a2a2a;
+  --color-neutral-120: #1e1e1e;
+  --color-neutral-150: #333333;
+  --color-neutral-200: #444444;
+  --color-neutral-215: #333333;
+  --color-neutral-250: #444444;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-drawer: -4px 0 24px rgba(0, 0, 0, 0.5);
+
+  --accent-soft: rgba(94, 114, 228, 0.2);
+  --alpha-white-80: rgba(30, 30, 30, 0.9);
+
+  /* Expanded Neutral Palette for Dark Mode */
+  --color-neutral-95: #1a1a1a;
+  --color-neutral-90: #181818;
+  --color-neutral-80: #161616;
+  --color-neutral-70: #121212;
+
+  /* Adjust Danger Colors for Dark Mode */
+  --color-danger-50: rgba(211, 47, 47, 0.1);
+  --color-danger-200: rgba(211, 47, 47, 0.3);
+
+  /* Update Backgrounds */
+  --bg-app: #121212;
+  --bg-sidebar: #1e1e1e;
+  --bg-panel: #252525;
+  --bg-drawer: #1e1e1e;
+
+  /* Modal & Header overrides if they use hardcoded white */
+  --bg-modal: #252525;
+  --bg-header: rgba(30, 30, 30, 0.9);
+
+  /* Card & Interactive Elements for Dark Mode */
+  --bg-card: #2a2a2a;
+  --bg-card-hover: #333333;
+  --bg-input: #1a1a1a;
+  --bg-button: #333333;
+  --bg-button-hover: #3a3a3a;
+  --bg-selected: rgba(124, 142, 240, 0.15);
+  --bg-icon-hover: #3a3a3a;
+
+  /* Border Colors for Dark Mode */
+  --border-card: #3a3a3a;
+  --border-card-hover: var(--accent-bright);
+  --border-input: #444444;
+  --border-input-focus: var(--accent-bright);
+
+  /* Bright Accent & Hover Colors for Dark Mode */
+  --accent-hover: #8b9df5;
+  --accent-bright: #a0aef8;
+  --accent-color: #7c8ef0;
+  --accent-soft: rgba(124, 142, 240, 0.2);
+
+  /* Button Text Colors for Dark Mode */
+  --text-button: #e0e0e0;
+  --text-button-secondary: #b0b0b0;
+
+  /* Citation/Reference Colors for Dark Mode */
+  --color-citation: var(--accent-bright);
+  --bg-citation: rgba(124, 142, 240, 0.2);
+
+  /* Red/Danger Colors for Dark Mode */
+  --color-red-50: rgba(211, 47, 47, 0.1);
+  --color-red-200: rgba(239, 83, 80, 0.3);
+  --color-red-600: #ef5350;
+  --color-red-700: #e53935;
+}
+
+/* Global Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-neutral-150);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-400);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-500);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #444444;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #555555;
 }
 
 * {
@@ -220,7 +370,7 @@ body {
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 0 12px;
 }
 
 .workspace-shell {

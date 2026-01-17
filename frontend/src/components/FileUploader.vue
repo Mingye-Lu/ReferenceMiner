@@ -205,12 +205,9 @@ function getStatusLabel(status: string): string {
   <div class="file-uploader">
     <button class="upload-trigger" @click="openModal">Upload Files</button>
 
-    <BaseModal
-      :model-value="isOpen"
-      size="large"
+    <BaseModal :model-value="isOpen" size="large"
       :title="uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project'"
-      @update:model-value="closeModal"
-    >
+      @update:model-value="closeModal">
       <div class="drop-zone" :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
         @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleDrop">
         <template v-if="uploads.length === 0">
@@ -267,8 +264,8 @@ function getStatusLabel(status: string): string {
           <div class="upload-actions">
             <button class="btn-secondary" @click="fileInput?.click()">Add More</button>
             <button class="btn-secondary" @click="folderInput?.click()">Add Folder</button>
-            <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')"
-              class="btn-secondary" @click="clearCompleted">Clear Done</button>
+            <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')" class="btn-secondary"
+              @click="clearCompleted">Clear Done</button>
           </div>
           <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect"
             ref="fileInput" class="hidden-input" />
@@ -282,13 +279,13 @@ function getStatusLabel(status: string): string {
 
 <style scoped>
 .file-uploader {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .upload-trigger {
   width: 100%;
   padding: 10px 12px;
-  background: var(--color-neutral-950);
+  background: var(--text-primary);
   color: var(--color-white);
   border: none;
   border-radius: 10px;
@@ -307,7 +304,7 @@ function getStatusLabel(status: string): string {
   padding: 16px;
   text-align: center;
   transition: all 0.2s;
-  background: var(--color-neutral-80);
+  background: var(--bg-panel);
   margin: -24px -20px;
   padding: 40px 20px;
 }
@@ -324,7 +321,6 @@ function getStatusLabel(status: string): string {
 
 .drop-zone svg {
   color: var(--color-neutral-500);
-  margin-bottom: 8px;
 }
 
 .drop-text {
@@ -344,6 +340,7 @@ function getStatusLabel(status: string): string {
 }
 
 .btn-secondary {
+  color: var(--text-primary);
   padding: 8px 16px;
   font-size: 12px;
   background: var(--color-white);
@@ -354,8 +351,8 @@ function getStatusLabel(status: string): string {
 }
 
 .btn-secondary:hover {
-  background: var(--color-neutral-130);
-  border-color: var(--color-neutral-400);
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
 }
 
 .btn-small {
@@ -382,17 +379,21 @@ function getStatusLabel(status: string): string {
   background: var(--color-neutral-130);
 }
 
-.btn-icon {
+.delete-btn {
   background: transparent;
   border: none;
-  padding: 4px;
-  cursor: pointer;
   color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
 }
 
-.btn-icon:hover {
-  background: var(--color-neutral-220);
+.delete-btn:hover {
+  background: var(--bg-icon-hover);
+  color: var(--color-red-600);
 }
 
 .upload-queue {
@@ -408,26 +409,26 @@ function getStatusLabel(status: string): string {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
   border-radius: 8px;
-  position: relative;
+  margin-bottom: 8px;
 }
 
 .upload-item.complete {
   border-color: var(--color-success-600);
-  background: var(--color-success-25);
+  background: rgba(76, 175, 80, 0.1);
 }
 
 .upload-item.error {
   border-color: var(--color-danger-400);
-  background: var(--color-danger-20);
+  background: rgba(211, 47, 47, 0.1);
 }
 
 .upload-item.duplicate {
   border-color: var(--color-warning-600);
-  background: var(--color-warning-50);
+  background: rgba(255, 152, 0, 0.1);
 }
 
 .item-info {
@@ -435,6 +436,7 @@ function getStatusLabel(status: string): string {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
 }
 
 .filename {

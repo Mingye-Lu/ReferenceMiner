@@ -639,11 +639,16 @@ function handleBodyClick(event: MouseEvent) {
 }
 
 .card-idx {
-  background: var(--bg-sidebar);
+  background: var(--accent-soft);
+  color: var(--accent-color);
+  border-radius: 999px;
+  width: 16px;
+  height: 16px;
   font-size: 10px;
-  padding: 2px 5px;
-  border-radius: 4px;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-title {

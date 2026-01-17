@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, inject, type Ref, computed, onMounted, onUnmounted } from "vue"
+import { useRouter } from "vue-router"
+import { type Theme, getStoredTheme, setTheme as applyThemeGlobal } from "../utils/theme"
 import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../types"
 import FileUploader from "./FileUploader.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
@@ -11,11 +13,13 @@ const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
 
 // Settings panel state
+const router = useRouter()
 const showSettings = ref(false)
 const settingsActiveSection = ref<'theme' | 'prompt-key' | 'display' | 'api' | 'danger'>('prompt-key')
 const submenuOpen = ref<string | null>(null)
 const submitPromptKey = ref<'enter' | 'ctrl-enter'>('enter')
 const submenuPosition = ref({ top: 0, left: 0 })
+const currentTheme = ref<Theme>('system')
 
 
 const showDeleteFileModal = ref(false)
@@ -66,7 +70,19 @@ const displayedFiles = computed(() => {
   return manifest.value.filter(f => projectFiles.value.has(f.relPath))
 })
 
-async function handleUploadComplete(_entry: ManifestEntry) {
+async function handleUploadComplete(entry: ManifestEntry) {
+  console.log('[SidePanel] File uploaded:', entry.relPath)
+
+  // Automatically add the uploaded file to the current project's file list
+  if (projectId.value && entry.relPath) { // Use projectId.value instead of props.projectId
+    projectFiles.value.add(entry.relPath)
+    projectFiles.value = new Set(projectFiles.value) // Trigger reactivity
+    console.log('[SidePanel] Auto-added file to project:', entry.relPath)
+  }
+
+  // Emit to parent (Cockpit) to update manifest
+  emit('file-uploaded', entry)
+
   // Refresh the manifest and project files
   try {
     manifest.value = await fetchBankManifest()
@@ -380,27 +396,39 @@ function setSubmitPromptKey(value: 'enter' | 'ctrl-enter', event?: MouseEvent) {
   // Don't close submenu or settings panel - let user see the updated state
 }
 
+function handleThemeChange(theme: Theme) {
+  currentTheme.value = theme
+  applyThemeGlobal(theme)
+}
+
 // Close settings panel when clicking outside
 function handleClickOutside(event: MouseEvent) {
-  if (!showSettings.value) return
-
   const target = event.target as HTMLElement
-  const settingsPanel = document.querySelector('.settings-popup-panel')
-  const settingsBtn = document.querySelector('.settings-trigger-btn')
-
-  if (settingsPanel && !settingsPanel.contains(target) && settingsBtn && !settingsBtn.contains(target)) {
-    showSettings.value = false
+  if (showSettings.value && !target.closest('.settings-popup-panel') && !target.closest('.settings-trigger-btn')) {
+    // Check if click is on teleported submenu
+    if (!target.closest('.settings-submenu-teleported')) {
+      showSettings.value = false
+      submenuOpen.value = null
+    }
   }
 }
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
 
-  // Load saved submit prompt key setting
-  const saved = localStorage.getItem('submitPromptKey')
-  if (saved === 'enter' || saved === 'ctrl-enter') {
-    submitPromptKey.value = saved
+  // Load saved settings
+  const savedKey = localStorage.getItem('submitPromptKey')
+  if (savedKey === 'enter' || savedKey === 'ctrl-enter') {
+    submitPromptKey.value = savedKey
   }
+
+  // Load theme
+  currentTheme.value = getStoredTheme()
+
+  // Listen for theme changes
+  window.addEventListener('themeChanged', ((e: CustomEvent) => {
+    currentTheme.value = e.detail
+  }) as EventListener)
 })
 
 onUnmounted(() => {
@@ -536,7 +564,8 @@ onUnmounted(() => {
         </div>
 
         <!-- Notes Section -->
-        <div class="section-header" style="margin-top: 20px;">PINNED NOTES ({{ notesList.length }})</div>
+        <div class="section-header" style="margin-top: 20px; margin-bottom: 14px;">PINNED NOTES ({{ notesList.length }})
+        </div>
         <div v-if="notesList.length === 0" class="empty-msg">No pinned notes.</div>
 
         <div v-for="note in notesList" :key="note.chunkId" class="file-item"
@@ -726,14 +755,32 @@ onUnmounted(() => {
         top: submenuPosition.top + 'px',
         left: submenuPosition.left + 'px'
       }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
-        <div class="settings-submenu-item" @click.stop>
+        <div class="settings-submenu-item" :class="{ active: currentTheme === 'light' }"
+          @click.stop="handleThemeChange('light')">
           <span>Light</span>
+          <svg v-if="currentTheme === 'light'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
         </div>
-        <div class="settings-submenu-item" @click.stop>
+        <div class="settings-submenu-item" :class="{ active: currentTheme === 'dark' }"
+          @click.stop="handleThemeChange('dark')">
           <span>Dark</span>
+          <svg v-if="currentTheme === 'dark'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
         </div>
-        <div class="settings-submenu-item" @click.stop>
+        <div class="settings-submenu-item" :class="{ active: currentTheme === 'system' }"
+          @click.stop="handleThemeChange('system')">
           <span>System</span>
+          <svg v-if="currentTheme === 'system'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
         </div>
       </div>
     </Transition>
@@ -777,21 +824,20 @@ onUnmounted(() => {
 /* Sidebar Layout Sections */
 .sidebar-actions {
   flex-shrink: 0;
-  padding: 16px;
-  border-bottom: 1px solid var(--color-neutral-200);
+  padding: 8px 0 16px 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 8px 0 16px 0;
 }
 
 .sidebar-footer {
   flex-shrink: 0;
   padding: 12px 16px;
-  border-top: 1px solid var(--color-neutral-200);
-  background: var(--color-neutral-95);
+  border-top: 1px solid var(--border-color);
 }
 
 .settings-trigger-btn {
@@ -802,7 +848,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 10px;
   background: transparent;
-  border: 1px solid var(--color-neutral-250);
+  border: 1px solid var(--border-card);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -813,7 +859,7 @@ onUnmounted(() => {
 
 .settings-trigger-btn:hover {
   background: var(--color-neutral-120);
-  border-color: var(--color-neutral-350);
+  border-color: var(--border-card-hover);
   color: var(--text-primary);
 }
 
@@ -892,7 +938,7 @@ onUnmounted(() => {
 
 .batch-toggle-btn {
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-card);
   color: var(--text-secondary);
   padding: 4px 6px;
   border-radius: 4px;
@@ -903,14 +949,15 @@ onUnmounted(() => {
 }
 
 .batch-toggle-btn:hover {
-  background: var(--alpha-black-05);
-  color: var(--text-primary);
+  background: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
 }
 
 .batch-toggle-btn.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  color: white;
+  background: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
 }
 
 .batch-action-bar {
@@ -983,17 +1030,23 @@ onUnmounted(() => {
 }
 
 .file-item:hover {
-  background: var(--color-white);
-  border-color: var(--border-color);
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
 }
 
 .file-item.selected {
-  background: var(--color-accent-50);
-  border-color: transparent;
+  background: var(--bg-selected);
+  border-color: var(--accent-bright);
 }
 
 .file-item.highlighted {
-  background: var(--color-warning-75);
+  background: var(--color-warning-100);
+  border-color: var(--color-warning-600);
+}
+
+[data-theme="dark"] .file-item.highlighted {
+  background: rgba(180, 130, 0, 0.2);
+  border-color: rgba(255, 193, 7, 0.5);
 }
 
 .file-info {
@@ -1028,7 +1081,7 @@ onUnmounted(() => {
 }
 
 .icon-btn:hover {
-  background: var(--alpha-black-05);
+  background: var(--bg-icon-hover);
   color: var(--text-primary);
 }
 
@@ -1103,7 +1156,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   transition: all 0.2s;
 }
@@ -1126,7 +1179,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1233,7 +1286,7 @@ onUnmounted(() => {
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 4px;
-  border: 1px solid var(--color-neutral-240);
+  border: 1px solid var(--border-card);
   background: white;
   color: var(--color-neutral-700);
   cursor: pointer;
@@ -1242,7 +1295,7 @@ onUnmounted(() => {
 
 .batch-tool-btn:hover {
   background: var(--color-neutral-85);
-  border-color: var(--color-neutral-400);
+  border-color: var(--border-card-hover);
   color: var(--color-neutral-800);
 }
 
@@ -1284,7 +1337,7 @@ onUnmounted(() => {
 
 .batch-toggle-btn:hover {
   background: var(--alpha-black-05);
-  color: var(--color-neutral-800);
+  color: var(--accent-color);
 }
 
 .batch-toggle-btn.active {
@@ -1306,7 +1359,7 @@ onUnmounted(() => {
   right: 12px;
   margin-bottom: 8px;
   background: var(--color-white);
-  border: 1px solid var(--color-neutral-250);
+  border: 1px solid var(--border-card);
   border-radius: 12px;
   box-shadow: 0 8px 24px var(--alpha-black-15), 0 2px 8px var(--alpha-black-10);
   padding: 6px;
@@ -1318,7 +1371,7 @@ onUnmounted(() => {
   width: 320px;
   height: 100%;
   background: var(--color-white);
-  border-right: 1px solid var(--color-neutral-215);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -1396,7 +1449,7 @@ onUnmounted(() => {
   top: 0;
   margin-left: 8px;
   background: var(--color-white);
-  border: 1px solid var(--color-neutral-250);
+  border: 1px solid var(--border-card);
   border-radius: 12px;
   box-shadow: 0 8px 24px var(--alpha-black-15), 0 2px 8px var(--alpha-black-10);
   padding: 6px;
@@ -1408,7 +1461,7 @@ onUnmounted(() => {
 .settings-submenu-teleported {
   position: fixed;
   background: var(--color-white);
-  border: 1px solid var(--color-neutral-250);
+  border: 1px solid var(--border-card);
   border-radius: 12px;
   box-shadow: 0 8px 24px var(--alpha-black-15), 0 2px 8px var(--alpha-black-10);
   padding: 6px;
@@ -1433,6 +1486,11 @@ onUnmounted(() => {
 
 .settings-submenu-item:hover {
   background: var(--color-neutral-120);
+}
+
+.settings-submenu.file-item.selected {
+  background: var(--bg-selected);
+  border-color: var(--accent-color);
 }
 
 .settings-submenu-item.active {

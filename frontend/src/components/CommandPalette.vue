@@ -189,21 +189,24 @@ function selectItem(item: SearchResult) {
 }
 
 .palette-modal {
-    width: 600px;
-    max-width: 90%;
-    background: white;
+    position: fixed;
+    top: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 640px;
+    background: var(--bg-modal);
     border-radius: 12px;
-    box-shadow: 0 20px 50px var(--alpha-black-20);
-    display: flex;
-    flex-direction: column;
+    box-shadow: 0 20px 60px var(--alpha-black-30);
     overflow: hidden;
+    z-index: 1001;
 }
 
 .palette-header {
     display: flex;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--color-neutral-220);
+    border-bottom: 1px solid var(--border-color);
     gap: 12px;
 }
 
@@ -212,19 +215,22 @@ function selectItem(item: SearchResult) {
 }
 
 .palette-input {
-    flex: 1;
+    width: 100%;
+    padding: 16px 20px 16px 2px;
     border: none;
     font-size: 16px;
+    background: transparent;
+    color: var(--text-primary);
     outline: none;
-    color: var(--color-neutral-800);
 }
 
 .palette-esc {
     font-size: 11px;
-    background: var(--color-neutral-220);
+    background: var(--bg-card);
     padding: 4px 8px;
     border-radius: 4px;
-    color: var(--color-neutral-600);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-card);
 }
 
 .palette-body {
@@ -249,8 +255,8 @@ function selectItem(item: SearchResult) {
 }
 
 .result-item.selected {
-    background: var(--color-neutral-110);
-    border-left-color: var(--accent-color);
+    background: var(--bg-selected);
+    border-left-color: var(--accent-bright);
 }
 
 .result-icon {
@@ -265,7 +271,7 @@ function selectItem(item: SearchResult) {
 .result-title {
     font-size: 14px;
     font-weight: 500;
-    color: var(--color-neutral-800);
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -273,7 +279,7 @@ function selectItem(item: SearchResult) {
 
 .result-subtitle {
     font-size: 12px;
-    color: var(--color-neutral-550);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

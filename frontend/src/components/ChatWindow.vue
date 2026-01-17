@@ -273,6 +273,29 @@ onMounted(() => {
   z-index: 20;
 }
 
+.citation-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  background: var(--bg-citation);
+  color: var(--color-citation);
+  border-radius: 50%;
+  margin: 0 2px;
+  cursor: pointer;
+  vertical-align: super;
+  border: none;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+
+.citation-link:hover {
+  background: var(--accent-color);
+  color: var(--color-white);
+}
+
 .header-icon-btn {
   background: transparent;
   border: none;
@@ -359,22 +382,56 @@ onMounted(() => {
   border-style: dashed;
 }
 
+.note-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary);
+}
+
+.note-toggle-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
+  color: var(--text-primary);
+}
+
+.note-toggle-btn.active {
+  background: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
+}
+
 .note-chip {
   font-size: 11px;
   padding: 4px 10px;
-  background: var(--color-neutral-210);
-  border: 1px solid transparent;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
   border-radius: 99px;
   color: var(--text-secondary);
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.note-chip:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
+  color: var(--text-primary);
 }
 
 .note-chip.active {
-  background: var(--color-gold-100);
-  color: var(--color-gold-900);
-  border-color: var(--color-gold-200);
+  background: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
 }
 
 .context-divider {
@@ -385,8 +442,8 @@ onMounted(() => {
 }
 
 .input-box {
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-card);
   border-radius: 12px;
   padding: 12px;
   box-shadow: var(--shadow-md);
@@ -394,7 +451,7 @@ onMounted(() => {
 }
 
 .input-box:focus-within {
-  border-color: var(--accent-color);
+  border-color: var(--accent-bright);
 }
 
 .input-box textarea {
@@ -406,6 +463,8 @@ onMounted(() => {
   font-size: 14px;
   min-height: 48px;
   max-height: 200px;
+  background: transparent;
+  color: var(--text-primary);
 }
 
 

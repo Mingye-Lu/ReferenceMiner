@@ -198,21 +198,17 @@ function handlePin() {
             <span class="meta-tag" v-if="props.evidence.page">Page {{ props.evidence.page }}</span>
             <span class="meta-tag">Score: {{ props.evidence.score.toFixed(2) }}</span>
           </div>
-        <div class="doc-path">{{ props.evidence.path }}</div>
-      </div>
+          <div class="doc-path">{{ props.evidence.path }}</div>
+        </div>
 
-      <div v-if="canRenderPdfPreview" class="reader-preview">
-        <PdfViewer
-          :file-url="previewFileUrl"
-          :highlights="previewHighlights"
-          :initial-page="props.evidence.page ?? undefined"
-          class="reader-pdf"
-        />
-      </div>
+        <div v-if="canRenderPdfPreview" class="reader-preview">
+          <PdfViewer :file-url="previewFileUrl" :highlights="previewHighlights"
+            :initial-page="props.evidence.page ?? undefined" class="reader-pdf" />
+        </div>
 
-      <div v-else class="evidence-highlight-box">
-        <div class="highlight-text">{{ props.evidence.text }}</div>
-      </div>
+        <div v-else class="evidence-highlight-box">
+          <div class="highlight-text">{{ props.evidence.text }}</div>
+        </div>
       </div>
       <div v-else class="empty-state">
         <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
@@ -321,8 +317,8 @@ function handlePin() {
 }
 
 .close-btn:hover {
-  color: var(--color-neutral-800);
-  background: var(--alpha-black-05);
+  color: var(--text-primary);
+  background: var(--bg-icon-hover);
   border-radius: 4px;
 }
 
@@ -337,7 +333,7 @@ function handlePin() {
 
 .icon-btn:hover {
   color: var(--text-primary);
-  background: var(--alpha-black-05);
+  background: var(--bg-icon-hover);
   border-radius: 4px;
 }
 
@@ -356,7 +352,7 @@ function handlePin() {
 .reader-preview {
   width: 100%;
   height: calc(100vh - 260px);
-  border: 1px solid var(--color-neutral-250);
+  border: 1px solid var(--border-card);
   border-radius: 10px;
   overflow: hidden;
   background: var(--color-neutral-100);
@@ -388,8 +384,8 @@ function handlePin() {
   font-size: 12px;
   font-weight: 600;
   padding: 6px 12px;
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
   border-radius: 99px;
   cursor: pointer;
   box-shadow: 0 4px 12px var(--alpha-black-08);
@@ -455,7 +451,7 @@ function handlePin() {
 .highlight-text {
   font-size: 15px;
   line-height: 1.8;
-  color: var(--color-neutral-850);
+  color: var(--text-primary);
   white-space: pre-wrap;
 }
 
@@ -466,8 +462,8 @@ function handlePin() {
 }
 
 .note-item {
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
   padding: 12px;
   border-radius: 8px;
   transition: all 0.3s ease;
@@ -476,7 +472,7 @@ function handlePin() {
 /* 视觉上置灰 */
 .note-item.pending-removal {
   opacity: 0.5;
-  background: var(--color-neutral-85);
+  background: var(--bg-card-hover);
   border-style: dashed;
 }
 
@@ -493,7 +489,7 @@ function handlePin() {
   }
 
   100% {
-    background-color: var(--color-white);
+    background-color: var(--bg-card);
   }
 }
 
@@ -507,7 +503,7 @@ function handlePin() {
 
 .note-text {
   font-size: 12px;
-  color: var(--color-neutral-700);
+  color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 8px;
 }

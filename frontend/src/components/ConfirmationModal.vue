@@ -55,15 +55,25 @@ function handleConfirm() {
   transition: all 0.2s;
 }
 
+.modal-footer {
+  background: var(--bg-panel);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 12px 12px;
+}
+
 .btn-secondary {
-  background: var(--color-white);
-  border-color: var(--color-neutral-350);
-  color: var(--color-neutral-800);
+  background: var(--bg-card);
+  border-color: var(--border-card);
+  color: var(--text-primary);
 }
 
 .btn-secondary:hover {
-  background: var(--color-neutral-130);
-  border-color: var(--color-neutral-400);
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
 }
 
 .btn-danger {

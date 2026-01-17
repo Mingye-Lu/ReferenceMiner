@@ -214,7 +214,7 @@ onMounted(loadData)
 
 .modal-header-custom {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--color-neutral-240);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -231,23 +231,25 @@ onMounted(loadData)
 .close-btn-custom {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
   transition: all 0.2s;
 }
 
 .close-btn-custom:hover {
-  background: var(--color-neutral-220);
+  background: var(--bg-icon-hover);
   color: var(--text-primary);
 }
 
 .search-section {
   padding: 16px 24px;
-  border-bottom: 1px solid var(--color-neutral-240);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -267,7 +269,7 @@ onMounted(loadData)
 .search-input {
   width: 100%;
   padding: 10px 12px 10px 36px;
-  border: 1px solid var(--color-neutral-250);
+  border: 1px solid var(--border-card);
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.2s;
@@ -352,7 +354,7 @@ onMounted(loadData)
   gap: 12px;
   padding: 12px;
   background: var(--color-neutral-60);
-  border: 1px solid var(--color-neutral-200);
+  border: 1px solid var(--border-card);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
@@ -450,7 +452,7 @@ onMounted(loadData)
 
 .modal-footer-custom {
   padding: 16px 24px;
-  border-top: 1px solid var(--color-neutral-240);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 12px;

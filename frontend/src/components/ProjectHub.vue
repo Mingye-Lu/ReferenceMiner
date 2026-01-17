@@ -1,20 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue"
 import { useRouter } from "vue-router"
-import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles } from "../api/client"
-import type { Project, ManifestEntry } from "../types"
+import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles, getSettings, saveApiKey, validateApiKey, deleteApiKey, resetAllData } from "../api/client"
+import type { Project, ManifestEntry, BalanceInfo, Settings as AppSettings } from "../types"
 import ProjectCard from "./ProjectCard.vue"
 import FileUploader from "./FileUploader.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
-import SettingsModal from "./SettingsModal.vue"
 import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings } from "lucide-vue-next"
+import { type Theme, getStoredTheme, setTheme } from "../utils/theme"
 import { getFileName } from "../utils"
 
 const router = useRouter()
 const activeTab = ref<'projects' | 'bank' | 'settings'>('projects')
 const settingsSection = ref<'preferences' | 'advanced'>('preferences')
+const currentTheme = ref<Theme>('system')
 const projects = ref<Project[]>([])
 const bankFiles = ref<ManifestEntry[]>([])
 const loading = ref(true)
@@ -34,7 +35,29 @@ const projectToDelete = ref<Project | null>(null)
 const deletingProject = ref(false)
 const showFileSelectorForCreate = ref(false)
 const selectedFilesForCreate = ref<Set<string>>(new Set())
-const showSettingsModal = ref(false)
+
+// Advanced Settings State
+const settings = ref<AppSettings | null>(null)
+const apiKeyInput = ref('')
+const showApiKey = ref(false)
+const isLoadingSettings = ref(false)
+const isSaving = ref(false)
+const isValidating = ref(false)
+const isResetting = ref(false)
+const showResetConfirm = ref(false)
+const validationStatus = ref<'none' | 'valid' | 'invalid'>('none')
+const validationError = ref('')
+const balanceInfos = ref<BalanceInfo[]>([])
+const balanceAvailable = ref<boolean | null>(null)
+const saveError = ref('')
+const resetError = ref('')
+const resetSuccess = ref('')
+
+const apiKeyStatusMessage = computed(() => {
+    return balanceAvailable.value === false
+        ? 'API key is valid, but balance is insufficient'
+        : 'API key is valid'
+})
 
 async function loadProjects() {
     try {
@@ -217,7 +240,124 @@ async function handleDataReset() {
     }
 }
 
-onMounted(loadProjects)
+// Settings Methods
+async function handleValidate() {
+    if (!apiKeyInput.value && !settings.value?.hasApiKey) return
+    isValidating.value = true
+    validationStatus.value = 'none'
+    validationError.value = ''
+    try {
+        const result = await validateApiKey(apiKeyInput.value || undefined)
+        validationStatus.value = result.valid ? 'valid' : 'invalid'
+        validationError.value = formatValidationError(result.error)
+        balanceInfos.value = result.balanceInfos ?? []
+        balanceAvailable.value = typeof result.isAvailable === 'boolean' ? result.isAvailable : null
+    } catch (e: any) {
+        validationStatus.value = 'invalid'
+        validationError.value = formatValidationError(e.message || 'Validation failed')
+        balanceInfos.value = []
+        balanceAvailable.value = null
+    } finally {
+        isValidating.value = false
+    }
+}
+
+async function handleSave() {
+    if (!apiKeyInput.value) return
+    isSaving.value = true
+    saveError.value = ''
+    try {
+        await saveApiKey(apiKeyInput.value)
+        settings.value = await getSettings()
+        apiKeyInput.value = ''
+        validationStatus.value = 'none'
+        balanceInfos.value = []
+        balanceAvailable.value = null
+    } catch (e: any) {
+        saveError.value = e.message || 'Failed to save'
+    } finally {
+        isSaving.value = false
+    }
+}
+
+async function handleDeleteApiKey() {
+    isSaving.value = true
+    try {
+        await deleteApiKey()
+        settings.value = await getSettings()
+        validationStatus.value = 'none'
+        apiKeyInput.value = ''
+        balanceInfos.value = []
+        balanceAvailable.value = null
+    } catch (e) {
+        console.error('Failed to delete API key:', e)
+    } finally {
+        isSaving.value = false
+    }
+}
+
+function handleResetClick() {
+    showResetConfirm.value = true
+    resetError.value = ''
+    resetSuccess.value = ''
+}
+
+async function handleResetConfirm() {
+    isResetting.value = true
+    resetError.value = ''
+    resetSuccess.value = ''
+    try {
+        const result = await resetAllData()
+        resetSuccess.value = result.message
+        showResetConfirm.value = false
+        await handleDataReset()
+    } catch (e: any) {
+        resetError.value = e.message || 'Failed to reset data'
+    } finally {
+        isResetting.value = false
+    }
+}
+
+function formatValidationError(error?: string): string {
+    if (!error) return ''
+    const trimmed = error.trim()
+    const jsonStart = trimmed.indexOf('{')
+    if (jsonStart !== -1) {
+        const maybeJson = trimmed.slice(jsonStart)
+        try {
+            const parsed = JSON.parse(maybeJson)
+            const message = parsed?.error?.message
+            if (typeof message === 'string' && message.trim()) {
+                return message.trim()
+            }
+        } catch {
+            // Ignore JSON parsing errors
+        }
+    }
+    return trimmed
+}
+
+onMounted(async () => {
+    await loadProjects()
+
+    // Load current theme
+    currentTheme.value = getStoredTheme()
+
+    // Listen for theme changes
+    window.addEventListener('themeChanged', ((e: CustomEvent) => {
+        currentTheme.value = e.detail
+    }) as EventListener)
+
+    // Load settings
+    isLoadingSettings.value = true
+    try {
+        settings.value = await getSettings()
+    } catch (e) {
+        console.error('Failed to load settings:', e)
+    } finally {
+        isLoadingSettings.value = false
+    }
+})
 </script>
 
 <template>
@@ -382,14 +522,12 @@ onMounted(loadProjects)
                                     <label class="settings-label">Appearance</label>
                                     <p class="settings-desc">Choose your preferred color theme</p>
                                 </div>
-                                <div class="settings-control">
-                                    <select class="settings-select" disabled>
-                                        <option>Light</option>
-                                        <option>Dark</option>
-                                        <option>System</option>
-                                    </select>
-                                    <span class="settings-badge">Coming Soon</span>
-                                </div>
+                                <select class="settings-select" :value="currentTheme"
+                                    @change="(e) => setTheme((e.target as HTMLSelectElement).value as Theme)">
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                    <option value="system">System</option>
+                                </select>
                             </div>
                         </div>
 
@@ -432,36 +570,175 @@ onMounted(loadProjects)
                     </div>
 
                     <!-- Advanced Section -->
-                    <div v-else-if="settingsSection === 'advanced'" class="settings-section">
-                        <h2 class="settings-section-title">Advanced</h2>
-                        <p class="settings-section-desc">Manage API configuration and perform advanced operations.</p>
-
-                        <!-- API Key -->
-                        <div class="settings-group">
-                            <h3 class="settings-group-title">API Key</h3>
-                            <div class="settings-item">
-                                <div class="settings-item-info">
-                                    <label class="settings-label">OpenAI API Key</label>
-                                    <p class="settings-desc">Configure your API key for AI features</p>
-                                </div>
-                                <div class="settings-control">
-                                    <button class="btn-secondary" @click="showSettingsModal = true">Configure</button>
-                                </div>
-                            </div>
+                    <div v-else-if="settingsSection === 'advanced'" class="settings-section-container">
+                        <div class="settings-header">
+                            <h2 class="settings-section-title">Advanced</h2>
+                            <p class="settings-section-desc">Manage API configuration and perform advanced operations.
+                            </p>
                         </div>
 
-                        <!-- Danger Zone -->
-                        <div class="settings-group danger-zone">
-                            <h3 class="settings-group-title">Danger Zone</h3>
-                            <div class="settings-item">
-                                <div class="settings-item-info">
-                                    <label class="settings-label">Reset All Data</label>
-                                    <p class="settings-desc">Permanently delete all projects and data</p>
+                        <div v-if="isLoadingSettings" class="loading-settings">Loading settings...</div>
+
+                        <div v-else class="start-settings-content">
+                            <!-- API Configuration Section -->
+                            <section class="settings-card">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path
+                                                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">API Configuration</h4>
+                                        <p class="section-description">Configure your DeepSeek API key for AI-powered
+                                            answers</p>
+                                    </div>
                                 </div>
-                                <div class="settings-control">
-                                    <button class="btn-danger" @click="showSettingsModal = true">Reset</button>
+
+                                <div class="section-content">
+                                    <label class="form-label">DeepSeek API Key</label>
+                                    <p class="form-hint">Get your key from <a href="https://platform.deepseek.com"
+                                            target="_blank">platform.deepseek.com</a></p>
+
+                                    <div class="current-key" v-if="settings?.hasApiKey">
+                                        <span class="key-status valid">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                <polyline points="22 4 12 14.01 9 11.01" />
+                                            </svg>
+                                            Key configured
+                                        </span>
+                                        <span class="masked-key">{{ settings.maskedApiKey }}</span>
+                                        <button class="btn-link danger" @click="handleDeleteApiKey"
+                                            :disabled="isSaving">Remove</button>
+                                    </div>
+
+                                    <div class="api-input-row">
+                                        <div class="input-group">
+                                            <input v-model="apiKeyInput" :type="showApiKey ? 'text' : 'password'"
+                                                class="form-input"
+                                                :placeholder="settings?.hasApiKey ? 'Enter new key to replace' : 'sk-xxxxxxxxxxxxxxxx'" />
+                                            <button class="input-addon" @click="showApiKey = !showApiKey" type="button">
+                                                <svg v-if="showApiKey" xmlns="http://www.w3.org/2000/svg" width="16"
+                                                    height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path
+                                                        d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                                    <line x1="1" x2="23" y1="1" y2="23" />
+                                                </svg>
+                                                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                                    <circle cx="12" cy="12" r="3" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="api-actions">
+                                            <button class="btn btn-outline" @click="handleValidate"
+                                                :disabled="isValidating || (!apiKeyInput && !settings?.hasApiKey)">
+                                                {{ isValidating ? 'Validating...' : 'Validate' }}
+                                            </button>
+                                            <button class="btn btn-primary-sm" @click="handleSave"
+                                                :disabled="isSaving || !apiKeyInput">
+                                                {{ isSaving ? 'Saving...' : 'Save' }}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="saveError" class="error-message">{{ saveError }}</div>
+
+                                    <div class="validation-result" v-if="validationStatus !== 'none'">
+                                        <span v-if="validationStatus === 'valid'" class="status valid">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                <polyline points="22 4 12 14.01 9 11.01" />
+                                            </svg>
+                                            {{ apiKeyStatusMessage }}
+                                        </span>
+                                        <span v-else class="status invalid">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                stroke-linecap="round" stroke-linejoin="round">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <line x1="15" x2="9" y1="9" y2="15" />
+                                                <line x1="9" x2="15" y1="9" y2="15" />
+                                            </svg>
+                                            Invalid: {{ validationError || 'API key verification failed' }}
+                                        </span>
+                                    </div>
+
+                                    <div v-if="balanceInfos.length" class="balance-panel">
+                                        <div class="balance-header">
+                                            <span class="balance-title">Remaining balance</span>
+                                            <span v-if="balanceAvailable === false" class="balance-warning">Insufficient
+                                                for API calls</span>
+                                        </div>
+                                        <div class="balance-list">
+                                            <div v-for="info in balanceInfos" :key="info.currency" class="balance-item">
+                                                <div class="balance-line">
+                                                    <span class="balance-currency">{{ info.currency }}</span>
+                                                    <span class="balance-amount">{{ info.totalBalance }}</span>
+                                                </div>
+                                                <div class="balance-meta">
+                                                    Granted {{ info.grantedBalance }} · Topped up {{
+                                                        info.toppedUpBalance }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </div>
-                            </div>
+                            </section>
+
+                            <!-- Danger Zone Section -->
+                            <section class="settings-card danger-zone-card">
+                                <div class="section-header">
+                                    <div class="section-icon danger-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path
+                                                d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                            <line x1="12" x2="12" y1="9" y2="13" />
+                                            <line x1="12" x2="12.01" y1="17" y2="17" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">Danger Zone</h4>
+                                        <p class="section-description">Destructive actions that cannot be undone</p>
+                                    </div>
+                                </div>
+
+                                <div class="section-content">
+                                    <p class="form-hint">Clear all indexed chunks and chat sessions. Files will remain
+                                        in the reference folder.</p>
+
+                                    <div v-if="resetSuccess" class="success-message">{{ resetSuccess }}</div>
+                                    <div v-if="resetError" class="error-message">{{ resetError }}</div>
+
+                                    <button class="btn btn-danger-action" @click="handleResetClick"
+                                        :disabled="isResetting">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 6h18" />
+                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                            <line x1="10" x2="10" y1="11" y2="17" />
+                                            <line x1="14" x2="14" y1="11" y2="17" />
+                                        </svg>
+                                        {{ isResetting ? 'Clearing...' : 'Clear All Data' }}
+                                    </button>
+                                </div>
+                            </section>
                         </div>
                     </div>
                 </main>
@@ -524,8 +801,10 @@ onMounted(loadProjects)
     <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
         @confirm="handleInitialFilesSelected" />
 
-    <!-- Settings Modal -->
-    <SettingsModal v-model="showSettingsModal" @reset="handleDataReset" />
+    <!-- Reset Confirmation Modal -->
+    <ConfirmationModal v-model="showResetConfirm" title="Clear All Data?"
+        message="This will permanently delete all indexed chunks, search indexes, and chat sessions. Your files will remain in the reference folder. This action cannot be undone."
+        confirm-text="Clear All Data" cancel-text="Cancel" @confirm="handleResetConfirm" />
 </template>
 
 <style scoped>
@@ -543,8 +822,8 @@ onMounted(loadProjects)
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: white;
-    border-bottom: 1px solid var(--color-neutral-215);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .header-left .logo {
@@ -621,7 +900,7 @@ onMounted(loadProjects)
 }
 
 .create-card {
-    border: 2px dashed var(--color-neutral-350);
+    border: 2px dashed var(--border-card);
     background: transparent;
     border-radius: 12px;
     display: flex;
@@ -645,7 +924,7 @@ onMounted(loadProjects)
     width: 60px;
     height: 60px;
     border-radius: 50%;
-    background: var(--color-neutral-180);
+    background: var(--bg-button);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -688,7 +967,7 @@ onMounted(loadProjects)
 }
 
 .modal-container {
-    background: white;
+    background: var(--bg-panel);
     width: 500px;
     padding: 30px;
     border-radius: 16px;
@@ -715,9 +994,19 @@ onMounted(loadProjects)
 .form-group textarea {
     width: 100%;
     padding: 12px;
-    border: 1px solid var(--color-neutral-350);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 14px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-bright);
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
 }
 
 .modal-actions {
@@ -780,8 +1069,8 @@ onMounted(loadProjects)
     justify-content: space-between;
     align-items: center;
     padding: 0 60px;
-    background: white;
-    border-bottom: 1px solid var(--color-neutral-215);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .tabs-left,
@@ -868,20 +1157,40 @@ onMounted(loadProjects)
     will-change: transform;
 }
 
+.project-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 180px;
+}
+
+.project-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-bright);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--alpha-black-10);
+}
+
 .file-card {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 16px;
-    background: white;
-    border: 1px solid var(--color-neutral-240);
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
     border-radius: 12px;
     transition: all 0.2s;
     cursor: pointer;
 }
 
 .file-card:hover {
-    border-color: var(--accent-color);
+    border-color: var(--accent-bright);
     box-shadow: 0 2px 8px var(--alpha-black-08);
 }
 
@@ -936,7 +1245,7 @@ onMounted(loadProjects)
     justify-content: space-between;
     align-items: center;
     background: var(--color-neutral-95);
-    border: 1px solid var(--color-neutral-240);
+    border: 1px solid var(--border-card);
     padding: 8px 12px;
     border-radius: 8px;
 }
@@ -953,8 +1262,8 @@ onMounted(loadProjects)
 }
 
 .btn-outline-sm {
-    background: white;
-    border: 1px solid var(--color-neutral-300);
+    background: var(--bg-card);
+    border: 1px solid var(--border-input);
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -968,27 +1277,63 @@ onMounted(loadProjects)
     color: var(--accent-color);
 }
 
-.btn-icon {
-    background: transparent;
-    border: none;
-    padding: 6px;
+.file-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.bank-file-item:hover .file-actions {
+    opacity: 1;
+}
+
+.file-action-btn {
+    width: 28px;
+    height: 28px;
     border-radius: 6px;
-    cursor: pointer;
+    border: none;
+    background: transparent;
     color: var(--text-secondary);
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
 }
 
+.file-action-btn:hover {
+    background: var(--bg-icon-hover);
+    color: var(--text-primary);
+}
+
+.file-action-btn.delete:hover {
+    color: var(--color-red-600);
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
 .btn-icon:hover {
-    background: var(--color-neutral-220);
+    background: var(--bg-icon-hover);
     color: var(--text-primary);
 }
 
 .btn-icon.delete:hover {
-    background: var(--color-danger-25);
-    color: var(--color-danger-700);
+    background: var(--bg-icon-hover);
+    color: var(--color-red-600);
 }
 
 .empty-icon-svg {
@@ -1011,7 +1356,7 @@ onMounted(loadProjects)
 
 .settings-sidebar {
     width: 280px;
-    border-right: 1px solid var(--color-neutral-240);
+    border-right: 1px solid var(--border-card);
     padding: 40px 0;
     flex-shrink: 0;
 }
@@ -1039,8 +1384,8 @@ onMounted(loadProjects)
 }
 
 .settings-nav-item:hover {
-    background: var(--color-neutral-120);
-    color: var(--text-primary);
+    background: var(--bg-card-hover);
+    color: var(--accent-bright);
 }
 
 .settings-nav-item.active {
@@ -1080,7 +1425,7 @@ onMounted(loadProjects)
 /* Settings Sidebar */
 .settings-sidebar {
     width: 240px;
-    border-right: 1px solid var(--color-neutral-215);
+    border-right: 1px solid var(--border-color);
     background: var(--color-neutral-100);
     padding: 24px 0;
 }
@@ -1147,7 +1492,7 @@ onMounted(loadProjects)
 .settings-group {
     margin-bottom: 40px;
     padding-bottom: 32px;
-    border-bottom: 1px solid var(--color-neutral-200);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .settings-group:last-child {
@@ -1200,22 +1545,13 @@ onMounted(loadProjects)
 /* Settings Select */
 .settings-select {
     padding: 8px 12px;
-    border: 1px solid var(--color-neutral-250);
+    border: 1px solid var(--border-input);
     border-radius: 6px;
     font-size: 14px;
     color: var(--text-primary);
     background: var(--color-white);
     cursor: pointer;
     transition: all 0.2s;
-}
-
-.settings-select:hover:not(:disabled) {
-    border-color: var(--color-neutral-350);
-}
-
-.settings-select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
 }
 
 /* Radio Group */
@@ -1286,7 +1622,7 @@ onMounted(loadProjects)
     padding: 8px 16px;
     background: var(--color-neutral-150);
     color: var(--text-primary);
-    border: 1px solid var(--color-neutral-250);
+    border: 1px solid var(--border-card);
     border-radius: 6px;
     font-size: 14px;
     font-weight: 500;
@@ -1295,7 +1631,431 @@ onMounted(loadProjects)
 }
 
 .btn-secondary:hover {
-    background: var(--color-neutral-200);
-    border-color: var(--color-neutral-350);
+    background: var(--bg-card-hover);
+    border-color: var(--accent-bright);
+}
+
+.bank-file-item:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-bright);
+}
+
+/* Settings Responsive Layout */
+@media (max-width: 1050px) {
+    .settings-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .settings-item-info {
+        width: 100%;
+    }
+
+    .settings-control {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .settings-select {
+        width: 100%;
+        max-width: 300px;
+    }
+}
+</style>
+
+<style scoped>
+/* Advanced Settings Styles */
+.settings-section-container {
+    padding-bottom: 40px;
+}
+
+.settings-header {
+    margin-bottom: 24px;
+}
+
+.loading-settings {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 40px;
+}
+
+.start-settings-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.settings-card {
+    border: 1px solid var(--color-neutral-250);
+    border-radius: 10px;
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+.section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: var(--color-neutral-100);
+    border-bottom: 1px solid var(--color-neutral-250);
+}
+
+.section-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--accent-soft, var(--color-accent-50));
+    color: var(--accent-color, var(--color-accent-600));
+    flex-shrink: 0;
+}
+
+.section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 2px 0;
+}
+
+.section-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.section-content {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    font-size: 14px;
+}
+
+.form-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.form-hint a {
+    color: var(--accent-color, var(--color-accent-600));
+}
+
+.current-key {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--color-neutral-100);
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.key-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+}
+
+.key-status.valid {
+    color: var(--color-success-700);
+}
+
+.masked-key {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.btn-link.danger {
+    color: var(--color-danger-700);
+}
+
+.btn-link.danger:hover {
+    text-decoration: underline;
+}
+
+.input-group {
+    display: flex;
+    border: 1px solid var(--color-neutral-250);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.input-group:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--alpha-accent-10);
+}
+
+.form-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.input-addon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    background: var(--color-neutral-100);
+    border: none;
+    border-left: 1px solid var(--color-neutral-250);
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.input-addon:hover {
+    color: var(--text-primary);
+    background: var(--color-neutral-220);
+}
+
+.error-message {
+    color: var(--color-danger-700);
+    font-size: 13px;
+}
+
+.success-message {
+    color: var(--color-success-700);
+    font-size: 13px;
+    padding: 10px 12px;
+    background: var(--color-success-50);
+    border-radius: 8px;
+    border: 1px solid var(--color-success-200);
+}
+
+.validation-result {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+}
+
+.validation-result .status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.validation-result .status.valid {
+    color: var(--color-success-700);
+}
+
+.validation-result .status.invalid {
+    color: var(--color-danger-700);
+}
+
+.balance-panel {
+    border: 1px solid var(--color-neutral-250);
+    border-radius: 8px;
+    background: var(--color-neutral-100);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.balance-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.balance-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.balance-warning {
+    font-size: 12px;
+    color: var(--color-danger-700);
+    background: var(--color-danger-50);
+    border: 1px solid var(--color-danger-200);
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.balance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.balance-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.balance-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.balance-currency {
+    font-weight: 600;
+}
+
+.balance-amount {
+    font-variant-numeric: tabular-nums;
+}
+
+.balance-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.api-input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.api-input-row .input-group {
+    flex: 1;
+}
+
+.api-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.btn-primary-sm {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary-sm:hover:not(:disabled) {
+    background: var(--accent-dark);
+}
+
+.btn-primary-sm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-outline:hover:not(:disabled) {
+    background: var(--accent-soft);
+}
+
+.btn-outline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Danger Zone specific */
+.danger-zone-card {
+    border-color: var(--color-danger-200);
+}
+
+.danger-zone-card .section-header {
+    background: var(--color-danger-50);
+    border-bottom-color: var(--color-danger-200);
+}
+
+.danger-icon {
+    background: var(--color-danger-100) !important;
+    color: var(--color-danger-700) !important;
+}
+
+.danger-zone-card .section-title {
+    color: var(--color-danger-700);
+}
+
+.danger-zone-card .section-description {
+    color: var(--color-danger-600);
+}
+
+.btn-danger-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--color-danger-600);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: fit-content;
+}
+
+.btn-danger-action:hover:not(:disabled) {
+    background: var(--color-danger-700);
+}
+
+.btn-danger-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    .api-input-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .api-actions {
+        justify-content: flex-end;
+    }
 }
 </style>

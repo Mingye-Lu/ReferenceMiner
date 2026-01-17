@@ -97,14 +97,16 @@ function handleDelete(e: Event) {
 }
 
 .delete-btn {
-    background: transparent;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
     border: none;
+    background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
     display: flex;
     align-items: center;
+    justify-content: center;
     opacity: 0;
     transition: all 0.2s;
 }
@@ -114,8 +116,8 @@ function handleDelete(e: Event) {
 }
 
 .delete-btn:hover {
-    background: var(--color-danger-25);
-    color: var(--color-danger-700);
+    background: var(--bg-icon-hover);
+    color: var(--color-red-600);
 }
 
 .project-icon {
@@ -166,7 +168,7 @@ function handleDelete(e: Event) {
     display: flex;
     gap: 16px;
     padding-top: 16px;
-    border-top: 1px solid var(--color-neutral-130);
+    border-top: 2px solid var(--border-color);
 }
 
 .stat {

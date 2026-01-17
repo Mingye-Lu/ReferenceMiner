@@ -1,5 +1,10 @@
 <script setup lang="ts">
-// Main App entry point handles global routing
+import { onMounted } from 'vue'
+import { initTheme } from './utils/theme'
+
+onMounted(() => {
+  initTheme()
+})
 </script>
 
 <template>

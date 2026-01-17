@@ -105,7 +105,11 @@ onUnmounted(() => {
                 </slot>
               </div>
               <button v-if="!hideCloseButton" class="close-btn" @click="handleClose" aria-label="Close modal">
-                ×
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </slot>
           </div>
@@ -183,7 +187,7 @@ onUnmounted(() => {
 /* Header */
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-neutral-220);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -205,26 +209,22 @@ onUnmounted(() => {
 }
 
 .close-btn {
-  background: none;
+  background: transparent;
   border: none;
-  font-size: 24px;
-  color: var(--color-neutral-500);
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
   transition: all 0.2s;
-  flex-shrink: 0;
 }
 
 .close-btn:hover {
-  color: var(--color-neutral-650);
-  background: var(--alpha-black-05);
+  background: var(--bg-icon-hover);
+  color: var(--text-primary);
 }
 
 /* Body */
@@ -236,10 +236,9 @@ onUnmounted(() => {
 
 /* Footer */
 .modal-footer {
-  padding: 16px 20px;
-  background: var(--color-neutral-85);
-  border-top: 1px solid var(--color-neutral-220);
-  border-radius: 0 0 12px 12px;
+  padding: 16px 24px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 12px;

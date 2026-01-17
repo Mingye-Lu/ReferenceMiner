@@ -443,12 +443,12 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: white;
+  background: var(--bg-panel);
 }
 
 .top-nav {
   height: 56px;
-  background: white;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -468,17 +468,19 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--color-neutral-95);
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
 }
 
 .nav-home:hover {
-  background: var(--color-neutral-180);
-  border-color: var(--accent-color);
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
   color: var(--accent-color);
 }
 
@@ -510,43 +512,46 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 
 .search-trigger {
   width: 100%;
-  background: var(--color-neutral-160);
+  background: var(--bg-panel);
   padding: 8px 16px;
   border-radius: 20px;
+  border: 1px solid var(--border-color);
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid transparent;
 }
 
 .search-trigger:hover {
-  background: white;
+  background: var(--bg-panel);
   border-color: var(--accent-color);
 }
 
 .nav-right {
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
 .nav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: var(--text-secondary);
+  transition: all 0.2s;
 }
 
 .nav-btn:hover {
-  background: var(--color-neutral-160);
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
   color: var(--text-primary);
 }
 
