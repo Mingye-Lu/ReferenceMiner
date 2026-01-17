@@ -485,6 +485,7 @@ onMounted(loadData)
   transition: opacity 0.2s;
   display: flex;
   align-items: center;
+  white-space: nowrap;
 }
 
 .btn-primary:hover:not(:disabled) {

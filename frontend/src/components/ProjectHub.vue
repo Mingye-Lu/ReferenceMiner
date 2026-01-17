@@ -13,7 +13,8 @@ import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings } from "lucid
 import { getFileName } from "../utils"
 
 const router = useRouter()
-const activeTab = ref<'projects' | 'bank'>('projects')
+const activeTab = ref<'projects' | 'bank' | 'settings'>('projects')
+const settingsSection = ref<'preferences' | 'advanced'>('preferences')
 const projects = ref<Project[]>([])
 const bankFiles = ref<ManifestEntry[]>([])
 const loading = ref(true)
@@ -236,9 +237,6 @@ onMounted(loadProjects)
                     <Search :size="16" />
                     <input v-model="searchQuery" placeholder="Search studies..." />
                 </div>
-                <button class="btn-icon-header" @click="showSettingsModal = true" title="Settings">
-                    <Settings :size="20" />
-                </button>
                 <button class="btn-primary" @click="showCreateModal = true">
                     <Plus :size="18" />
                     <span>New Study</span>
@@ -248,14 +246,22 @@ onMounted(loadProjects)
 
         <!-- Tabs -->
         <div class="hub-tabs">
-            <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
-                <Search :size="16" />
-                <span>Projects</span>
-            </button>
-            <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
-                <FileText :size="16" />
-                <span>Reference Bank</span>
-            </button>
+            <div class="tabs-left">
+                <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
+                    <Search :size="16" />
+                    <span>Projects</span>
+                </button>
+                <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
+                    <FileText :size="16" />
+                    <span>Reference Bank</span>
+                </button>
+            </div>
+            <div class="tabs-right">
+                <button class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
+                    <Settings :size="16" />
+                    <span>Settings</span>
+                </button>
+            </div>
         </div>
 
         <main class="hub-content">
@@ -290,7 +296,7 @@ onMounted(loadProjects)
             </div>
 
             <!-- Reference Bank Tab -->
-            <div v-else class="bank-content">
+            <div v-else-if="activeTab === 'bank'" class="bank-content">
                 <div class="bank-header">
                     <h2>Reference Bank</h2>
                     <p>Upload and manage your research files. Files can be selected in any project.</p>
@@ -315,9 +321,10 @@ onMounted(loadProjects)
                             <FileText :size="24" />
                         </div>
                         <div class="file-info">
-                            <div class="file-name" :title="getFileName(file.relPath)">{{ getFileName(file.relPath) }}</div>
+                            <div class="file-name" :title="getFileName(file.relPath)">{{ getFileName(file.relPath) }}
+                            </div>
                             <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024)
-                                }}KB</div>
+                            }}KB</div>
                         </div>
                         <div class="file-actions">
                             <button class="btn-icon" @click="handlePreview(file)" title="Preview">
@@ -330,67 +337,195 @@ onMounted(loadProjects)
                     </div>
                 </TransitionGroup>
             </div>
-        </main>
 
-        <!-- Create Modal -->
-        <Transition name="fade">
-            <div v-if="showCreateModal" class="modal-mask" @click.self="showCreateModal = false">
-                <div class="modal-container">
-                    <h2>Create New Study</h2>
-                    <div class="form-group">
-                        <label>Project Name</label>
-                        <input v-model="newProjectName" placeholder="e.g. Photovoltaic Research" autofocus />
-                    </div>
-                    <div class="form-group">
-                        <label>Description (Optional)</label>
-                        <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Initial Content (Optional)</label>
-                        <div class="file-select-row">
-                            <span class="file-count" v-if="selectedFilesForCreate.size > 0">
-                                {{ selectedFilesForCreate.size }} files selected
-                            </span>
-                            <span class="file-count placeholder" v-else>
-                                Start with some references...
-                            </span>
-                            <button class="btn-outline-sm" @click="openFileSelectorForCreate">
-                                Select Files
-                            </button>
+            <!-- Settings Tab -->
+            <div v-else-if="activeTab === 'settings'" class="settings-container">
+                <aside class="settings-sidebar">
+                    <nav class="settings-nav">
+                        <button class="settings-nav-item" :class="{ active: settingsSection === 'preferences' }"
+                            @click="settingsSection = 'preferences'">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path
+                                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            <span>Preferences</span>
+                        </button>
+                        <button class="settings-nav-item" :class="{ active: settingsSection === 'advanced' }"
+                            @click="settingsSection = 'advanced'">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="3" x2="9" y2="21"></line>
+                            </svg>
+                            <span>Advanced</span>
+                        </button>
+                    </nav>
+                </aside>
+
+                <main class="settings-content">
+                    <!-- Preferences Section -->
+                    <div v-if="settingsSection === 'preferences'" class="settings-section">
+                        <h2 class="settings-section-title">Preferences</h2>
+                        <p class="settings-section-desc">Customize your experience with theme, keyboard shortcuts, and
+                            display
+                            options.</p>
+
+                        <!-- Theme -->
+                        <div class="settings-group">
+                            <h3 class="settings-group-title">Theme</h3>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <label class="settings-label">Appearance</label>
+                                    <p class="settings-desc">Choose your preferred color theme</p>
+                                </div>
+                                <div class="settings-control">
+                                    <select class="settings-select" disabled>
+                                        <option>Light</option>
+                                        <option>Dark</option>
+                                        <option>System</option>
+                                    </select>
+                                    <span class="settings-badge">Coming Soon</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Prompt Key -->
+                        <div class="settings-group">
+                            <h3 class="settings-group-title">Submit Prompt Key</h3>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <label class="settings-label">Keyboard Shortcut</label>
+                                    <p class="settings-desc">Choose how to submit your prompts</p>
+                                </div>
+                                <div class="settings-control">
+                                    <div class="radio-group">
+                                        <label class="radio-label">
+                                            <input type="radio" name="submitKey" value="enter" checked>
+                                            <span>Enter to send, Shift+Enter for new line</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="submitKey" value="ctrl-enter">
+                                            <span>Ctrl+Enter to send, Enter for new line</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Display -->
+                        <div class="settings-group">
+                            <h3 class="settings-group-title">Display</h3>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <label class="settings-label">Items Per Page</label>
+                                    <p class="settings-desc">Maximum number of items to display in lists</p>
+                                </div>
+                                <div class="settings-control">
+                                    <span class="settings-badge">Coming Soon</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="modal-actions">
-                        <button class="btn-secondary" @click="showCreateModal = false">Cancel</button>
-                        <button class="btn-primary" :disabled="!newProjectName.trim() || creating"
-                            @click="handleCreate">
-                            <Loader2 v-if="creating" class="spinner" :size="16" />
-                            <span>{{ creating ? 'Creating...' : 'Create Project' }}</span>
+
+                    <!-- Advanced Section -->
+                    <div v-else-if="settingsSection === 'advanced'" class="settings-section">
+                        <h2 class="settings-section-title">Advanced</h2>
+                        <p class="settings-section-desc">Manage API configuration and perform advanced operations.</p>
+
+                        <!-- API Key -->
+                        <div class="settings-group">
+                            <h3 class="settings-group-title">API Key</h3>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <label class="settings-label">OpenAI API Key</label>
+                                    <p class="settings-desc">Configure your API key for AI features</p>
+                                </div>
+                                <div class="settings-control">
+                                    <button class="btn-secondary" @click="showSettingsModal = true">Configure</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Danger Zone -->
+                        <div class="settings-group danger-zone">
+                            <h3 class="settings-group-title">Danger Zone</h3>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <label class="settings-label">Reset All Data</label>
+                                    <p class="settings-desc">Permanently delete all projects and data</p>
+                                </div>
+                                <div class="settings-control">
+                                    <button class="btn-danger" @click="showSettingsModal = true">Reset</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create Modal -->
+    <Transition name="fade">
+        <div v-if="showCreateModal" class="modal-mask" @click.self="showCreateModal = false">
+            <div class="modal-container">
+                <h2>Create New Study</h2>
+                <div class="form-group">
+                    <label>Project Name</label>
+                    <input v-model="newProjectName" placeholder="e.g. Photovoltaic Research" autofocus />
+                </div>
+                <div class="form-group">
+                    <label>Description (Optional)</label>
+                    <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Initial Content (Optional)</label>
+                    <div class="file-select-row">
+                        <span class="file-count" v-if="selectedFilesForCreate.size > 0">
+                            {{ selectedFilesForCreate.size }} files selected
+                        </span>
+                        <span class="file-count placeholder" v-else>
+                            Start with some references...
+                        </span>
+                        <button class="btn-outline-sm" @click="openFileSelectorForCreate">
+                            Select Files
                         </button>
                     </div>
                 </div>
+                <div class="modal-actions">
+                    <button class="btn-secondary" @click="showCreateModal = false">Cancel</button>
+                    <button class="btn-primary" :disabled="!newProjectName.trim() || creating" @click="handleCreate">
+                        <Loader2 v-if="creating" class="spinner" :size="16" />
+                        <span>{{ creating ? 'Creating...' : 'Create Project' }}</span>
+                    </button>
+                </div>
             </div>
-        </Transition>
+        </div>
+    </Transition>
 
-        <!-- File Preview Modal -->
-        <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
+    <!-- File Preview Modal -->
+    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
-        <!-- Delete Confirmation Modal -->
-        <ConfirmationModal v-model="showDeleteModal" title="Delete File?"
-            :message="fileToDelete ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.` : ''"
-            confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
+    <!-- Delete Confirmation Modal -->
+    <ConfirmationModal v-model="showDeleteModal" title="Delete File?"
+        :message="fileToDelete ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.` : ''"
+        confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
 
-        <!-- Delete Project Confirmation Modal -->
-        <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?"
-            :message="projectToDelete ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.` : ''"
-            confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
+    <!-- Delete Project Confirmation Modal -->
+    <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?"
+        :message="projectToDelete ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.` : ''"
+        confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
 
-        <!-- Initial File Selector -->
-        <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
-            @confirm="handleInitialFilesSelected" />
+    <!-- Initial File Selector -->
+    <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
+        @confirm="handleInitialFilesSelected" />
 
-        <!-- Settings Modal -->
-        <SettingsModal v-model="showSettingsModal" @reset="handleDataReset" />
-    </div>
+    <!-- Settings Modal -->
+    <SettingsModal v-model="showSettingsModal" @reset="handleDataReset" />
 </template>
 
 <style scoped>
@@ -642,10 +777,17 @@ onMounted(loadProjects)
 /* Tabs */
 .hub-tabs {
     display: flex;
-    gap: 8px;
+    justify-content: space-between;
+    align-items: center;
     padding: 0 60px;
     background: white;
     border-bottom: 1px solid var(--color-neutral-215);
+}
+
+.tabs-left,
+.tabs-right {
+    display: flex;
+    gap: 8px;
 }
 
 .tab-btn {
@@ -857,5 +999,303 @@ onMounted(loadProjects)
 .empty-state h3 {
     margin: 0 0 8px 0;
     font-size: 18px;
+}
+
+/* Settings Layout */
+.settings-layout {
+    display: flex;
+    height: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.settings-sidebar {
+    width: 280px;
+    border-right: 1px solid var(--color-neutral-240);
+    padding: 40px 0;
+    flex-shrink: 0;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 20px;
+}
+
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.settings-nav-item:hover {
+    background: var(--color-neutral-120);
+    color: var(--text-primary);
+}
+
+.settings-nav-item.active {
+    background: var(--accent-soft, var(--color-accent-50));
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.settings-content {
+    flex: 1;
+    padding: 40px 60px;
+    overflow-y: auto;
+}
+
+.settings-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.settings-placeholder p {
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+/* Settings Container Layout */
+.settings-container {
+    display: flex;
+    height: 100%;
+    gap: 0;
+}
+
+/* Settings Sidebar */
+.settings-sidebar {
+    width: 240px;
+    border-right: 1px solid var(--color-neutral-215);
+    background: var(--color-neutral-100);
+    padding: 24px 0;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 12px;
+}
+
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.settings-nav-item:hover {
+    background: var(--color-neutral-150);
+    color: var(--text-primary);
+}
+
+.settings-nav-item.active {
+    background: var(--color-white);
+    color: var(--accent-color);
+    box-shadow: 0 1px 3px var(--alpha-black-10);
+}
+
+.settings-nav-item svg {
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+/* Settings Section */
+.settings-section {
+    max-width: 800px;
+}
+
+.settings-section-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.settings-section-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 32px 0;
+    line-height: 1.5;
+}
+
+/* Settings Group */
+.settings-group {
+    margin-bottom: 40px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.settings-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.settings-group-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+}
+
+/* Settings Item */
+.settings-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 16px 0;
+}
+
+.settings-item-info {
+    flex: 1;
+}
+
+.settings-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.settings-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.settings-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Settings Select */
+.settings-select {
+    padding: 8px 12px;
+    border: 1px solid var(--color-neutral-250);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--color-white);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.settings-select:hover:not(:disabled) {
+    border-color: var(--color-neutral-350);
+}
+
+.settings-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Radio Group */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.radio-label:hover {
+    color: var(--accent-color);
+}
+
+/* Settings Badge */
+.settings-badge {
+    padding: 4px 8px;
+    background: var(--color-neutral-150);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Danger Zone */
+.settings-group.danger-zone {
+    border-color: var(--color-red-200);
+    background: var(--color-red-50);
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.settings-group.danger-zone .settings-group-title {
+    color: var(--color-red-700);
+}
+
+.btn-danger {
+    padding: 8px 16px;
+    background: var(--color-red-600);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-danger:hover {
+    background: var(--color-red-700);
+}
+
+.btn-secondary {
+    padding: 8px 16px;
+    background: var(--color-neutral-150);
+    color: var(--text-primary);
+    border: 1px solid var(--color-neutral-250);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background: var(--color-neutral-200);
+    border-color: var(--color-neutral-350);
 }
 </style>

@@ -412,8 +412,8 @@ watch(() => pinnedEvidenceMap.value, (val) => {
     </header>
 
     <div class="main-layout">
-      <SidePanel :active-chat-id="currentChatId ?? undefined" :highlighted-paths="highlightedPaths" @preview="openPreview"
-        @select-chat="switchChat" @new-chat="handleNewChat" />
+      <SidePanel :active-chat-id="currentChatId ?? undefined" :highlighted-paths="highlightedPaths"
+        @preview="openPreview" @select-chat="switchChat" @new-chat="handleNewChat" />
       <main class="workspace-shell">
         <ChatWindow v-model:history="chatHistory" :highlight-id="highlightMessageId" />
       </main>
@@ -554,6 +554,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   display: flex;
   flex: 1;
   overflow: hidden;
+  /* Allow SidePanel settings submenu to overflow */
   position: relative;
 }
 

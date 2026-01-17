@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, type Ref, computed } from "vue"
+import { ref, inject, type Ref, computed, onMounted, onUnmounted } from "vue"
 import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../types"
 import FileUploader from "./FileUploader.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
@@ -9,6 +9,13 @@ import { fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProject
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
+
+// Settings panel state
+const showSettings = ref(false)
+const settingsActiveSection = ref<'theme' | 'prompt-key' | 'display' | 'api' | 'danger'>('prompt-key')
+const submenuOpen = ref<string | null>(null)
+const submitPromptKey = ref<'enter' | 'ctrl-enter'>('enter')
+const submenuPosition = ref({ top: 0, left: 0 })
 
 
 const showDeleteFileModal = ref(false)
@@ -299,6 +306,106 @@ async function confirmBatchDelete() {
     isBatchDeleting.value = false
   }
 }
+
+// Toggle settings panel
+function toggleSettings() {
+  showSettings.value = !showSettings.value
+  if (!showSettings.value) {
+    submenuOpen.value = null
+  }
+}
+
+function setSettingsSection(section: 'theme' | 'prompt-key' | 'display' | 'api' | 'danger') {
+  settingsActiveSection.value = section
+}
+
+// Submenu control
+let closeSubmenuTimer: ReturnType<typeof setTimeout> | null = null
+
+function openSubmenu(menu: string, event: MouseEvent) {
+  // Clear any pending close timer
+  if (closeSubmenuTimer) {
+    clearTimeout(closeSubmenuTimer)
+    closeSubmenuTimer = null
+  }
+
+  submenuOpen.value = menu
+
+  // Calculate absolute position for teleported submenu
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  submenuPosition.value = {
+    top: rect.top,
+    left: rect.right + 8
+  }
+}
+
+function closeSubmenu() {
+  // Delay closing to allow mouse to move to submenu
+  closeSubmenuTimer = setTimeout(() => {
+    submenuOpen.value = null
+  }, 150)
+}
+
+function keepSubmenuOpen() {
+  // Cancel the close timer when mouse enters submenu
+  if (closeSubmenuTimer) {
+    clearTimeout(closeSubmenuTimer)
+    closeSubmenuTimer = null
+  }
+}
+
+function closeSubmenuImmediately() {
+  // Close immediately when mouse leaves submenu
+  if (closeSubmenuTimer) {
+    clearTimeout(closeSubmenuTimer)
+    closeSubmenuTimer = null
+  }
+  submenuOpen.value = null
+}
+
+// Submit prompt key setting
+function setSubmitPromptKey(value: 'enter' | 'ctrl-enter', event?: MouseEvent) {
+  // Stop event propagation to prevent closing settings panel
+  if (event) {
+    event.stopPropagation()
+  }
+
+  submitPromptKey.value = value
+  localStorage.setItem('submitPromptKey', value)
+  // Trigger custom event to notify ChatWindow
+  window.dispatchEvent(new CustomEvent('settingChanged', {
+    detail: { key: 'submitPromptKey', value }
+  }))
+  // Don't close submenu or settings panel - let user see the updated state
+}
+
+// Close settings panel when clicking outside
+function handleClickOutside(event: MouseEvent) {
+  if (!showSettings.value) return
+
+  const target = event.target as HTMLElement
+  const settingsPanel = document.querySelector('.settings-popup-panel')
+  const settingsBtn = document.querySelector('.settings-trigger-btn')
+
+  if (settingsPanel && !settingsPanel.contains(target) && settingsBtn && !settingsBtn.contains(target)) {
+    showSettings.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+
+  // Load saved submit prompt key setting
+  const saved = localStorage.getItem('submitPromptKey')
+  if (saved === 'enter' || saved === 'ctrl-enter') {
+    submitPromptKey.value = saved
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <template>
@@ -332,187 +439,259 @@ async function confirmBatchDelete() {
 
     <!-- CORPUS TAB -->
     <div class="sidebar-content" v-if="activeTab === 'corpus'">
-      <!-- File Uploader -->
-      <FileUploader :project-id="projectId" upload-mode="project" @upload-complete="handleUploadComplete" />
+      <!-- Fixed Actions Area -->
+      <div class="sidebar-actions">
+        <!-- File Uploader -->
+        <FileUploader :project-id="projectId" upload-mode="project" @upload-complete="handleUploadComplete" />
 
-      <!-- Add from Bank Button -->
-      <button class="add-files-btn" @click="openBankSelector">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        Manage Project Files
-      </button>
-
-      <!-- Files Section -->
-      <div class="section-header-row" v-if="displayedFiles.length > 0">
-        <div class="section-header">PROJECT FILES ({{ displayedFiles.length }})</div>
-        <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode"
-          :title="batchMode ? 'Exit Batch Mode' : 'Batch Selection'">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+        <!-- Add from Bank Button -->
+        <button class="add-files-btn" @click="openBankSelector">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
+          Manage Project Files
         </button>
       </div>
 
-      <!-- Batch Action Toolbar (Below Header) -->
-      <div v-if="batchMode && displayedFiles.length > 0" class="batch-toolbar">
-        <button class="batch-tool-btn" @click="selectAllForBatch">
-          {{ batchSelected.size === displayedFiles.length ? 'Deselect All' : 'Select All' }}
-        </button>
-        <div style="flex:1"></div>
-        <button class="batch-tool-btn delete" @click="requestBatchDelete" :disabled="batchSelected.size === 0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+      <!-- Scrollable Content Area -->
+      <div class="sidebar-scrollable">
+        <!-- Files Section -->
+        <div class="section-header-row" v-if="displayedFiles.length > 0">
+          <div class="section-header">PROJECT FILES ({{ displayedFiles.length }})</div>
+          <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode"
+            :title="batchMode ? 'Exit Batch Mode' : 'Batch Selection'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Batch Action Toolbar (Below Header) -->
+        <div v-if="batchMode && displayedFiles.length > 0" class="batch-toolbar">
+          <button class="batch-tool-btn" @click="selectAllForBatch">
+            {{ batchSelected.size === displayedFiles.length ? 'Deselect All' : 'Select All' }}
+          </button>
+          <div style="flex:1"></div>
+          <button class="batch-tool-btn delete" @click="requestBatchDelete" :disabled="batchSelected.size === 0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Remove ({{ batchSelected.size }})
+          </button>
+        </div>
+
+        <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Manage Project Files" to add
+          files.</div>
+
+        <div v-for="file in displayedFiles" :key="file.relPath" class="file-item" :class="{
+          deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)),
+          highlighted: highlightedPaths?.has(file.relPath),
+          selected: batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath),
+          'batch-mode': batchMode && batchSelected.has(file.relPath)
+        }">
+
+          <!-- Checkbox: Show AI selection in normal mode, Batch selection in batch mode -->
+          <div class="checkbox-wrapper"
+            @click.stop="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
+            <input type="checkbox" class="custom-checkbox"
+              :checked="batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath)" readonly />
+          </div>
+
+          <div class="file-info" @click="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
+            <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
+            <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB</div>
+          </div>
+
+          <div class="file-actions" v-if="!batchMode">
+            <button class="icon-btn preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+            <button class="icon-btn delete-btn" @click="(e) => requestDeleteFile(file, e)" title="Remove from project"
+              :disabled="isDeleting === file.relPath">
+              <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Notes Section -->
+        <div class="section-header" style="margin-top: 20px;">PINNED NOTES ({{ notesList.length }})</div>
+        <div v-if="notesList.length === 0" class="empty-msg">No pinned notes.</div>
+
+        <div v-for="note in notesList" :key="note.chunkId" class="file-item"
+          :class="{ selected: selectedNotes.has(note.chunkId) }">
+
+          <!-- Checkbox for AI selection -->
+          <div @click.stop="toggleNote(note.chunkId)" style="display:flex; align-items:center;"
+            title="Select for AI context">
+            <input type="checkbox" class="custom-checkbox" :checked="selectedNotes.has(note.chunkId)" readonly />
+          </div>
+
+          <!-- Note info - click to toggle selection -->
+          <div class="file-info" @click="toggleNote(note.chunkId)">
+            <div class="file-name" :title="note.text">{{ note.text.slice(0, 40) }}...</div>
+            <div class="file-meta">Page {{ note.page || 1 }}</div>
+          </div>
+
+          <!-- Note actions -->
+          <div class="file-actions">
+            <!-- Jump to Reader button -->
+            <button class="icon-btn preview-btn" @click="(e) => jumpToNoteInReader(note, e)" title="View in Reader">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+              </svg>
+            </button>
+
+            <!-- Unpin button -->
+            <button class="icon-btn delete-btn" @click="(e) => requestUnpinNote(note, e)" title="Unpin note">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fixed Footer with Settings -->
+      <div class="sidebar-footer">
+        <button class="settings-trigger-btn" @click="toggleSettings" :class="{ active: showSettings }">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
           </svg>
-          Remove ({{ batchSelected.size }})
+          <span>Settings</span>
         </button>
-      </div>
 
-      <!-- Batch Action Bar -->
-      <!-- This section is now integrated into the section-header-row -->
-      <!-- <div v-if="batchMode && displayedFiles.length > 0" class="batch-action-bar">
-        <button class="batch-select-all" @click="selectAllForBatch">
-          {{ batchSelected.size === displayedFiles.length ? 'Deselect All' : 'Select All' }}
-        </button>
-        <button class="batch-delete-btn" @click="requestBatchDelete"
-          :disabled="batchSelected.size === 0 || isBatchDeleting">
-          <svg v-if="!isBatchDeleting" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-          </svg>
-          Remove ({{ batchSelected.size }})
-        </button>
-      </div> -->
+        <!-- Floating Settings Panel -->
+        <Transition name="settings-popup">
+          <div v-if="showSettings" class="settings-popup-panel">
+            <!-- Theme (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('theme', $event)"
+              @mouseleave="closeSubmenu">
+              <span>Theme</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
 
-      <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Manage Project Files" to add
-        files.</div>
-
-      <div v-for="file in displayedFiles" :key="file.relPath" class="file-item" :class="{
-        deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)),
-        highlighted: highlightedPaths?.has(file.relPath),
-        selected: batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath),
-        'batch-mode': batchMode && batchSelected.has(file.relPath)
-      }">
-
-        <!-- Checkbox: Show AI selection in normal mode, Batch selection in batch mode -->
-        <div class="checkbox-wrapper"
-          @click.stop="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
-          <input type="checkbox" class="custom-checkbox"
-            :checked="batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath)" readonly />
-        </div>
-
-        <div class="file-info" @click="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
-          <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
-          <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB</div>
-        </div>
-
-        <div class="file-actions" v-if="!batchMode">
-          <button class="icon-btn preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </button>
-          <button class="icon-btn delete-btn" @click="(e) => requestDeleteFile(file, e)" title="Remove from project"
-            :disabled="isDeleting === file.relPath">
-            <svg v-if="isDeleting !== file.relPath" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Notes Section -->
-      <div class="section-header" style="margin-top: 20px;">PINNED NOTES ({{ notesList.length }})</div>
-      <div v-if="notesList.length === 0" class="empty-msg">No pinned notes.</div>
-
-      <div v-for="note in notesList" :key="note.chunkId" class="file-item"
-        :class="{ selected: selectedNotes.has(note.chunkId) }">
-
-        <!-- Checkbox for AI selection -->
-        <div @click.stop="toggleNote(note.chunkId)" style="display:flex; align-items:center;"
-          title="Select for AI context">
-          <input type="checkbox" class="custom-checkbox" :checked="selectedNotes.has(note.chunkId)" readonly />
-        </div>
-
-        <!-- Note info - click to toggle selection -->
-        <div class="file-info" @click="toggleNote(note.chunkId)">
-          <div class="file-name" :title="note.text">{{ note.text.slice(0, 40) }}...</div>
-          <div class="file-meta">Page {{ note.page || 1 }}</div>
-        </div>
-
-        <!-- Note actions -->
-        <div class="file-actions">
-          <!-- Jump to Reader button -->
-          <button class="icon-btn preview-btn" @click="(e) => jumpToNoteInReader(note, e)" title="View in Reader">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-            </svg>
-          </button>
-
-          <!-- Unpin button -->
-          <button class="icon-btn delete-btn" @click="(e) => requestUnpinNote(note, e)" title="Unpin note">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+            <!-- Submit prompt key (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('prompt-key', $event)"
+              @mouseleave="closeSubmenu">
+              <span>Submit prompt key</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+        </Transition>
       </div>
 
     </div>
 
     <!-- CHATS TAB -->
     <div class="sidebar-content" v-else>
-      <button class="new-chat-btn" @click="handleNewChat">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          style="margin-right: 6px;">
-          <path d="M5 12h14" />
-          <path d="M12 5v14" />
-        </svg>
-        New Chat
-      </button>
-      <div class="chat-list">
-        <div v-for="chat in chatSessions" :key="chat.id" class="chat-item"
-          :class="{ active: props.activeChatId === chat.id }" @click="selectChat(chat.id)">
-          <div class="chat-content-wrapper">
-            <div class="chat-title">{{ chat.title }}</div>
-            <div class="chat-meta">{{ formatTime(chat.lastActive) }} · {{ chat.messageCount }} msgs</div>
+      <!-- Fixed Actions Area -->
+      <div class="sidebar-actions">
+        <button class="new-chat-btn" @click="handleNewChat">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            style="margin-right: 6px;">
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+          </svg>
+          New Chat
+        </button>
+      </div>
+
+      <!-- Scrollable Content Area -->
+      <div class="sidebar-scrollable">
+        <div class="chat-list">
+          <div v-for="chat in chatSessions" :key="chat.id" class="chat-item"
+            :class="{ active: props.activeChatId === chat.id }" @click="selectChat(chat.id)">
+            <div class="chat-content-wrapper">
+              <div class="chat-title">{{ chat.title }}</div>
+              <div class="chat-meta">{{ formatTime(chat.lastActive) }} · {{ chat.messageCount }} msgs</div>
+            </div>
+            <button class="delete-chat-btn" @click="handleDeleteChat(chat.id, $event)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
           </div>
-          <button class="delete-chat-btn" @click="handleDeleteChat(chat.id, $event)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
+      </div>
+
+      <!-- Fixed Footer with Settings -->
+      <div class="sidebar-footer">
+        <button class="settings-trigger-btn" @click="toggleSettings" :class="{ active: showSettings }">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span>Settings</span>
+        </button>
+
+        <!-- Floating Settings Panel -->
+        <Transition name="settings-popup">
+          <div v-if="showSettings" class="settings-popup-panel">
+            <!-- Theme (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('theme', $event)"
+              @mouseleave="closeSubmenu">
+              <span>Theme</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+
+            <!-- Submit prompt key (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('prompt-key', $event)"
+              @mouseleave="closeSubmenu">
+              <span>Submit prompt key</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -539,6 +718,52 @@ async function confirmBatchDelete() {
     <AlertModal v-model="showErrorModal" title="Delete Failed" :message="errorMessage" type="error"
       @close="closeErrorModal" />
   </aside>
+
+  <!-- Teleported Submenus (rendered to body to avoid overflow issues) -->
+  <Teleport to="body">
+    <Transition name="submenu-slide">
+      <div v-if="submenuOpen === 'theme'" class="settings-submenu-teleported" :style="{
+        top: submenuPosition.top + 'px',
+        left: submenuPosition.left + 'px'
+      }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
+        <div class="settings-submenu-item" @click.stop>
+          <span>Light</span>
+        </div>
+        <div class="settings-submenu-item" @click.stop>
+          <span>Dark</span>
+        </div>
+        <div class="settings-submenu-item" @click.stop>
+          <span>System</span>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="submenu-slide">
+      <div v-if="submenuOpen === 'prompt-key'" class="settings-submenu-teleported" :style="{
+        top: submenuPosition.top + 'px',
+        left: submenuPosition.left + 'px'
+      }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
+        <div class="settings-submenu-item" :class="{ active: submitPromptKey === 'enter' }"
+          @click="setSubmitPromptKey('enter', $event)">
+          <span>Enter</span>
+          <svg v-if="submitPromptKey === 'enter'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <div class="settings-submenu-item" :class="{ active: submitPromptKey === 'ctrl-enter' }"
+          @click="setSubmitPromptKey('ctrl-enter', $event)">
+          <span>Ctrl + Enter</span>
+          <svg v-if="submitPromptKey === 'ctrl-enter'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -547,6 +772,59 @@ async function confirmBatchDelete() {
   font-size: 12px;
   color: var(--color-neutral-550);
   text-align: center;
+}
+
+/* Sidebar Layout Sections */
+.sidebar-actions {
+  flex-shrink: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.sidebar-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-neutral-200);
+  background: var(--color-neutral-95);
+}
+
+.settings-trigger-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--color-neutral-250);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-trigger-btn:hover {
+  background: var(--color-neutral-120);
+  border-color: var(--color-neutral-350);
+  color: var(--text-primary);
+}
+
+.settings-trigger-btn svg {
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+.settings-trigger-btn:hover svg {
+  transform: rotate(30deg);
+  color: var(--accent-color);
 }
 
 .info-banner {
@@ -570,7 +848,8 @@ async function confirmBatchDelete() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 6px 10px;
+  padding: 0 0 6px 0;
+  margin-bottom: 8px;
 }
 
 .section-header {
@@ -579,6 +858,7 @@ async function confirmBatchDelete() {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  padding: 0;
 }
 
 .add-from-bank-btn {
@@ -796,6 +1076,20 @@ async function confirmBatchDelete() {
   }
 }
 
+/* Sidebar Content - Flex Container */
+.sidebar-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Allow settings popup to overflow */
+.sidebar-footer {
+  position: relative;
+  overflow: visible;
+}
+
 .add-files-btn {
   width: 100%;
   padding: 10px;
@@ -803,7 +1097,7 @@ async function confirmBatchDelete() {
   color: var(--text-primary);
   border: 1px dashed var(--border-color);
   border-radius: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -827,7 +1121,7 @@ async function confirmBatchDelete() {
   color: var(--color-white);
   border: none;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -996,5 +1290,183 @@ async function confirmBatchDelete() {
 .batch-toggle-btn.active {
   background: var(--color-info-80);
   color: var(--color-info-600);
+}
+
+/* Settings Popup Panel Styles */
+.settings-trigger-btn.active {
+  background: var(--color-neutral-150);
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+}
+
+.settings-popup-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  margin-bottom: 8px;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-250);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px var(--alpha-black-15), 0 2px 8px var(--alpha-black-10);
+  padding: 6px;
+  z-index: 1000;
+  min-width: 240px;
+}
+
+.sidebar-shell {
+  width: 320px;
+  height: 100%;
+  background: var(--color-white);
+  border-right: 1px solid var(--color-neutral-215);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  /* Allow settings popup to overflow */
+}
+
+.settings-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.settings-popup-item:hover {
+  background: var(--color-neutral-120);
+}
+
+.settings-popup-item svg:first-child {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.settings-popup-item .chevron-right {
+  margin-left: auto;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.settings-popup-divider {
+  height: 1px;
+  background: var(--color-neutral-200);
+  margin: 4px 0;
+}
+
+/* Settings Popup Animation */
+.settings-popup-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.settings-popup-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.settings-popup-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.95);
+}
+
+.settings-popup-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+}
+
+.settings-popup-enter-to,
+.settings-popup-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Settings Submenu Styles */
+.settings-popup-item.has-submenu {
+  position: relative;
+}
+
+.settings-submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 8px;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-250);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px var(--alpha-black-15), 0 2px 8px var(--alpha-black-10);
+  padding: 6px;
+  min-width: 180px;
+  z-index: 1001;
+}
+
+/* Teleported submenu (rendered to body) */
+.settings-submenu-teleported {
+  position: fixed;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-250);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px var(--alpha-black-15), 0 2px 8px var(--alpha-black-10);
+  padding: 6px;
+  min-width: 180px;
+  z-index: 10000;
+}
+
+.settings-submenu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.settings-submenu-item:hover {
+  background: var(--color-neutral-120);
+}
+
+.settings-submenu-item.active {
+  background: var(--accent-soft, var(--color-accent-50));
+  color: var(--accent-color);
+}
+
+.settings-submenu-item .check-icon {
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+/* Submenu Slide Animation */
+.submenu-slide-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.submenu-slide-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.submenu-slide-enter-from {
+  opacity: 0;
+  transform: translateX(-8px) scale(0.95);
+}
+
+.submenu-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-4px) scale(0.98);
+}
+
+.submenu-slide-enter-to,
+.submenu-slide-leave-from {
+  opacity: 1;
+  transform: translateX(0) scale(1);
 }
 </style>

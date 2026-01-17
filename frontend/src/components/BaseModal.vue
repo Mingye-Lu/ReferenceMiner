@@ -9,12 +9,14 @@ const props = withDefaults(defineProps<{
   hideCloseButton?: boolean
   closeOnClickOutside?: boolean
   closeOnEsc?: boolean
+  zIndex?: number
 }>(), {
   size: 'medium',
   hideHeader: false,
   hideCloseButton: false,
   closeOnClickOutside: true,
-  closeOnEsc: true
+  closeOnEsc: true,
+  zIndex: 1300
 })
 
 const emit = defineEmits<{
@@ -92,14 +94,8 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="modelValue" class="modal-backdrop" @click.self="handleBackdropClick">
-        <div
-          class="modal-box"
-          :class="[`modal-${size}`]"
-          role="dialog"
-          aria-modal="true"
-          tabindex="-1"
-        >
+      <div v-if="modelValue" class="modal-backdrop" :style="{ zIndex: props.zIndex }" @click.self="handleBackdropClick">
+        <div class="modal-box" :class="[`modal-${size}`]" role="dialog" aria-modal="true" tabindex="-1">
           <!-- Header -->
           <div v-if="!hideHeader" class="modal-header">
             <slot name="header">
@@ -139,7 +135,7 @@ onUnmounted(() => {
   bottom: 0;
   background: var(--alpha-black-50);
   backdrop-filter: blur(2px);
-  z-index: 1200;
+  z-index: 1300;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, inject, type Ref, computed } from "vue"
+import { ref, nextTick, watch, inject, type Ref, computed, onMounted } from "vue"
 import MessageItem from "./MessageItem.vue"
 import { streamAsk } from "../api/client"
 import type { ChatMessage, EvidenceChunk, Project } from "../types"
@@ -23,6 +23,10 @@ const currentProject = inject<Ref<Project | null>>("currentProject")!
 const projectId = computed(() => currentProject.value?.id || "default")
 
 const isNoteMode = ref(false)
+const submitPromptKey = ref<'enter' | 'ctrl-enter'>('enter')
+const submitHintText = computed(() => {
+  return submitPromptKey.value === 'enter' ? 'Enter to send' : 'Ctrl+Enter to send'
+})
 function toggleNoteMode() {
   isNoteMode.value = !isNoteMode.value
 }
@@ -62,7 +66,28 @@ watch(() => props.highlightId, (newId) => {
   }
 })
 
-async function sendMessage() {
+async function sendMessage(event?: KeyboardEvent) {
+  // Handle keyboard shortcuts based on user preference
+  if (event) {
+    if (submitPromptKey.value === 'enter') {
+      // Enter mode: only Enter sends (with no modifiers), Shift+Enter for new line
+      if (event.shiftKey) {
+        return // Allow new line with Shift+Enter
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        return // Don't send with Ctrl/Cmd/Alt+Enter
+      }
+      // Prevent default to avoid new line when sending
+      event.preventDefault()
+    } else {
+      // Ctrl+Enter mode: only Ctrl+Enter sends, Enter or Shift+Enter for new line
+      if (!event.ctrlKey && !event.metaKey) {
+        return // Allow new line with Enter or Shift+Enter
+      }
+      // Prevent default to avoid new line when sending
+      event.preventDefault()
+    }
+  }
   if (!draftInput.value.trim() || isLoading.value) return
   const question = draftInput.value
   draftInput.value = ""
@@ -140,6 +165,31 @@ async function sendMessage() {
     }
   } finally { isLoading.value = false }
 }
+
+// Load submit prompt key preference
+onMounted(() => {
+  const saved = localStorage.getItem('submitPromptKey')
+  if (saved === 'enter' || saved === 'ctrl-enter') {
+    submitPromptKey.value = saved
+  }
+
+  // Listen for custom event from SidePanel
+  const handleSettingChange = ((e: CustomEvent) => {
+    if (e.detail.key === 'submitPromptKey') {
+      const value = e.detail.value
+      if (value === 'enter' || value === 'ctrl-enter') {
+        submitPromptKey.value = value
+      }
+    }
+  }) as EventListener
+
+  window.addEventListener('settingChanged', handleSettingChange)
+
+  // Cleanup
+  return () => {
+    window.removeEventListener('settingChanged', handleSettingChange)
+  }
+})
 </script>
 
 <template>
@@ -147,8 +197,9 @@ async function sendMessage() {
 
   <div class="chat-scroll-area" ref="scrollContainer" @scroll="handleScroll">
     <div v-if="history.length === 0" class="empty-welcome">
-      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-250)"
-        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px">
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+        stroke="var(--color-neutral-250)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+        style="margin-bottom:16px">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
       </svg>
@@ -198,10 +249,10 @@ async function sendMessage() {
     </div>
 
     <div class="input-box">
-      <textarea v-model="draftInput" placeholder="Ask a question..." @keydown.enter.prevent="sendMessage"></textarea>
+      <textarea v-model="draftInput" placeholder="Ask a question..." @keydown.enter="sendMessage"></textarea>
       <div class="input-footer">
-        <span style="font-size: 11px; color: var(--color-neutral-450);">Enter to send</span>
-        <button class="btn-primary" :disabled="!draftInput || isLoading" @click="sendMessage">Run Analysis</button>
+        <span style="font-size: 11px; color: var(--color-neutral-450);">{{ submitHintText }}</span>
+        <button class="btn-primary" :disabled="!draftInput || isLoading" @click="sendMessage()">Run Analysis</button>
       </div>
     </div>
   </div>
