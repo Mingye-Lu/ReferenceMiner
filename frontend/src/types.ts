@@ -10,6 +10,16 @@ export interface ManifestEntry {
   sha256?: string
 }
 
+export interface BoundingBox {
+  page: number
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+  charStart: number
+  charEnd: number
+}
+
 export interface EvidenceChunk {
   chunkId: string
   path: string
@@ -17,6 +27,7 @@ export interface EvidenceChunk {
   section?: string | null
   text: string
   score: number
+  bbox?: BoundingBox[] | null
 }
 
 export interface AnswerBlock {
@@ -150,7 +161,16 @@ export interface Settings {
   model: string
 }
 
+export interface BalanceInfo {
+  currency: string
+  totalBalance: string
+  grantedBalance: string
+  toppedUpBalance: string
+}
+
 export interface ValidateResult {
   valid: boolean
   error?: string
+  isAvailable?: boolean
+  balanceInfos?: BalanceInfo[]
 }

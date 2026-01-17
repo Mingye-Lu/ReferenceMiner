@@ -11,6 +11,7 @@ from typing import Any, Iterator, Optional
 
 import shutil
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -157,25 +158,73 @@ async def delete_api_key():
 
 @app.post("/api/settings/validate")
 async def validate_api_key():
-    """Test if the current API key is valid by making a small request."""
+    """Test if the current API key is valid by fetching the user balance."""
     config = settings_manager.get_deepseek_config()
     if not config:
         raise HTTPException(status_code=400, detail="No API key configured")
 
     try:
-        from refminer.llm.deepseek import DeepSeekConfig, DeepSeekClient
-        ds_config = DeepSeekConfig(
-            api_key=config.api_key,
-            base_url=config.base_url,
-            model=config.model,
-            timeout=10.0,
-        )
-        client = DeepSeekClient(ds_config)
-        # Make a minimal request to validate the key
-        client.chat([{"role": "user", "content": "Hi"}])
-        return {"valid": True}
+        url = f"{config.base_url.rstrip('/')}/user/balance"
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {config.api_key}",
+        }
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+        return {
+            "valid": True,
+            "is_available": data.get("is_available"),
+            "balance_infos": data.get("balance_infos", []),
+        }
+    except httpx.HTTPStatusError as e:
+        error_body = e.response.text
+        return {"valid": False, "error": f"HTTP {e.response.status_code}: {error_body}"}
     except Exception as e:
         return {"valid": False, "error": str(e)}
+
+
+@app.post("/api/settings/reset")
+async def reset_all_data():
+    """Clear all chunks, indexes, manifest, and chat sessions. Reference files remain untouched."""
+    try:
+        ref_dir, idx_dir = _get_bank_paths()
+
+        # Delete index files AND manifest (but NEVER the actual reference files)
+        files_to_delete = [
+            "manifest.json",  # List of files - safe to delete
+            "chunks.jsonl",
+            "bm25.pkl",
+            "vectors.faiss",
+            "vectors.meta.npz",
+            "hash_registry.json",  # File hash registry
+        ]
+
+        deleted_files = []
+        for filename in files_to_delete:
+            file_path = idx_dir / filename
+            if file_path.exists():
+                file_path.unlink()
+                deleted_files.append(filename)
+
+        # Clear all chat sessions
+        chats_dir = idx_dir / "chats"
+        if chats_dir.exists():
+            # Remove all chat session files
+            for chat_file in chats_dir.glob("*.json"):
+                chat_file.unlink()
+
+        # CRITICAL: We do NOT touch files in references/ folder
+        # Reference files are the user's primary data and must never be deleted
+
+        return {
+            "success": True,
+            "message": "All metadata, indexes, and chat sessions cleared. Reference files preserved.",
+            "deleted_files": deleted_files,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reset data: {str(e)}")
 
 
 # --- Chat Session Endpoints ---

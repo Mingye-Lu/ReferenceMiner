@@ -624,6 +624,24 @@ export async function validateApiKey(): Promise<ValidateResult> {
   return {
     valid: data.valid ?? false,
     error: data.error,
+    isAvailable: data.is_available,
+    balanceInfos: (data.balance_infos ?? []).map((info: any) => ({
+      currency: info.currency,
+      totalBalance: info.total_balance,
+      grantedBalance: info.granted_balance,
+      toppedUpBalance: info.topped_up_balance,
+    })),
+  }
+}
+
+export async function resetAllData(): Promise<{ success: boolean; message: string; deletedFiles: string[] }> {
+  const data = await fetchJson<any>("/api/settings/reset", {
+    method: "POST",
+  })
+  return {
+    success: data.success ?? false,
+    message: data.message ?? "",
+    deletedFiles: data.deleted_files ?? [],
   }
 }
 
