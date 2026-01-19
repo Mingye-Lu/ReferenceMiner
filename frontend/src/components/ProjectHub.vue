@@ -7,6 +7,7 @@ import ProjectCard from "./ProjectCard.vue"
 import FileUploader from "./FileUploader.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
+import CustomSelect from "./CustomSelect.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
 import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings } from "lucide-vue-next"
 import { type Theme, getStoredTheme, setTheme } from "../utils/theme"
@@ -58,6 +59,12 @@ const apiKeyStatusMessage = computed(() => {
         ? 'API key is valid, but balance is insufficient'
         : 'API key is valid'
 })
+
+const themeOptions = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+    { value: 'system', label: 'System' }
+]
 
 async function loadProjects() {
     try {
@@ -522,12 +529,8 @@ onMounted(async () => {
                                     <label class="settings-label">Appearance</label>
                                     <p class="settings-desc">Choose your preferred color theme</p>
                                 </div>
-                                <select class="settings-select" :value="currentTheme"
-                                    @change="(e) => setTheme((e.target as HTMLSelectElement).value as Theme)">
-                                    <option value="light">Light</option>
-                                    <option value="dark">Dark</option>
-                                    <option value="system">System</option>
-                                </select>
+                                <CustomSelect :model-value="currentTheme" :options="themeOptions"
+                                    @update:model-value="(value) => setTheme(value as Theme)" />
                             </div>
                         </div>
 
@@ -1542,6 +1545,12 @@ onMounted(async () => {
     gap: 12px;
 }
 
+.settings-control :deep(.custom-select-wrapper) {
+    width: auto;
+    min-width: 200px;
+    max-width: 300px;
+}
+
 /* Settings Select */
 .settings-select {
     padding: 8px 12px;
@@ -1826,7 +1835,7 @@ onMounted(async () => {
     align-items: center;
     justify-content: center;
     padding: 0 12px;
-    background: var(--color-neutral-100);
+    background: var(--bg-input);
     border: none;
     border-left: 1px solid var(--color-neutral-250);
     cursor: pointer;
@@ -1835,7 +1844,7 @@ onMounted(async () => {
 
 .input-addon:hover {
     color: var(--text-primary);
-    background: var(--color-neutral-220);
+    background: var(--bg-card-hover);
 }
 
 .error-message {
