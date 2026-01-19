@@ -515,60 +515,104 @@ onMounted(async () => {
 
                 <main class="settings-content">
                     <!-- Preferences Section -->
-                    <div v-if="settingsSection === 'preferences'" class="settings-section">
-                        <h2 class="settings-section-title">Preferences</h2>
-                        <p class="settings-section-desc">Customize your experience with theme, keyboard shortcuts, and
-                            display
-                            options.</p>
-
-                        <!-- Theme -->
-                        <div class="settings-group">
-                            <h3 class="settings-group-title">Theme</h3>
-                            <div class="settings-item">
-                                <div class="settings-item-info">
-                                    <label class="settings-label">Appearance</label>
-                                    <p class="settings-desc">Choose your preferred color theme</p>
-                                </div>
-                                <CustomSelect :model-value="currentTheme" :options="themeOptions"
-                                    @update:model-value="(value) => setTheme(value as Theme)" />
-                            </div>
+                    <div v-if="settingsSection === 'preferences'" class="settings-section-container">
+                        <div class="settings-header">
+                            <h2 class="settings-section-title">Preferences</h2>
+                            <p class="settings-section-desc">Customize your experience with theme, keyboard shortcuts, and display options.</p>
                         </div>
 
-                        <!-- Submit Prompt Key -->
-                        <div class="settings-group">
-                            <h3 class="settings-group-title">Submit Prompt Key</h3>
-                            <div class="settings-item">
-                                <div class="settings-item-info">
-                                    <label class="settings-label">Keyboard Shortcut</label>
-                                    <p class="settings-desc">Choose how to submit your prompts</p>
+                        <div class="start-settings-content">
+                            <!-- Theme Card -->
+                            <section class="settings-card">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="4"/>
+                                            <path d="M12 2v2"/>
+                                            <path d="M12 20v2"/>
+                                            <path d="m4.93 4.93 1.41 1.41"/>
+                                            <path d="m17.66 17.66 1.41 1.41"/>
+                                            <path d="M2 12h2"/>
+                                            <path d="M20 12h2"/>
+                                            <path d="m6.34 17.66-1.41 1.41"/>
+                                            <path d="m19.07 4.93-1.41 1.41"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">Theme</h4>
+                                        <p class="section-description">Choose your preferred color theme</p>
+                                    </div>
                                 </div>
-                                <div class="settings-control">
-                                    <div class="radio-group">
-                                        <label class="radio-label">
+                                <div class="section-content">
+                                    <div class="pref-setting-row">
+                                        <div class="pref-setting-info">
+                                            <label class="form-label">Appearance</label>
+                                            <p class="form-hint">Select light, dark, or match your system settings</p>
+                                        </div>
+                                        <CustomSelect :model-value="currentTheme" :options="themeOptions"
+                                            @update:model-value="(value) => setTheme(value as Theme)" />
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- Submit Prompt Key Card -->
+                            <section class="settings-card">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M9 18l6-6-6-6"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">Submit Prompt Key</h4>
+                                        <p class="section-description">Choose how to submit your prompts</p>
+                                    </div>
+                                </div>
+                                <div class="section-content">
+                                    <div class="radio-group-vertical">
+                                        <label class="radio-option">
                                             <input type="radio" name="submitKey" value="enter" checked>
-                                            <span>Enter to send, Shift+Enter for new line</span>
+                                            <div class="radio-option-content">
+                                                <span class="radio-option-label">Enter to send</span>
+                                                <span class="radio-option-desc">Shift+Enter for new line</span>
+                                            </div>
                                         </label>
-                                        <label class="radio-label">
+                                        <label class="radio-option">
                                             <input type="radio" name="submitKey" value="ctrl-enter">
-                                            <span>Ctrl+Enter to send, Enter for new line</span>
+                                            <div class="radio-option-content">
+                                                <span class="radio-option-label">Ctrl+Enter to send</span>
+                                                <span class="radio-option-desc">Enter for new line</span>
+                                            </div>
                                         </label>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
+                            </section>
 
-                        <!-- Display -->
-                        <div class="settings-group">
-                            <h3 class="settings-group-title">Display</h3>
-                            <div class="settings-item">
-                                <div class="settings-item-info">
-                                    <label class="settings-label">Items Per Page</label>
-                                    <p class="settings-desc">Maximum number of items to display in lists</p>
+                            <!-- Display Card -->
+                            <section class="settings-card">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                            <line x1="8" y1="21" x2="16" y2="21"/>
+                                            <line x1="12" y1="17" x2="12" y2="21"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">Display</h4>
+                                        <p class="section-description">Customize how content is displayed</p>
+                                    </div>
                                 </div>
-                                <div class="settings-control">
-                                    <span class="settings-badge">Coming Soon</span>
+                                <div class="section-content">
+                                    <div class="pref-setting-row">
+                                        <div class="pref-setting-info">
+                                            <label class="form-label">Items Per Page</label>
+                                            <p class="form-hint">Maximum number of items to display in lists</p>
+                                        </div>
+                                        <span class="settings-badge">Coming Soon</span>
+                                    </div>
                                 </div>
-                            </div>
+                            </section>
                         </div>
                     </div>
 
@@ -1699,7 +1743,6 @@ onMounted(async () => {
     border: 1px solid var(--color-neutral-250);
     border-radius: 10px;
     background: var(--bg-card);
-    overflow: hidden;
 }
 
 .section-header {
@@ -1709,6 +1752,7 @@ onMounted(async () => {
     padding: 16px;
     background: var(--color-neutral-100);
     border-bottom: 1px solid var(--color-neutral-250);
+    border-radius: 10px 10px 0 0;
 }
 
 .section-icon {
@@ -2065,6 +2109,98 @@ onMounted(async () => {
 
     .api-actions {
         justify-content: flex-end;
+    }
+}
+
+/* Preferences Section Styles */
+.pref-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.pref-setting-info {
+    flex: 1;
+}
+
+.pref-setting-info .form-label {
+    margin-bottom: 4px;
+}
+
+.pref-setting-info .form-hint {
+    margin: 0;
+}
+
+.pref-setting-row :deep(.custom-select-wrapper) {
+    min-width: 160px;
+}
+
+/* Radio Group Vertical */
+.radio-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--color-neutral-250);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg-input);
+}
+
+.radio-option:hover {
+    border-color: var(--accent-color);
+    background: var(--color-neutral-100);
+}
+
+.radio-option:has(input:checked) {
+    border-color: var(--accent-color);
+    background: var(--accent-soft, var(--color-accent-50));
+}
+
+.radio-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: var(--accent-color);
+    flex-shrink: 0;
+}
+
+.radio-option-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.radio-option-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.radio-option-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+    .pref-setting-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .pref-setting-row :deep(.custom-select-wrapper) {
+        width: 100%;
     }
 }
 </style>
