@@ -72,6 +72,13 @@ const providerDefaults: Record<string, { baseUrl: string; model: string }> = {
     anthropic: { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-3-haiku-20240307' },
     custom: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
 }
+const providerLinks: Record<string, { url: string; label: string }> = {
+    deepseek: { url: 'https://platform.deepseek.com/api_keys', label: 'platform.deepseek.com' },
+    openai: { url: 'https://platform.openai.com/api-keys', label: 'platform.openai.com' },
+    gemini: { url: 'https://aistudio.google.com/app/apikey', label: 'aistudio.google.com' },
+    anthropic: { url: 'https://console.anthropic.com/settings/keys', label: 'console.anthropic.com' },
+    custom: { url: '', label: '' },
+}
 const selectedProvider = ref('custom')
 const modelOptions = ref<{ value: string; label: string }[]>([])
 const isLoadingModels = ref(false)
@@ -80,6 +87,11 @@ const currentProviderKey = computed(() => {
     const provider = selectedProvider.value
     const entry = settings.value?.providerKeys?.[provider]
     return entry ?? { hasKey: false, maskedKey: null }
+})
+
+const currentProviderLink = computed(() => {
+    const provider = selectedProvider.value
+    return providerLinks[provider] ?? providerLinks.custom
 })
 
 const apiKeyStatusMessage = computed(() => {
@@ -600,7 +612,7 @@ onMounted(async () => {
                             <div class="file-name" :title="getFileName(file.relPath)">{{ getFileName(file.relPath) }}
                             </div>
                             <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024)
-                            }}KB</div>
+                                }}KB</div>
                         </div>
                         <div class="file-actions">
                             <button class="btn-icon" @click="handlePreview(file)" title="Preview">
@@ -647,7 +659,8 @@ onMounted(async () => {
                     <div v-if="settingsSection === 'preferences'" class="settings-section-container">
                         <div class="settings-header">
                             <h2 class="settings-section-title">Preferences</h2>
-                            <p class="settings-section-desc">Customize your experience with theme, keyboard shortcuts, and display options.</p>
+                            <p class="settings-section-desc">Customize your experience with theme, keyboard shortcuts,
+                                and display options.</p>
                         </div>
 
                         <div class="start-settings-content">
@@ -655,16 +668,18 @@ onMounted(async () => {
                             <section class="settings-card">
                                 <div class="section-header">
                                     <div class="section-icon">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <circle cx="12" cy="12" r="4"/>
-                                            <path d="M12 2v2"/>
-                                            <path d="M12 20v2"/>
-                                            <path d="m4.93 4.93 1.41 1.41"/>
-                                            <path d="m17.66 17.66 1.41 1.41"/>
-                                            <path d="M2 12h2"/>
-                                            <path d="M20 12h2"/>
-                                            <path d="m6.34 17.66-1.41 1.41"/>
-                                            <path d="m19.07 4.93-1.41 1.41"/>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="4" />
+                                            <path d="M12 2v2" />
+                                            <path d="M12 20v2" />
+                                            <path d="m4.93 4.93 1.41 1.41" />
+                                            <path d="m17.66 17.66 1.41 1.41" />
+                                            <path d="M2 12h2" />
+                                            <path d="M20 12h2" />
+                                            <path d="m6.34 17.66-1.41 1.41" />
+                                            <path d="m19.07 4.93-1.41 1.41" />
                                         </svg>
                                     </div>
                                     <div>
@@ -688,8 +703,10 @@ onMounted(async () => {
                             <section class="settings-card">
                                 <div class="section-header">
                                     <div class="section-icon">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M9 18l6-6-6-6"/>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M9 18l6-6-6-6" />
                                         </svg>
                                     </div>
                                     <div>
@@ -721,10 +738,12 @@ onMounted(async () => {
                             <section class="settings-card">
                                 <div class="section-header">
                                     <div class="section-icon">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                            <line x1="8" y1="21" x2="16" y2="21"/>
-                                            <line x1="12" y1="17" x2="12" y2="21"/>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                            <line x1="8" y1="21" x2="16" y2="21" />
+                                            <line x1="12" y1="17" x2="12" y2="21" />
                                         </svg>
                                     </div>
                                     <div>
@@ -788,8 +807,7 @@ onMounted(async () => {
                                                 <div class="step-title">Provider preset</div>
                                                 <p class="step-desc">ChatGPT, Gemini, Anthropic, DeepSeek, or a custom
                                                     endpoint.</p>
-                                                <CustomSelect :model-value="selectedProvider"
-                                                    :options="providerOptions"
+                                                <CustomSelect :model-value="selectedProvider" :options="providerOptions"
                                                     @update:model-value="(value) => setProvider(value as string)" />
                                             </div>
                                         </div>
@@ -800,6 +818,10 @@ onMounted(async () => {
                                                 <div class="step-title">API key</div>
                                                 <p class="step-desc">Stored per provider. If empty, validation will use
                                                     any stored key on the server.</p>
+                                                <p v-if="currentProviderLink.url" class="form-hint">
+                                                    Get your key from <a :href="currentProviderLink.url" target="_blank"
+                                                        rel="noopener noreferrer">{{ currentProviderLink.label }}</a>
+                                                </p>
 
                                                 <div class="current-key" v-if="currentProviderKey.hasKey">
                                                     <span class="key-status valid">
@@ -822,8 +844,8 @@ onMounted(async () => {
                                                         <input v-model="apiKeyInput"
                                                             :type="showApiKey ? 'text' : 'password'" class="form-input"
                                                             :placeholder="currentProviderKey.hasKey ? 'Enter new key to replace' : 'Enter your API key'" />
-                                                        <button class="input-addon"
-                                                            @click="showApiKey = !showApiKey" type="button">
+                                                        <button class="input-addon" @click="showApiKey = !showApiKey"
+                                                            type="button">
                                                             <svg v-if="showApiKey" xmlns="http://www.w3.org/2000/svg"
                                                                 width="16" height="16" viewBox="0 0 24 24" fill="none"
                                                                 stroke="currentColor" stroke-width="2"
@@ -883,15 +905,18 @@ onMounted(async () => {
                                                 <div v-if="balanceInfos.length" class="balance-panel">
                                                     <div class="balance-header">
                                                         <span class="balance-title">Remaining balance</span>
-                                                        <span v-if="balanceAvailable === false" class="balance-warning">Insufficient
+                                                        <span v-if="balanceAvailable === false"
+                                                            class="balance-warning">Insufficient
                                                             for API calls</span>
                                                     </div>
                                                     <div class="balance-list">
                                                         <div v-for="info in balanceInfos" :key="info.currency"
                                                             class="balance-item">
                                                             <div class="balance-line">
-                                                                <span class="balance-currency">{{ info.currency }}</span>
-                                                                <span class="balance-amount">{{ info.totalBalance }}</span>
+                                                                <span class="balance-currency">{{ info.currency
+                                                                    }}</span>
+                                                                <span class="balance-amount">{{ info.totalBalance
+                                                                    }}</span>
                                                             </div>
                                                             <div class="balance-meta">
                                                                 Granted {{ info.grantedBalance }} · Topped up {{
@@ -971,8 +996,8 @@ onMounted(async () => {
                                 </div>
 
                                 <div class="section-content">
-                                    <p class="form-hint">Clear all indexed chunks and chat sessions. Files will remain
-                                        in the reference folder.</p>
+                                    <p class="form-hint" style="font-weight: 700; margin-bottom: 1rem;">Clear all
+                                        indexed chunks and chat sessions. Files will remain in the reference folder.</p>
 
                                     <div v-if="resetSuccess" class="success-message">{{ resetSuccess }}</div>
                                     <div v-if="resetError" class="error-message">{{ resetError }}</div>
@@ -2062,6 +2087,7 @@ onMounted(async () => {
     border: 1px solid var(--color-neutral-250);
     border-radius: 8px;
     overflow: hidden;
+    transition: all 0.2s;
 }
 
 .input-group:focus-within {
@@ -2229,7 +2255,7 @@ onMounted(async () => {
 }
 
 .btn-primary-sm:hover:not(:disabled) {
-    background: var(--accent-dark);
+    background: var(--accent-hover);
 }
 
 .btn-primary-sm:disabled {
@@ -2455,10 +2481,52 @@ onMounted(async () => {
     width: 18px;
     height: 18px;
     margin: 0;
-    margin-top: 2px;
+    margin-top: 1px;
     cursor: pointer;
-    accent-color: var(--accent-color);
     flex-shrink: 0;
+    align-self: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    appearance: none;
+    -webkit-appearance: none;
+    border: 2px solid var(--color-neutral-300);
+    border-radius: 50%;
+    position: relative;
+    background: var(--bg-card);
+}
+
+.radio-option input[type="radio"]:hover {
+    border-color: var(--accent-color);
+}
+
+.radio-option input[type="radio"]:checked {
+    border-color: var(--accent-color);
+    background: var(--bg-card);
+}
+
+.radio-option input[type="radio"]:checked::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.radio-option input[type="radio"]:not(:checked)::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .radio-option-content {
@@ -2476,6 +2544,18 @@ onMounted(async () => {
 .radio-option-desc {
     font-size: 12px;
     color: var(--text-secondary);
+}
+
+@media (max-width: 1050px) {
+    .pref-setting-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .pref-setting-row :deep(.custom-select-wrapper) {
+        width: 100%;
+    }
 }
 
 @media (max-width: 640px) {
