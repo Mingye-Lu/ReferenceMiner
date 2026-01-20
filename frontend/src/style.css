@@ -127,6 +127,9 @@
 
   --accent-color-rgb: 44, 59, 103;
 
+  --mark-bg: var(--color-gold-300);
+  --mark-text: #0f2a1d;
+
   --bg-app: var(--color-neutral-70);
   --bg-sidebar: var(--color-neutral-120);
   --bg-panel: var(--color-white);
@@ -205,7 +208,20 @@
   --color-neutral-150: #333333;
   --color-neutral-200: #444444;
   --color-neutral-215: #333333;
+  --color-neutral-190: #2f2f2f;
   --color-neutral-250: #444444;
+
+  --mark-bg: #6b5a1f;
+  --mark-text: #f5f2e5;
+
+  --pdf-bg: #2a2a2a;
+  --pdf-panel: #333333;
+  --pdf-panel-border: #444444;
+  --pdf-btn: #3a3a3a;
+  --pdf-btn-hover: #4a4a4a;
+  --pdf-btn-text: var(--text-primary);
+  --pdf-muted: var(--text-secondary);
+  --pdf-hint: #66bb6a;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -277,7 +293,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-neutral-150);
+  background: transparent;
   border-radius: 4px;
 }
 
@@ -291,15 +307,15 @@
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: transparent;
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #444444;
+  background: var(--color-neutral-150);
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: #555555;
+  background: var(--color-neutral-200);
 }
 
 * {

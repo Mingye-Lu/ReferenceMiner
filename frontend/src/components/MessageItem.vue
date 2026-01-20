@@ -242,7 +242,6 @@ function isStepExpanded(index: number): boolean {
               </div>
               <transition name="fade">
                 <div v-if="step.details && isStepExpanded(i)" class="step-details">
-                  <div class="step-details-label">Step details</div>
                   <div class="step-details-text">{{ step.details }}</div>
                 </div>
               </transition>
@@ -606,21 +605,17 @@ function isStepExpanded(index: number): boolean {
 }
 
 .step-details {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--color-neutral-50);
-  border: 1px solid var(--border-color);
+  margin-left: 6px;
+  padding: 6px 10px 6px 12px;
+  border-left: 2px solid var(--accent-color);
+  background: transparent;
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-secondary);
 }
 
-.step-details-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-neutral-500);
-  margin-bottom: 4px;
+.step-details-text {
+  white-space: pre-wrap;
 }
 
 .spinner {
@@ -675,6 +670,19 @@ function isStepExpanded(index: number): boolean {
   padding-top: 2px;
   padding-bottom: 8px;
   scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-150) transparent;
+}
+
+.stream-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme="dark"] .stream-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-150) !important;
+}
+
+[data-theme="dark"] .stream-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-200) !important;
 }
 
 .stream-card {

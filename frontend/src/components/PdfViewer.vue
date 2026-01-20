@@ -333,7 +333,7 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #525659;
+  background: var(--pdf-bg);
   overflow: hidden;
 }
 
@@ -344,14 +344,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #e0e0e0;
+  color: var(--pdf-muted);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #fff;
+  border-top-color: var(--pdf-btn-text);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -365,14 +365,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #3a3a3a;
-  border-bottom: 1px solid #555;
+  background: var(--pdf-panel);
+  border-bottom: 1px solid var(--pdf-panel-border);
 }
 
 .pdf-controls button {
   padding: 6px 12px;
-  background: #555;
-  color: #fff;
+  background: var(--pdf-btn);
+  color: var(--pdf-btn-text);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -381,7 +381,7 @@ onUnmounted(() => {
 }
 
 .pdf-controls button:hover:not(:disabled) {
-  background: #666;
+  background: var(--pdf-btn-hover);
 }
 
 .pdf-controls button:disabled {
@@ -390,7 +390,7 @@ onUnmounted(() => {
 }
 
 .page-info {
-  color: #e0e0e0;
+  color: var(--pdf-muted);
   font-size: 14px;
   margin: 0 8px;
 }
@@ -403,7 +403,7 @@ onUnmounted(() => {
 }
 
 .zoom-controls span {
-  color: #e0e0e0;
+  color: var(--pdf-muted);
   font-size: 14px;
   min-width: 50px;
   text-align: center;
@@ -413,14 +413,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #b0b0b0;
+  color: var(--pdf-muted);
   font-size: 12px;
   margin-left: 16px;
   transition: color 0.2s;
 }
 
 .keyboard-hint.active {
-  color: #4CAF50;
+  color: var(--pdf-hint);
 }
 
 .keyboard-hint kbd {
@@ -429,17 +429,17 @@ onUnmounted(() => {
   font-family: monospace;
   font-size: 11px;
   font-weight: 600;
-  color: #fff;
-  background: #555;
-  border: 1px solid #777;
+  color: var(--pdf-btn-text);
+  background: var(--pdf-btn);
+  border: 1px solid var(--pdf-panel-border);
   border-radius: 3px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   transition: all 0.2s;
 }
 
 .keyboard-hint.active kbd {
-  background: #4CAF50;
-  border-color: #66BB6A;
+  background: var(--pdf-hint);
+  border-color: var(--pdf-hint);
   box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
 }
 
@@ -474,7 +474,7 @@ onUnmounted(() => {
 
 canvas {
   display: block;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .pdf-overlay {
@@ -487,19 +487,19 @@ canvas {
 
 .pdf-highlight {
   position: absolute;
-  background: rgba(255, 235, 59, 0.25);
-  border: 1px solid rgba(255, 193, 7, 0.5);
+  background: var(--alpha-highlight-40);
+  border: 1px solid var(--color-warning-400);
   pointer-events: none;
   animation: highlight-pulse 1s ease-out;
 }
 
 @keyframes highlight-pulse {
   0% {
-    background: rgba(255, 235, 59, 0.5);
+    background: var(--alpha-highlight-50);
     transform: scale(1.02);
   }
   100% {
-    background: rgba(255, 235, 59, 0.25);
+    background: var(--alpha-highlight-40);
     transform: scale(1);
   }
 }

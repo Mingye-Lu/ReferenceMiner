@@ -134,6 +134,18 @@ async function sendMessage(event?: KeyboardEvent) {
         })
         if (payload.keywords) currentAiMsg.keywords = payload.keywords
       }
+      if (event === "step_update") {
+        const timeline = currentAiMsg.timeline || []
+        for (let i = timeline.length - 1; i >= 0; i--) {
+          if (timeline[i].phase === payload.step) {
+            if (payload.title) timeline[i].message = payload.title
+            if (payload.details || payload.plan) {
+              timeline[i].details = payload.details || payload.plan
+            }
+            break
+          }
+        }
+      }
       if (event === "evidence") {
         currentAiMsg.sources = (payload || []).map((item: any) => ({
           chunkId: item.chunk_id ?? item.chunkId,

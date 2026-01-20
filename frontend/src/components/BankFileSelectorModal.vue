@@ -450,6 +450,37 @@ onMounted(loadData)
   color: var(--text-primary);
 }
 
+[data-theme="dark"] .file-card {
+  background: var(--color-neutral-105);
+  border-color: var(--color-neutral-150);
+}
+
+[data-theme="dark"] .file-card:hover {
+  background: var(--color-neutral-150);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .file-card.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .file-icon {
+  background: var(--accent-soft);
+  color: var(--accent-color);
+}
+
+[data-theme="dark"] .usage-badge {
+  background: var(--color-neutral-150);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .preview-btn:hover {
+  background: var(--bg-icon-hover);
+  color: var(--text-primary);
+}
+
 .modal-footer-custom {
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
