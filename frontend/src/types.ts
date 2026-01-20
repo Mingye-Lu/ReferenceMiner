@@ -110,9 +110,20 @@ export interface UploadItem {
   file: File
   status: UploadStatus
   progress: number
+  phase?: UploadPhase
   error?: string
   duplicatePath?: string
   result?: UploadResult
+}
+
+export interface UploadQueueItem {
+  id: string
+  name: string
+  status: UploadStatus
+  progress: number
+  phase?: UploadPhase
+  error?: string
+  duplicatePath?: string
 }
 
 export interface DuplicateCheck {

@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import asyncio
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -21,9 +22,13 @@ from urllib.parse import urlparse
 
 from refminer.analyze.workflow import analyze
 from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
-from refminer.ingest.manifest import SUPPORTED_EXTENSIONS, load_manifest
+from refminer.ingest.manifest import SUPPORTED_EXTENSIONS, load_manifest, build_manifest, write_manifest
+from refminer.ingest.extract import extract_document
 from refminer.ingest.pipeline import ingest_all
-from refminer.ingest.registry import check_duplicate, load_registry, save_registry
+from refminer.ingest.registry import HashRegistry, check_duplicate, load_registry, register_file, save_registry
+from refminer.index.bm25 import build_bm25, save_bm25
+from refminer.index.chunk import chunk_text
+from refminer.index.vectors import build_vectors, save_vectors
 from refminer.llm.openai_compatible import blocks_to_markdown, parse_answer_text, format_evidence, ChatCompletionsClient, _load_config, set_settings_manager
 from refminer.llm.agent import (
     run_agent,
@@ -337,26 +342,15 @@ async def reset_all_data():
         ref_dir, idx_dir = _get_bank_paths()
 
         # Delete index files AND manifest (but NEVER the actual reference files)
-        files_to_delete = [
-            "manifest.json",  # List of files - safe to delete
-            "chunks.jsonl",
-            "bm25.pkl",
-            "vectors.faiss",
-            "vectors.meta.npz",
-            "hash_registry.json",  # File hash registry
-        ]
-
         deleted_files = []
-        for filename in files_to_delete:
+        for filename in ["manifest.json", "chunks.jsonl", "bm25.pkl", "vectors.faiss", "vectors.meta.npz", "hash_registry.json"]:
             file_path = idx_dir / filename
             if file_path.exists():
                 file_path.unlink()
                 deleted_files.append(filename)
 
-        # Clear all chat sessions
         chats_dir = idx_dir / "chats"
         if chats_dir.exists():
-            # Remove all chat session files
             for chat_file in chats_dir.glob("*.json"):
                 chat_file.unlink()
 
@@ -370,6 +364,18 @@ async def reset_all_data():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset data: {str(e)}")
+
+
+@app.post("/api/bank/reprocess/stream")
+async def reprocess_reference_bank_stream():
+    """Stream reprocess progress while rebuilding from files in the references folder."""
+    return StreamingResponse(_stream_reprocess(), media_type="text/event-stream")
+
+
+@app.post("/api/bank/files/{rel_path:path}/reprocess/stream")
+async def reprocess_single_file_stream(rel_path: str):
+    """Stream reprocess progress for a single file."""
+    return StreamingResponse(_stream_reprocess_file(rel_path), media_type="text/event-stream")
 
 
 # --- Chat Session Endpoints ---
@@ -1360,6 +1366,32 @@ def _get_temp_dir() -> Path:
     return temp_dir
 
 
+def _clear_bank_indexes(index_dir: Path) -> None:
+    files_to_delete = [
+        "manifest.json",
+        "chunks.jsonl",
+        "bm25.pkl",
+        "vectors.faiss",
+        "vectors.meta.npz",
+        "hash_registry.json",
+    ]
+    for filename in files_to_delete:
+        file_path = index_dir / filename
+        if file_path.exists():
+            file_path.unlink()
+
+    chats_dir = index_dir / "chats"
+    if chats_dir.exists():
+        for chat_file in chats_dir.glob("*.json"):
+            chat_file.unlink()
+
+
+def _write_chunks_file(chunks_path: Path, chunks_payload: list[dict]) -> None:
+    with chunks_path.open("w", encoding="utf-8") as handle:
+        for item in chunks_payload:
+            handle.write(json.dumps(item, ensure_ascii=True) + "\n")
+
+
 def _stream_upload(
     project_id: Optional[str],
     file: UploadFile,
@@ -1400,23 +1432,35 @@ def _stream_upload(
         references_dir, index_dir = _get_bank_paths()
         registry = load_registry(index_dir=index_dir)
         existing_path = check_duplicate(file_hash, registry)
+        reuse_existing = False
 
-        if existing_path and not replace_existing:
+        final_name = file.filename or f"file{suffix}"
+        candidate_path = references_dir / final_name
+        if not existing_path and candidate_path.exists():
+            try:
+                candidate_hash = sha256_file(candidate_path)
+            except Exception:
+                candidate_hash = None
+            if candidate_hash == file_hash:
+                existing_path = str(candidate_path.relative_to(references_dir))
+                reuse_existing = True
+
+        if existing_path and not replace_existing and not reuse_existing:
             yield _sse("duplicate", {"sha256": file_hash, "existing_path": existing_path})
             return
 
         yield _sse("progress", {"phase": "storing", "percent": 70})
 
         # Determine final path
-        references_dir, index_dir = _get_bank_paths()
         references_dir.mkdir(parents=True, exist_ok=True)
-        final_name = file.filename or f"file{suffix}"
 
         # Handle name collisions (unless replacing)
         if existing_path and replace_existing:
             final_path = references_dir / existing_path
             # Remove old file from index first
             remove_file_from_index(existing_path, index_dir=index_dir, references_dir=references_dir)
+        elif reuse_existing:
+            final_path = references_dir / existing_path
         else:
             final_path = references_dir / final_name
             counter = 1
@@ -1425,14 +1469,25 @@ def _stream_upload(
                 final_path = references_dir / f"{stem}_{counter}{suffix}"
                 counter += 1
 
-        # Move file to references
-        shutil.move(str(temp_path), str(final_path))
+        # Move file to references (unless already there)
+        if not reuse_existing:
+            shutil.move(str(temp_path), str(final_path))
 
         yield _sse("progress", {"phase": "extracting", "percent": 80})
 
         # Process the file
         try:
-            entry = full_ingest_single_file(final_path, references_dir=references_dir, index_dir=index_dir, build_vectors=True)
+            entry = None
+            if reuse_existing and not replace_existing:
+                manifest = _load_manifest()
+                entry = next((e for e in manifest if e.rel_path == existing_path), None)
+                if entry is None:
+                    entry = full_ingest_single_file(final_path, references_dir=references_dir, index_dir=index_dir, build_vectors=True)
+                else:
+                    register_file(existing_path, file_hash, registry)
+                    save_registry(registry, index_dir=index_dir, references_dir=references_dir)
+            else:
+                entry = full_ingest_single_file(final_path, references_dir=references_dir, index_dir=index_dir, build_vectors=True)
         except Exception as e:
             # Clean up on processing failure
             if final_path.exists():
@@ -1451,6 +1506,7 @@ def _stream_upload(
             "page_count": entry.page_count,
             "size_bytes": entry.size_bytes,
         }
+        status_value = "replaced" if existing_path and replace_existing else ("reused" if reuse_existing else "processed")
 
         if select_in_project and project_id:
             project_manager.add_selected_files(project_id, [entry.rel_path])
@@ -1458,7 +1514,7 @@ def _stream_upload(
         yield _sse("complete", {
             "rel_path": entry.rel_path,
             "sha256": entry.sha256,
-            "status": "replaced" if existing_path else "processed",
+            "status": status_value,
             "manifest_entry": manifest_entry,
         })
 
@@ -1468,6 +1524,133 @@ def _stream_upload(
         # Cleanup temp file
         if temp_path.exists():
             temp_path.unlink()
+
+
+async def _stream_reprocess() -> Iterator[str]:
+    try:
+        ref_dir, idx_dir = _get_bank_paths()
+        idx_dir.mkdir(parents=True, exist_ok=True)
+
+        yield _sse("progress", {"phase": "resetting", "percent": 5})
+        await asyncio.sleep(0)
+        await asyncio.to_thread(_clear_bank_indexes, idx_dir)
+
+        yield _sse("progress", {"phase": "scanning", "percent": 10})
+        await asyncio.sleep(0)
+        manifest_entries = await asyncio.to_thread(build_manifest, references_dir=ref_dir)
+        total_files = len(manifest_entries)
+        yield _sse("start", {"total_files": total_files})
+        await asyncio.sleep(0)
+
+        chunks_payload: list[dict] = []
+        for index, entry in enumerate(manifest_entries, start=1):
+            yield _sse("file", {
+                "rel_path": entry.rel_path,
+                "status": "processing",
+                "phase": "extracting",
+                "index": index,
+                "total": total_files,
+            })
+            await asyncio.sleep(0)
+
+            path = Path(entry.path)
+            extracted = await asyncio.to_thread(extract_document, path, entry.file_type)
+            entry.abstract = extracted.abstract
+            entry.page_count = extracted.page_count
+            entry.title = extracted.title
+            if extracted.text_blocks:
+                chunks = await asyncio.to_thread(
+                    chunk_text,
+                    entry.rel_path,
+                    extracted.text_blocks,
+                    extracted.page_map,
+                    extracted.section_map,
+                    extracted.bbox_map,
+                )
+                for chunk in chunks:
+                    chunks_payload.append(asdict(chunk))
+
+            yield _sse("file", {
+                "rel_path": entry.rel_path,
+                "status": "complete",
+                "index": index,
+                "total": total_files,
+            })
+            await asyncio.sleep(0)
+
+        await asyncio.to_thread(write_manifest, manifest_entries, index_dir=idx_dir)
+
+        yield _sse("progress", {"phase": "indexing", "percent": 80})
+        await asyncio.sleep(0)
+        if chunks_payload:
+            chunks_path = idx_dir / "chunks.jsonl"
+            await asyncio.to_thread(_write_chunks_file, chunks_path, chunks_payload)
+
+            bm25_index = await asyncio.to_thread(
+                build_bm25,
+                [(item["chunk_id"], item["text"]) for item in chunks_payload],
+            )
+            await asyncio.to_thread(save_bm25, bm25_index, idx_dir / "bm25.pkl")
+
+            vectors_path = idx_dir / "vectors.faiss"
+            try:
+                vector_index = await asyncio.to_thread(
+                    build_vectors,
+                    [(item["chunk_id"], item["text"]) for item in chunks_payload],
+                )
+                await asyncio.to_thread(save_vectors, vector_index, vectors_path)
+            except RuntimeError:
+                pass
+
+        registry = HashRegistry()
+        for entry in manifest_entries:
+            register_file(entry.rel_path, entry.sha256, registry)
+        await asyncio.to_thread(save_registry, registry, index_dir=idx_dir, references_dir=ref_dir)
+
+        yield _sse("complete", {
+            "total_files": total_files,
+            "total_chunks": len(chunks_payload),
+        })
+    except Exception as e:
+        yield _sse("error", {"code": "REPROCESS_ERROR", "message": str(e)})
+
+
+async def _stream_reprocess_file(rel_path: str) -> Iterator[str]:
+    try:
+        ref_dir, idx_dir = _get_bank_paths()
+        resolved_path = _resolve_rel_path(rel_path)
+        file_path = ref_dir / resolved_path
+        if not file_path.exists():
+            yield _sse("error", {"code": "NOT_FOUND", "message": f"File not found: {resolved_path}"})
+            return
+
+        yield _sse("file", {
+            "rel_path": resolved_path,
+            "status": "processing",
+            "phase": "extracting",
+        })
+        await asyncio.sleep(0)
+
+        await asyncio.to_thread(remove_file_from_index, resolved_path, index_dir=idx_dir, references_dir=ref_dir)
+        entry = await asyncio.to_thread(
+            full_ingest_single_file,
+            file_path,
+            references_dir=ref_dir,
+            index_dir=idx_dir,
+            build_vectors=True,
+        )
+        manifest_entry = {
+            "rel_path": entry.rel_path,
+            "file_type": entry.file_type,
+            "title": entry.title,
+            "abstract": entry.abstract,
+            "page_count": entry.page_count,
+            "size_bytes": entry.size_bytes,
+        }
+
+        yield _sse("complete", {"manifest_entry": manifest_entry})
+    except Exception as e:
+        yield _sse("error", {"code": "REPROCESS_FILE_ERROR", "message": str(e)})
 
 
 @app.post("/api/projects/{project_id}/upload/stream")

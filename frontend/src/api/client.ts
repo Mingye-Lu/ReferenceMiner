@@ -715,6 +715,144 @@ export async function resetAllData(): Promise<{ success: boolean; message: strin
     deletedFiles: data.deleted_files ?? [],
   }
 }
+export type ReprocessEventHandler = {
+  onStart?: (totalFiles: number) => void
+  onFile?: (payload: { relPath: string; status: string; phase?: string; index?: number; total?: number }) => void
+  onProgress?: (payload: { phase: string; percent?: number }) => void
+  onComplete?: (payload: { totalFiles: number; totalChunks: number }) => void
+  onError?: (code: string, message: string) => void
+}
+
+export async function reprocessReferenceBankStream(handlers: ReprocessEventHandler): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/bank/reprocess/stream`, {
+    method: "POST",
+  })
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text()
+    handlers.onError?.("REPROCESS_FAILED", detail || "Reprocess request failed")
+    return
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      let event = "message"
+      let data = ""
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim()
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim()
+        }
+      }
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data)
+          if (event === "start") {
+            handlers.onStart?.(payload.total_files ?? 0)
+          } else if (event === "file") {
+            handlers.onFile?.({
+              relPath: payload.rel_path ?? "",
+              status: payload.status ?? "processing",
+              phase: payload.phase,
+              index: payload.index,
+              total: payload.total,
+            })
+          } else if (event === "progress") {
+            handlers.onProgress?.({
+              phase: payload.phase ?? "",
+              percent: payload.percent,
+            })
+          } else if (event === "complete") {
+            handlers.onComplete?.({
+              totalFiles: payload.total_files ?? 0,
+              totalChunks: payload.total_chunks ?? 0,
+            })
+          } else if (event === "error") {
+            handlers.onError?.(payload.code ?? "REPROCESS_ERROR", payload.message ?? "Reprocess failed")
+          }
+        } catch (e) {
+          console.error("[reprocess] Parse error:", e)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
+}
+
+export async function reprocessReferenceFileStream(relPath: string, handlers: ReprocessEventHandler): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/bank/files/${encodeURIComponent(relPath)}/reprocess/stream`, {
+    method: "POST",
+  })
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text()
+    handlers.onError?.("REPROCESS_FAILED", detail || "Reprocess request failed")
+    return
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      let event = "message"
+      let data = ""
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim()
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim()
+        }
+      }
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data)
+          if (event === "file") {
+            handlers.onFile?.({
+              relPath: payload.rel_path ?? "",
+              status: payload.status ?? "processing",
+              phase: payload.phase,
+            })
+          } else if (event === "complete") {
+            handlers.onComplete?.({
+              totalFiles: 1,
+              totalChunks: 0,
+            })
+          } else if (event === "error") {
+            handlers.onError?.(payload.code ?? "REPROCESS_ERROR", payload.message ?? "Reprocess failed")
+          }
+        } catch (e) {
+          console.error("[reprocess-file] Parse error:", e)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
+}
 
 export async function fetchModels(apiKey?: string, baseUrl?: string, provider?: string): Promise<string[]> {
   const data = await fetchJson<any>("/api/settings/models", {

@@ -6,6 +6,7 @@ import type { ManifestEntry, Project, HighlightGroup } from "../types"
 import { renderAsync } from "docx-preview"
 import { getFileUrl, fetchFileHighlights } from "../api/client"
 import { getFileName } from "../utils"
+import { Maximize2, Minimize2 } from "lucide-vue-next"
 
 const props = defineProps<{
   modelValue: boolean
@@ -24,6 +25,7 @@ const projectId = computed(() => currentProject?.value?.id || "default")
 const docxContainer = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
 const allChunkGroups = ref<HighlightGroup[] | null>(null)
+const isFullscreen = ref(true)
 
 const fileUrl = computed(() => {
   if (!props.file) return ""
@@ -87,7 +89,17 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'" size="fullscreen" @update:model-value="handleClose">
+  <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'"
+    :size="isFullscreen ? 'fullscreen' : 'xlarge'" @update:model-value="handleClose">
+    <template #header-content>
+      <div class="preview-header">
+        <h3 class="preview-title">{{ file ? getFileName(file.relPath) : 'Preview' }}</h3>
+        <button class="preview-toggle" @click="isFullscreen = !isFullscreen" :title="isFullscreen ? 'Exit full screen' : 'Full screen'">
+          <Minimize2 v-if="isFullscreen" :size="16" />
+          <Maximize2 v-else :size="16" />
+        </button>
+      </div>
+    </template>
     <div class="preview-content">
       <PdfPreview
         v-if="isPdf"
@@ -109,6 +121,39 @@ function handleClose() {
 </template>
 
 <style scoped>
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.preview-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.preview-toggle {
+  margin-left: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  color: var(--text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preview-toggle:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
+}
+
 .preview-content {
   height: 100%;
   width: 100%;

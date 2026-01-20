@@ -155,6 +155,8 @@ onUnmounted(() => {
   flex-direction: column;
   max-height: 90vh;
   outline: none;
+  overflow: hidden;
+  transition: width 0.2s ease, height 0.2s ease, max-width 0.2s ease, max-height 0.2s ease, border-radius 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* Size variants */
@@ -179,9 +181,16 @@ onUnmounted(() => {
 }
 
 .modal-fullscreen {
-  width: 90%;
-  height: 90%;
-  max-width: 1200px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
 }
 
 /* Header */
@@ -243,6 +252,7 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 12px;
   flex-shrink: 0;
+  border-radius: 0 0 12px 12px;
 }
 
 /* Animations - matching FileUploader exactly */

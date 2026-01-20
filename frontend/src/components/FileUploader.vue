@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { ref, watch } from "vue"
 import BaseModal from "./BaseModal.vue"
 import { uploadFileStream, uploadFileToBankStream } from "../api/client"
-import type { UploadItem, ManifestEntry, UploadProgress } from "../types"
+import type { UploadItem, ManifestEntry, UploadProgress, UploadQueueItem } from "../types"
 
 const props = withDefaults(defineProps<{
   projectId?: string
@@ -13,6 +13,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: "upload-complete", entry: ManifestEntry): void
+  (e: "queue-updated", items: UploadQueueItem[]): void
 }>()
 
 const isDragOver = ref(false)
@@ -24,6 +25,21 @@ const activeUploads = ref(0)
 const MAX_CONCURRENT_UPLOADS = 3
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg", ".csv", ".xlsx"]
+
+function emitQueueUpdate() {
+  const payload = uploads.value.map((item) => ({
+    id: item.id,
+    name: item.file.name,
+    status: item.status,
+    progress: item.progress,
+    phase: item.phase,
+    error: item.error,
+    duplicatePath: item.duplicatePath,
+  }))
+  emit("queue-updated", payload)
+}
+
+watch(uploads, emitQueueUpdate, { deep: true, immediate: true })
 
 function isSupported(file: File): boolean {
   const ext = "." + file.name.split(".").pop()?.toLowerCase()
@@ -97,20 +113,23 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
       onProgress: (progress: UploadProgress) => {
         updateItem({
           status: "processing",
-          progress: progress.percent ?? item.progress
+          progress: progress.percent ?? item.progress,
+          phase: progress.phase,
         })
       },
       onDuplicate: (_sha256: string, existingPath: string) => {
         updateItem({
           status: "duplicate",
-          duplicatePath: existingPath
+          duplicatePath: existingPath,
+          phase: undefined,
         })
       },
       onComplete: (result: any) => {
         updateItem({
           status: "complete",
           progress: 100,
-          result
+          result,
+          phase: undefined,
         })
         if (result.manifestEntry) {
           emit("upload-complete", result.manifestEntry)
@@ -119,7 +138,8 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
       onError: (_code: string, message: string) => {
         updateItem({
           status: "error",
-          error: message
+          error: message,
+          phase: undefined,
         })
       },
     }

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue"
+import { ref, onMounted, onUnmounted, computed } from "vue"
 import { useRouter } from "vue-router"
-import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles, getSettings, saveApiKey, saveLlmSettings, validateApiKey, deleteApiKey, resetAllData, fetchModels } from "../api/client"
-import type { Project, ManifestEntry, BalanceInfo, Settings as AppSettings } from "../types"
+import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles, getSettings, saveApiKey, saveLlmSettings, validateApiKey, deleteApiKey, resetAllData, fetchModels, reprocessReferenceBankStream, reprocessReferenceFileStream } from "../api/client"
+import type { Project, ManifestEntry, BalanceInfo, Settings as AppSettings, UploadQueueItem, UploadStatus, UploadPhase } from "../types"
 import ProjectCard from "./ProjectCard.vue"
 import FileUploader from "./FileUploader.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import CustomSelect from "./CustomSelect.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
-import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings } from "lucide-vue-next"
+import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings, ListOrdered } from "lucide-vue-next"
 import { type Theme, getStoredTheme, setTheme } from "../utils/theme"
 import { getFileName } from "../utils"
 
@@ -47,6 +47,7 @@ const isSavingLlm = ref(false)
 const isValidating = ref(false)
 const isResetting = ref(false)
 const showResetConfirm = ref(false)
+const showReprocessConfirm = ref(false)
 const validationStatus = ref<'none' | 'valid' | 'invalid'>('none')
 const validationError = ref('')
 const balanceInfos = ref<BalanceInfo[]>([])
@@ -88,6 +89,11 @@ const providerLinks: Record<string, { url: string; label: string }> = {
 const selectedProvider = ref('custom')
 const modelOptions = ref<{ value: string; label: string }[]>([])
 const isLoadingModels = ref(false)
+const isReprocessing = ref(false)
+const isQueueOpen = ref(false)
+const bankQueueItems = ref<UploadQueueItem[]>([])
+const reprocessQueueItems = ref<UploadQueueItem[]>([])
+const queueRef = ref<HTMLElement | null>(null)
 
 const currentProviderKey = computed(() => {
     const provider = selectedProvider.value
@@ -260,6 +266,137 @@ async function confirmDeleteProject() {
 function cancelDeleteProject() {
     showDeleteProjectModal.value = false
     projectToDelete.value = null
+}
+
+function handleBankQueueUpdated(items: UploadQueueItem[]) {
+    bankQueueItems.value = items
+}
+
+const queueItems = computed(() => {
+    const combined = [...bankQueueItems.value, ...reprocessQueueItems.value]
+    return combined.filter(item => item.status !== "complete")
+})
+
+const queueCount = computed(() => {
+    const combined = [...bankQueueItems.value, ...reprocessQueueItems.value]
+    return combined.filter(item =>
+        item.status === "pending" || item.status === "uploading" || item.status === "processing"
+    ).length
+})
+
+function formatQueueStatus(status: UploadStatus): string {
+    switch (status) {
+        case "pending": return "Pending"
+        case "uploading": return "Uploading"
+        case "processing": return "Processing"
+        case "complete": return "Complete"
+        case "error": return "Error"
+        case "duplicate": return "Duplicate"
+        default: return status
+    }
+}
+
+function formatQueuePhase(phase?: string): string {
+    if (!phase) return ""
+    switch (phase) {
+        case "uploading": return "Uploading"
+        case "hashing": return "Hashing"
+        case "checking_duplicate": return "Checking"
+        case "storing": return "Storing"
+        case "extracting": return "Extracting"
+        case "indexing": return "Indexing"
+        case "scanning": return "Scanning"
+        case "resetting": return "Resetting"
+        default: return phase.replace(/_/g, " ")
+    }
+}
+
+function upsertReprocessQueueItem(relPath: string, status: UploadStatus, phase?: string) {
+    const existing = reprocessQueueItems.value.find(item => item.id === relPath)
+    const progress = status === "complete" ? 100 : 0
+    const name = getFileName(relPath)
+    if (!existing) {
+        reprocessQueueItems.value = [
+            ...reprocessQueueItems.value,
+            {
+                id: relPath,
+                name,
+                status,
+                progress,
+                phase: phase as UploadPhase | undefined,
+            },
+        ]
+        return
+    }
+    const next = [...reprocessQueueItems.value]
+    const idx = next.findIndex(item => item.id === relPath)
+    next[idx] = {
+        ...next[idx],
+        name,
+        status,
+        progress,
+        phase: phase as UploadPhase | undefined,
+    }
+    reprocessQueueItems.value = next
+}
+
+function handleOutsideQueueClick(event: MouseEvent) {
+    if (!isQueueOpen.value) return
+    const target = event.target as Node | null
+    if (!target) return
+    if (queueRef.value && queueRef.value.contains(target)) return
+    isQueueOpen.value = false
+}
+
+async function handleReprocessConfirm() {
+    if (isReprocessing.value) return
+    try {
+        isReprocessing.value = true
+        reprocessQueueItems.value = []
+        await reprocessReferenceBankStream({
+            onFile: (payload) => {
+                if (!payload.relPath) return
+                upsertReprocessQueueItem(payload.relPath, payload.status as UploadStatus, payload.phase)
+            },
+            onComplete: async () => {
+                await loadBankFiles()
+            },
+            onError: (_code, message) => {
+                console.error("Failed to reprocess reference bank:", message)
+            },
+        })
+    } catch (err) {
+        console.error("Failed to reprocess reference bank:", err)
+    } finally {
+        isReprocessing.value = false
+        showReprocessConfirm.value = false
+    }
+}
+
+async function handleReprocessFile(file: ManifestEntry) {
+    if (isReprocessing.value) return
+    try {
+        isReprocessing.value = true
+        upsertReprocessQueueItem(file.relPath, "processing", "extracting")
+        await reprocessReferenceFileStream(file.relPath, {
+            onFile: (payload) => {
+                if (!payload.relPath) return
+                upsertReprocessQueueItem(payload.relPath, payload.status as UploadStatus, payload.phase)
+            },
+            onComplete: async () => {
+                upsertReprocessQueueItem(file.relPath, "complete", undefined)
+                await loadBankFiles()
+            },
+            onError: (_code, message) => {
+                console.error("Failed to reprocess file:", message)
+                upsertReprocessQueueItem(file.relPath, "error", undefined)
+            },
+        })
+    } catch (err) {
+        console.error("Failed to reprocess file:", err)
+    } finally {
+        isReprocessing.value = false
+    }
 }
 
 async function handleUploadComplete(entry: ManifestEntry) {
@@ -537,6 +674,12 @@ onMounted(async () => {
     } finally {
         isLoadingSettings.value = false
     }
+
+    document.addEventListener('click', handleOutsideQueueClick)
+})
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleOutsideQueueClick)
 })
 </script>
 
@@ -618,11 +761,21 @@ onMounted(async () => {
             <!-- Reference Bank Tab -->
             <div v-else-if="activeTab === 'bank'" class="bank-content">
                 <div class="bank-header">
-                    <h2>Reference Bank</h2>
-                    <p>Upload and manage your research files. Files can be selected in any project.</p>
+                    <div class="bank-header-text">
+                        <h2>Reference Bank</h2>
+                        <p>Upload and manage your research files. Files can be selected in any project.</p>
+                    </div>
+                    <div class="bank-header-actions">
+                        <button class="bank-action-btn" :disabled="isReprocessing || bankLoading"
+                            @click="showReprocessConfirm = true">
+                            <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
+                            <span>{{ isReprocessing ? 'Reprocessing...' : 'Reprocess All' }}</span>
+                        </button>
+                    </div>
                 </div>
 
-                <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete" />
+                <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete"
+                    @queue-updated="handleBankQueueUpdated" />
 
                 <div v-if="bankLoading" class="loading-state">
                     <Loader2 class="spinner" :size="32" />
@@ -647,15 +800,50 @@ onMounted(async () => {
                             }}KB</div>
                         </div>
                         <div class="file-actions">
-                            <button class="btn-icon" @click="handlePreview(file)" title="Preview">
+                            <button class="btn-icon tooltip" data-tooltip="Preview file"
+                                @click="handlePreview(file)">
                                 <Search :size="16" />
                             </button>
-                            <button class="btn-icon delete" @click="requestDelete(file)" title="Delete">
+                            <button class="btn-icon tooltip" data-tooltip="Reprocess file"
+                                @click="handleReprocessFile(file)">
+                                <Upload :size="16" />
+                            </button>
+                            <button class="btn-icon delete tooltip" data-tooltip="Delete file"
+                                @click="requestDelete(file)">
                                 <Trash2 :size="16" />
                             </button>
                         </div>
                     </div>
                 </TransitionGroup>
+
+                <div ref="queueRef" class="bank-queue-fab">
+                    <button class="queue-toggle" @click="isQueueOpen = !isQueueOpen">
+                        <ListOrdered :size="16" />
+                        <span v-if="queueCount > 0" class="queue-badge">{{ queueCount }}</span>
+                    </button>
+                    <Transition name="queue-panel">
+                        <div v-if="isQueueOpen" class="queue-panel">
+                        <div v-if="queueItems.length === 0" class="queue-empty">No active tasks.</div>
+                        <div v-else class="queue-list">
+                            <div v-for="item in queueItems" :key="item.id" class="queue-item">
+                                <div class="queue-name" :title="item.name">{{ item.name }}</div>
+                                <div class="queue-meta">
+                                    <span class="queue-status" :class="item.status">{{ formatQueueStatus(item.status) }}</span>
+                                    <span v-if="item.phase" class="queue-phase">{{ formatQueuePhase(item.phase) }}</span>
+                                    <span v-if="item.progress >= 0" class="queue-progress-text">{{ item.progress }}%</span>
+                                </div>
+                                <div v-if="item.progress >= 0" class="queue-progress">
+                                    <div class="queue-progress-fill" :style="{ width: `${item.progress}%` }"></div>
+                                </div>
+                                <div v-if="item.status === 'error' && item.error" class="queue-error">{{ item.error }}</div>
+                                <div v-if="item.status === 'duplicate' && item.duplicatePath" class="queue-duplicate">
+                                    Duplicate: {{ item.duplicatePath }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </Transition>
+                </div>
             </div>
 
             <!-- Settings Tab -->
@@ -1144,6 +1332,11 @@ onMounted(async () => {
     <ConfirmationModal v-model="showResetConfirm" title="Clear All Data?"
         message="This will permanently delete all indexed chunks, search indexes, and chat sessions. Your files will remain in the reference folder. This action cannot be undone."
         confirm-text="Clear All Data" cancel-text="Cancel" @confirm="handleResetConfirm" />
+
+    <!-- Reprocess Reference Bank -->
+    <ConfirmationModal v-model="showReprocessConfirm" title="Reprocess Reference Bank?"
+        message="This will delete all indexed data and rebuild from files in the reference folder. Your files will remain untouched."
+        confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm" />
 </template>
 
 <style scoped>
@@ -1451,6 +1644,45 @@ onMounted(async () => {
 
 .bank-header {
     margin-bottom: 30px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.bank-header-text {
+    max-width: 720px;
+}
+
+.bank-header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.bank-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--color-white);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.bank-action-btn:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-bright);
+}
+
+.bank-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .bank-header h2 {
@@ -1490,6 +1722,173 @@ onMounted(async () => {
 
 .file-list-leave-active {
     pointer-events: none;
+}
+
+.bank-queue-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 900;
+}
+
+.queue-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--color-white);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 20px var(--alpha-black-10);
+    transition: all 0.15s;
+}
+
+.queue-toggle:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-bright);
+}
+
+.queue-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    background: var(--accent-color);
+    color: var(--color-white);
+}
+
+.queue-panel {
+    width: 280px;
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 10px 24px var(--alpha-black-15);
+}
+
+.queue-empty {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 12px 0;
+}
+
+.queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.queue-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 10px;
+}
+
+.queue-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.queue-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.queue-phase {
+    color: var(--text-secondary);
+}
+
+.queue-status {
+    font-weight: 600;
+}
+
+.queue-status.uploading,
+.queue-status.processing {
+    color: var(--color-info-800);
+}
+
+.queue-status.pending {
+    color: var(--color-neutral-650);
+}
+
+.queue-status.error {
+    color: var(--color-danger-700);
+}
+
+.queue-status.duplicate {
+    color: var(--color-warning-800);
+}
+
+.queue-progress {
+    height: 4px;
+    background: var(--color-neutral-240);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.queue-progress-fill {
+    height: 100%;
+    background: var(--accent-color);
+    transition: width 0.2s ease;
+}
+
+.queue-progress-text {
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+
+.queue-error {
+    font-size: 11px;
+    color: var(--color-danger-700);
+}
+
+.queue-duplicate {
+    font-size: 11px;
+    color: var(--color-warning-800);
+}
+
+.queue-panel-enter-active,
+.queue-panel-leave-active {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.queue-panel-enter-from,
+.queue-panel-leave-to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+}
+
+.queue-panel-enter-to,
+.queue-panel-leave-from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
 }
 
 .file-card {
@@ -1571,6 +1970,34 @@ onMounted(async () => {
     gap: 4px;
     opacity: 0;
     transition: opacity 0.2s;
+}
+
+.btn-icon.tooltip {
+    position: relative;
+}
+
+.btn-icon.tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translate(-50%, -6px);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 10px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 2;
+}
+
+.btn-icon.tooltip:hover::after {
+    opacity: 1;
+    transform: translate(-50%, -10px);
 }
 
 
