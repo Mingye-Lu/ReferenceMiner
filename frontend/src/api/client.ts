@@ -7,6 +7,7 @@ import type {
   EvidenceChunk,
   IndexStatus,
   ManifestEntry,
+  HighlightGroup,
   UploadProgress,
   UploadResult,
   Project,
@@ -548,6 +549,23 @@ export async function checkDuplicate(projectId: string, sha256: string): Promise
 export function getFileUrl(_projectId: string, relPath: string): string {
   return `${API_BASE}/files/${encodeURIComponent(relPath)}`
 }
+
+export async function fetchFileHighlights(relPath: string): Promise<HighlightGroup[]> {
+  const data = await fetchJson<any[]>(`/api/files/${encodeURIComponent(relPath)}/highlights`)
+  return (data ?? []).map((item) => ({
+    id: item.chunk_id ?? item.chunkId ?? "",
+    boxes: (item.bbox ?? item.boxes ?? []).map((box: any) => ({
+      page: box.page,
+      x0: box.x0,
+      y0: box.y0,
+      x1: box.x1,
+      y1: box.y1,
+      charStart: box.char_start ?? box.charStart ?? 0,
+      charEnd: box.char_end ?? box.charEnd ?? 0,
+    })),
+  }))
+}
+
 
 // =============================================================================
 // Project API

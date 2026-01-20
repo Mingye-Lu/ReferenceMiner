@@ -215,6 +215,9 @@ async function confirmDelete() {
         deleting.value = true
         const relPath = fileToDelete.value.relPath
         bankFiles.value = bankFiles.value.filter(file => file.relPath !== relPath)
+        if (previewFile.value?.relPath === relPath) {
+            previewFile.value = null
+        }
         await deleteFile('default', relPath)
         showDeleteModal.value = false
         fileToDelete.value = null
@@ -1569,6 +1572,7 @@ onMounted(async () => {
     opacity: 0;
     transition: opacity 0.2s;
 }
+
 
 
 .file-card:hover .file-actions {

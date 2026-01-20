@@ -489,6 +489,35 @@ def _load_manifest() -> list:
     except Exception:
         return []
 
+def _load_chunk_highlights(rel_path: str) -> list[dict[str, Any]]:
+    _, idx_dir = _get_bank_paths()
+    chunks_path = idx_dir / "chunks.jsonl"
+    if not chunks_path.exists():
+        return []
+    results: list[dict[str, Any]] = []
+    try:
+        with chunks_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if item.get("path") != rel_path:
+                    continue
+                bbox = item.get("bbox")
+                if not bbox:
+                    continue
+                results.append(
+                    {
+                        "chunk_id": item.get("chunk_id"),
+                        "bbox": bbox,
+                    }
+                )
+    except Exception:
+        return []
+    return results
+
+
 def _resolve_rel_path(rel_path: str) -> str:
     ref_dir, _ = _get_bank_paths()
     file_path = ref_dir / rel_path
@@ -1147,6 +1176,16 @@ async def get_file_stats():
                 stats[file_path]["last_used"] = project.last_active
     
     return stats
+
+
+@app.get("/api/files/{rel_path:path}/highlights")
+async def get_file_highlights(rel_path: str):
+    """Return bounding boxes for all chunks in a file (PDF only)."""
+    resolved_path = _resolve_rel_path(rel_path)
+    highlights = _load_chunk_highlights(resolved_path)
+    return highlights
+
+
 
 
 @app.get("/api/projects/{project_id}/files")

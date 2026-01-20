@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
-import type { BoundingBox } from '../types'
+import type { HighlightGroup } from '../types'
 
 // Setup PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs'
 
 const props = defineProps<{
   fileUrl: string
-  highlights?: BoundingBox[]
+  highlightGroups?: HighlightGroup[]
   initialPage?: number
 }>()
 
@@ -21,10 +21,38 @@ const totalPages = ref(0)
 const isLoading = ref(true)
 const error = ref<string>()
 const scale = ref(1.5)
+const highlightEnabled = ref(true)
+const pageInput = ref('1')
+const fitMode = ref<'custom' | 'width'>('custom')
+const zoomInput = ref('150')
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 let renderTask: pdfjsLib.RenderTask | null = null
 let renderSeq = 0
+let lastViewport: any = null
+let lastPageNumber = 0
+let shouldAutoScroll = false
+let resizeObserver: ResizeObserver | null = null
+let resizeRaf = 0
+
+const highlightPalette = [
+  '#F59E0B',
+  '#10B981',
+  '#3B82F6',
+  '#EF4444',
+  '#8B5CF6',
+  '#14B8A6',
+  '#E11D48',
+  '#6366F1',
+]
+
+const hasHighlights = computed(() => {
+  return (props.highlightGroups?.length ?? 0) > 0
+})
+
+const normalizedGroups = computed<HighlightGroup[]>(() => {
+  return props.highlightGroups ?? []
+})
 
 // Drag-to-pan state
 const isDragMode = ref(false)
@@ -62,6 +90,9 @@ const loadPdf = async () => {
     if (props.initialPage && props.initialPage >= 1 && props.initialPage <= totalPages.value) {
       currentPage.value = props.initialPage
     }
+    pageInput.value = `${currentPage.value}`
+    zoomInput.value = `${Math.round(scale.value * 100)}`
+    shouldAutoScroll = true
 
     // Must set isLoading=false first so canvas renders
     isLoading.value = false
@@ -111,13 +142,18 @@ const renderPage = async () => {
     renderTask = null
 
     syncOverlay(viewport)
+    lastViewport = viewport
+    lastPageNumber = page.pageNumber
 
     // Render highlights
     renderHighlights(viewport, page.pageNumber)
 
     // Scroll to first highlight if this is the initial render
-    await nextTick()
-    scrollToFirstHighlight()
+    if (shouldAutoScroll) {
+      await nextTick()
+      scrollToFirstHighlight()
+      shouldAutoScroll = false
+    }
   } catch (err: any) {
     if (err?.name !== 'RenderingCancelledException') {
       console.error('Error rendering page:', err)
@@ -136,53 +172,101 @@ const syncOverlay = (viewport: any) => {
 }
 
 const renderHighlights = (viewport: any, pageNumber: number) => {
-  if (!overlayRef.value || !props.highlights) return
+  if (!overlayRef.value) return
 
   // Clear existing highlights
   overlayRef.value.innerHTML = ''
 
-  // Filter highlights for current page
-  const pageHighlights = props.highlights.filter(h => h.page === pageNumber)
-  const pdfHeight = (viewport.viewBox?.[3] ?? 0) - (viewport.viewBox?.[1] ?? 0)
-
-  for (const highlight of pageHighlights) {
-    const highlightDiv = document.createElement('div')
-    highlightDiv.className = 'pdf-highlight'
-
-    // Convert PyMuPDF (top-left) coords to PDF.js (bottom-left) coords
-    const [x0, y0, x1, y1] = viewport.convertToViewportRectangle([
-      highlight.x0,
-      pdfHeight - highlight.y1,
-      highlight.x1,
-      pdfHeight - highlight.y0,
-    ])
-
-    const left = Math.min(x0, x1)
-    const top = Math.min(y0, y1)
-    const width = Math.abs(x1 - x0)
-    const height = Math.abs(y1 - y0)
-
-    // Set position and size (inline styles required for dynamic positioning)
-    highlightDiv.style.position = 'absolute'
-    highlightDiv.style.left = `${left}px`
-    highlightDiv.style.top = `${top}px`
-    highlightDiv.style.width = `${width}px`
-    highlightDiv.style.height = `${height}px`
-    highlightDiv.style.background = 'rgba(255, 235, 59, 0.4)'
-    highlightDiv.style.border = '1px solid rgba(255, 193, 7, 0.8)'
-    highlightDiv.style.pointerEvents = 'none'
-
-    overlayRef.value.appendChild(highlightDiv)
+  if (!highlightEnabled.value || !hasHighlights.value) {
+    return
   }
+
+  const pdfHeight = (viewport.viewBox?.[3] ?? 0) - (viewport.viewBox?.[1] ?? 0)
+  const groups = normalizedGroups.value
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+    const group = groups[groupIndex]
+    const pageHighlights = group.boxes.filter(h => h.page === pageNumber)
+    if (pageHighlights.length === 0) continue
+
+    const color = group.color || colorForGroup(group, groupIndex)
+    const border = color
+    const background = toAlpha(color, 0.35)
+
+    for (const highlight of pageHighlights) {
+      const highlightDiv = document.createElement('div')
+      highlightDiv.className = 'pdf-highlight'
+
+      // Convert PyMuPDF (top-left) coords to PDF.js (bottom-left) coords
+      const [x0, y0, x1, y1] = viewport.convertToViewportRectangle([
+        highlight.x0,
+        pdfHeight - highlight.y1,
+        highlight.x1,
+        pdfHeight - highlight.y0,
+      ])
+
+      const left = Math.min(x0, x1)
+      const top = Math.min(y0, y1)
+      const width = Math.abs(x1 - x0)
+      const height = Math.abs(y1 - y0)
+
+      // Set position and size (inline styles required for dynamic positioning)
+      highlightDiv.style.position = 'absolute'
+      highlightDiv.style.left = `${left}px`
+      highlightDiv.style.top = `${top}px`
+      highlightDiv.style.width = `${width}px`
+      highlightDiv.style.height = `${height}px`
+      highlightDiv.style.background = background
+      highlightDiv.style.border = `1px solid ${border}`
+      highlightDiv.style.pointerEvents = 'none'
+
+      overlayRef.value.appendChild(highlightDiv)
+    }
+  }
+
+}
+
+const colorForGroup = (group: HighlightGroup, index: number) => {
+  if (group.color) return group.color
+  const id = group.id || ''
+  if (id) {
+    let hash = 0
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+    }
+    return highlightPalette[hash % highlightPalette.length]
+  }
+  return highlightPalette[index % highlightPalette.length]
+}
+
+const toAlpha = (color: string, alpha: number) => {
+  const hex = color.replace('#', '')
+  if (hex.length === 6) {
+    const r = parseInt(hex.slice(0, 2), 16)
+    const g = parseInt(hex.slice(2, 4), 16)
+    const b = parseInt(hex.slice(4, 6), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+  return color
 }
 
 const scrollToFirstHighlight = () => {
-  if (!containerRef.value || !overlayRef.value) return
+  if (!containerRef.value || !overlayRef.value || !highlightEnabled.value) return
 
   const firstHighlight = overlayRef.value.querySelector('.pdf-highlight')
   if (firstHighlight) {
     firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
+}
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.min(Math.max(value, min), max)
+}
+
+const applyScale = (nextScale: number) => {
+  fitMode.value = 'custom'
+  scale.value = clamp(nextScale, 0.5, 3)
+  zoomInput.value = `${Math.round(scale.value * 100)}`
+  renderPage()
 }
 
 const nextPage = () => {
@@ -198,33 +282,105 @@ const prevPage = () => {
 }
 
 const zoomIn = () => {
-  scale.value = Math.min(scale.value + 0.25, 3)
-  renderPage()
+  applyScale(scale.value + 0.25)
 }
 
 const zoomOut = () => {
-  scale.value = Math.max(scale.value - 0.25, 0.5)
+  applyScale(scale.value - 0.25)
+}
+
+const toggleHighlights = () => {
+  highlightEnabled.value = !highlightEnabled.value
+  if (lastViewport) {
+    renderHighlights(lastViewport, lastPageNumber)
+  } else {
+    renderPage()
+  }
+}
+
+const fitToWidth = async () => {
+  if (!pdfDoc || !pageContainerRef.value) return
+  const page = await pdfDoc.getPage(currentPage.value)
+  const viewport = page.getViewport({ scale: 1 })
+  const horizontalPadding = 40
+  const availableWidth = Math.max(pageContainerRef.value.clientWidth - horizontalPadding, 200)
+  fitMode.value = 'width'
+  scale.value = clamp(availableWidth / viewport.width, 0.5, 3)
+  zoomInput.value = `${Math.round(scale.value * 100)}`
   renderPage()
+}
+
+const goToPage = () => {
+  const raw = parseInt(pageInput.value, 10)
+  if (!Number.isFinite(raw)) {
+    pageInput.value = `${currentPage.value}`
+    return
+  }
+  const clamped = clamp(raw, 1, totalPages.value || 1)
+  if (clamped !== currentPage.value) {
+    currentPage.value = clamped
+  } else {
+    pageInput.value = `${clamped}`
+  }
+}
+
+const goToZoom = () => {
+  const raw = parseInt(zoomInput.value, 10)
+  if (!Number.isFinite(raw)) {
+    zoomInput.value = `${Math.round(scale.value * 100)}`
+    return
+  }
+  const clampedPercent = clamp(raw, 50, 300)
+  applyScale(clampedPercent / 100)
+  zoomInput.value = `${Math.round(scale.value * 100)}`
+}
+
+const refreshHighlights = () => {
+  if (!lastViewport) return
+  renderHighlights(lastViewport, lastPageNumber)
 }
 
 // Watch for page changes
 watch(currentPage, () => {
+  pageInput.value = `${currentPage.value}`
   renderPage()
 })
 
-watch(() => props.highlights, () => {
-  if (pdfDoc) {
-    renderPage()
+watch([() => props.highlightGroups, highlightEnabled], () => {
+  if (!pdfDoc) return
+  if (lastViewport) {
+    refreshHighlights()
+    return
   }
+  renderPage()
 }, { deep: true })
 
 // Watch for file URL changes
 watch(() => props.fileUrl, () => {
+  highlightEnabled.value = true
+  shouldAutoScroll = true
   loadPdf()
 })
 
+
+watch(
+  () => props.initialPage,
+  (page) => {
+    if (!pdfDoc || !page) return
+    if (page >= 1 && page <= totalPages.value && currentPage.value !== page) {
+      currentPage.value = page
+      renderPage()
+    }
+  }
+)
+
+
 // Drag-to-pan functionality (H key for Hand tool - standard in PDF viewers)
 const handleKeyDown = (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement | null
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+    return
+  }
   if (e.key === 'h' && !isDragMode.value && pageContainerRef.value) {
     isDragMode.value = true
   }
@@ -265,6 +421,20 @@ onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('mouseup', handleMouseUp)
+  if ('ResizeObserver' in window) {
+    resizeObserver = new ResizeObserver(() => {
+      if (resizeRaf) cancelAnimationFrame(resizeRaf)
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0
+        if (fitMode.value === 'width') {
+          fitToWidth()
+        }
+      })
+    })
+    if (pageContainerRef.value) {
+      resizeObserver.observe(pageContainerRef.value)
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -280,6 +450,13 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('mouseup', handleMouseUp)
+  if (resizeObserver && pageContainerRef.value) {
+    resizeObserver.unobserve(pageContainerRef.value)
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
 })
 </script>
 
@@ -296,18 +473,62 @@ onUnmounted(() => {
 
     <div v-else class="pdf-content">
       <div class="pdf-controls">
-        <button @click="prevPage" :disabled="currentPage <= 1">Previous</button>
-        <span class="page-info">Page {{ currentPage }} / {{ totalPages }}</span>
-        <button @click="nextPage" :disabled="currentPage >= totalPages">Next</button>
-        <div class="zoom-controls">
-          <button @click="zoomOut" :disabled="scale <= 0.5">-</button>
-          <span>{{ Math.round(scale * 100) }}%</span>
-          <button @click="zoomIn" :disabled="scale >= 3">+</button>
+        <div class="control-group">
+          <button class="nav-btn" @click="prevPage" :disabled="currentPage <= 1" title="Previous page">
+            Prev
+          </button>
+          <div class="page-input">
+            <input
+              v-model="pageInput"
+              type="number"
+              min="1"
+              :max="totalPages"
+              @keydown.enter="goToPage"
+              @blur="goToPage"
+              aria-label="Page number"
+            />
+            <span>/ {{ totalPages }}</span>
+          </div>
+          <button class="nav-btn" @click="nextPage" :disabled="currentPage >= totalPages" title="Next page">
+            Next
+          </button>
         </div>
-        <div class="keyboard-hint" :class="{ active: isDragMode }">
-          <kbd>H</kbd>
-          <span v-if="isDragMode">Pan mode active</span>
-          <span v-else>to pan</span>
+
+        <div class="control-group">
+          <button class="zoom-btn" @click="zoomOut" :disabled="scale <= 0.5" title="Zoom out">-</button>
+          <label class="zoom-input">
+            <input
+              v-model="zoomInput"
+              type="number"
+              min="50"
+              max="300"
+              step="10"
+              @keydown.enter="goToZoom"
+              @blur="goToZoom"
+              aria-label="Zoom percentage"
+            />
+            <span>%</span>
+          </label>
+          <button class="zoom-btn" @click="zoomIn" :disabled="scale >= 3" title="Zoom in">+</button>
+          <button class="fit-btn" @click="fitToWidth" :disabled="!totalPages" title="Fit page to width">
+            Fit width
+          </button>
+        </div>
+
+        <div class="control-group end">
+          <button
+            class="highlight-toggle"
+            :class="{ active: highlightEnabled }"
+            @click="toggleHighlights"
+            :title="highlightEnabled ? 'Hide highlights' : 'Show highlights'"
+          >
+            Highlights
+          </button>
+          <div class="keyboard-hint" :class="{ active: isDragMode }">
+            <kbd>H</kbd>
+            <span v-if="isDragMode">Pan mode active</span>
+            <span v-else>Hold to pan</span>
+          </div>
         </div>
       </div>
 
@@ -333,7 +554,7 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--pdf-bg);
+  background: var(--bg-panel);
   overflow: hidden;
 }
 
@@ -344,14 +565,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--pdf-muted);
+  color: var(--text-secondary);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--pdf-btn-text);
+  border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -363,64 +584,141 @@ onUnmounted(() => {
 .pdf-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--pdf-panel);
-  border-bottom: 1px solid var(--pdf-panel-border);
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 14px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .pdf-controls button {
   padding: 6px 12px;
-  background: var(--pdf-btn);
-  color: var(--pdf-btn-text);
-  border: none;
-  border-radius: 4px;
+  background: var(--color-white);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
 .pdf-controls button:hover:not(:disabled) {
-  background: var(--pdf-btn-hover);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-card-hover);
 }
 
 .pdf-controls button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  border-color: transparent;
 }
 
-.page-info {
-  color: var(--pdf-muted);
-  font-size: 14px;
-  margin: 0 8px;
+.pdf-controls button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.2);
 }
 
-.zoom-controls {
+.control-group {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.control-group.end {
   margin-left: auto;
 }
 
-.zoom-controls span {
-  color: var(--pdf-muted);
-  font-size: 14px;
-  min-width: 50px;
+.page-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-input);
+  background: var(--color-white);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.page-input input {
+  width: 64px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
   text-align: center;
+  outline: none;
+}
+
+.page-input input:focus {
+  outline: none;
+}
+
+.zoom-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-input);
+  background: var(--color-white);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.zoom-input input {
+  width: 56px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.highlight-toggle {
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-card);
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.highlight-toggle:hover {
+  background-color: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
+}
+
+.highlight-toggle.active {
+  background-color: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
 }
 
 .keyboard-hint {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--pdf-muted);
+  color: var(--text-secondary);
   font-size: 12px;
-  margin-left: 16px;
   transition: color 0.2s;
 }
 
 .keyboard-hint.active {
-  color: var(--pdf-hint);
+  color: var(--accent-color);
 }
 
 .keyboard-hint kbd {
@@ -429,18 +727,19 @@ onUnmounted(() => {
   font-family: monospace;
   font-size: 11px;
   font-weight: 600;
-  color: var(--pdf-btn-text);
-  background: var(--pdf-btn);
-  border: 1px solid var(--pdf-panel-border);
+  color: var(--text-primary);
+  background: var(--bg-button);
+  border: 1px solid var(--border-color);
   border-radius: 3px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all 0.2s;
 }
 
 .keyboard-hint.active kbd {
-  background: var(--pdf-hint);
-  border-color: var(--pdf-hint);
-  box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: var(--color-white);
+  box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.25);
 }
 
 .pdf-content {
@@ -453,7 +752,8 @@ onUnmounted(() => {
 .pdf-page-container {
   flex: 1;
   overflow: auto;
-  padding: 20px;
+  padding: 24px;
+  background: var(--bg-app);
 }
 
 .pdf-page-container.drag-mode {
@@ -474,6 +774,9 @@ onUnmounted(() => {
 
 canvas {
   display: block;
+  background: var(--bg-panel);
+  border-radius: 10px;
+  border: 1px solid var(--border-card);
   box-shadow: var(--shadow-md);
 }
 
@@ -501,6 +804,30 @@ canvas {
   100% {
     background: var(--alpha-highlight-40);
     transform: scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .pdf-controls {
+    padding: 10px;
+  }
+
+  .control-group {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .control-group.end {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .page-input input {
+    width: 54px;
+  }
+
+  .keyboard-hint span {
+    display: none;
   }
 }
 </style>

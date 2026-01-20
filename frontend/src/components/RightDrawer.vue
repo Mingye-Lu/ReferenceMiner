@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, inject, watch, nextTick, computed, type Ref } from "vue"
-import type { EvidenceChunk, ManifestEntry } from "../types"
-import PdfViewer from "./PdfViewer.vue"
+import type { EvidenceChunk, ManifestEntry, HighlightGroup } from "../types"
+import PdfPreview from "./PdfPreview.vue"
 import { getFileUrl } from "../api/client"
 
 const props = defineProps<{
@@ -94,9 +94,12 @@ const previewFileUrl = computed(() => {
   if (!previewFile.value) return ""
   return getFileUrl(projectId.value, previewFile.value.relPath)
 })
-const previewHighlights = computed(() => props.evidence?.bbox ?? undefined)
+const previewHighlightGroups = computed<HighlightGroup[] | undefined>(() => {
+  if (!props.evidence?.bbox || props.evidence.bbox.length === 0) return undefined
+  return [{ id: props.evidence.chunkId, boxes: props.evidence.bbox }]
+})
 const canRenderPdfPreview = computed(() => {
-  return previewFile.value?.fileType === "pdf" && previewHighlights.value && previewHighlights.value.length > 0
+  return previewFile.value?.fileType === "pdf"
 })
 watch(() => props.evidence, (newVal) => {
   if (newVal) {
@@ -202,12 +205,12 @@ function handlePin() {
         </div>
 
         <div v-if="canRenderPdfPreview" class="reader-preview">
-          <PdfViewer :file-url="previewFileUrl" :highlights="previewHighlights"
-            :initial-page="props.evidence.page ?? undefined" class="reader-pdf" />
-        </div>
-
-        <div v-else class="evidence-highlight-box">
-          <div class="highlight-text">{{ props.evidence.text }}</div>
+          <PdfPreview
+            :file-url="previewFileUrl"
+            :highlight-groups="previewHighlightGroups"
+            :initial-page="props.evidence?.page ?? undefined"
+            class="reader-pdf"
+          />
         </div>
       </div>
       <div v-else class="empty-state">

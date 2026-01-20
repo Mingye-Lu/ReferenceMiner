@@ -20,6 +20,12 @@ export interface BoundingBox {
   charEnd: number
 }
 
+export interface HighlightGroup {
+  id?: string
+  boxes: BoundingBox[]
+  color?: string
+}
+
 export interface EvidenceChunk {
   chunkId: string
   path: string

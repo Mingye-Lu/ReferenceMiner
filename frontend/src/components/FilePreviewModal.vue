@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, inject, type Ref } from "vue"
 import BaseModal from "./BaseModal.vue"
-import PdfViewer from "./PdfViewer.vue"
-import type { ManifestEntry, Project, BoundingBox } from "../types"
+import PdfPreview from "./PdfPreview.vue"
+import type { ManifestEntry, Project, HighlightGroup } from "../types"
 import { renderAsync } from "docx-preview"
-import { getFileUrl } from "../api/client"
+import { getFileUrl, fetchFileHighlights } from "../api/client"
 import { getFileName } from "../utils"
 
 const props = defineProps<{
   modelValue: boolean
   file: ManifestEntry | null
-  highlights?: BoundingBox[]
+  highlightGroups?: HighlightGroup[]
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +23,7 @@ const projectId = computed(() => currentProject?.value?.id || "default")
 
 const docxContainer = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
+const allChunkGroups = ref<HighlightGroup[] | null>(null)
 
 const fileUrl = computed(() => {
   if (!props.file) return ""
@@ -32,12 +33,10 @@ const fileUrl = computed(() => {
 const isPdf = computed(() => props.file?.fileType === "pdf")
 const isImage = computed(() => ["png", "jpg", "jpeg", "gif", "webp"].includes(props.file?.fileType || ""))
 const isDocx = computed(() => ["docx", "doc"].includes(props.file?.fileType || ""))
-const usePdfViewer = computed(() => {
-  return isPdf.value && props.highlights && props.highlights.length > 0
-})
-const initialPage = computed(() => {
-  if (!props.highlights || props.highlights.length === 0) return undefined
-  return props.highlights[0].page
+
+const activeHighlightGroups = computed(() => {
+  if (allChunkGroups.value && allChunkGroups.value.length > 0) return allChunkGroups.value
+  return props.highlightGroups
 })
 
 async function loadDocx() {
@@ -62,10 +61,23 @@ async function loadDocx() {
   }
 }
 
+async function loadHighlights() {
+  if (!props.file || !isPdf.value) {
+    allChunkGroups.value = null
+    return
+  }
+  try {
+    allChunkGroups.value = await fetchFileHighlights(props.file.relPath)
+  } catch (e) {
+    allChunkGroups.value = null
+  }
+}
+
 watch(() => props.file, () => {
   if (isDocx.value) {
     nextTick(() => loadDocx())
   }
+  loadHighlights()
 }, { immediate: true })
 
 function handleClose() {
@@ -77,8 +89,12 @@ function handleClose() {
 <template>
   <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'" size="fullscreen" @update:model-value="handleClose">
     <div class="preview-content">
-      <PdfViewer v-if="usePdfViewer" :file-url="fileUrl" :highlights="highlights" :initial-page="initialPage" class="pdf-viewer-wrapper" />
-      <iframe v-else-if="isPdf" :src="fileUrl" class="preview-frame"></iframe>
+      <PdfPreview
+        v-if="isPdf"
+        :file-url="fileUrl"
+        :highlight-groups="activeHighlightGroups"
+        class="pdf-viewer-wrapper"
+      />
       <img v-else-if="isImage" :src="fileUrl" class="preview-image" />
       <div v-else-if="isDocx" class="docx-preview-area">
         <div v-if="isLoading" class="loading">Loading document...</div>
@@ -97,15 +113,15 @@ function handleClose() {
   height: 100%;
   width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
   background: var(--color-neutral-85);
 }
 
-.preview-frame,
 .pdf-viewer-wrapper {
   width: 100%;
-  height: 100%;
+  flex: 1;
   border: none;
 }
 
@@ -113,11 +129,15 @@ function handleClose() {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  align-self: center;
 }
 
 .preview-text {
   text-align: center;
   color: var(--color-neutral-700);
+  align-self: center;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .docx-preview-area {
@@ -126,6 +146,7 @@ function handleClose() {
   overflow-y: auto;
   background: var(--color-neutral-240);
   position: relative;
+  flex: 1;
 }
 
 .docx-container {

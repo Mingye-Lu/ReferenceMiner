@@ -37,7 +37,7 @@ const totalElapsed = computed(() => {
 })
 
 
-function getStepElapsed(step: TimelineStep, index: number): number {
+function getStepElapsed(step: TimelineStep): number {
   const stepStart = step.startTime || (step as any).timestamp || 0
   if (!stepStart) return 0
   if (step.endTime) {
@@ -269,7 +269,7 @@ watch(() => props.message.timeline?.length, (len, prev) => {
                   <span v-else class="step-dot"></span>
                 </div>
                 <span class="step-msg">{{ step.message }}</span>
-                <span class="step-time">{{ formatElapsed(getStepElapsed(step, i)) }}</span>
+                <span class="step-time">{{ formatElapsed(getStepElapsed(step)) }}</span>
                 <svg v-if="step.details" class="step-chevron" :class="{ 'rotate-180': isStepExpanded(i) }" width="14"
                   height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" stroke-linejoin="round">

@@ -98,6 +98,7 @@ def ingest_single_file(
             texts=extracted.text_blocks,
             page_map=extracted.page_map,
             section_map=extracted.section_map,
+            bbox_map=extracted.bbox_map,
         )
 
     return entry, chunks

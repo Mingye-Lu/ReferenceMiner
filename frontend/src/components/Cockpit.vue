@@ -18,7 +18,7 @@ import {
   updateChatSession,
   deleteChatSession
 } from "../api/client"
-import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project, BoundingBox } from "../types"
+import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project, BoundingBox, HighlightGroup } from "../types"
 import { useRouter } from "vue-router"
 import { Home, Search, PanelRight } from "lucide-vue-next"
 
@@ -35,7 +35,7 @@ const drawerTab = ref<"reader" | "notebook">("reader")
 const activeEvidence = ref<EvidenceChunk | null>(null)
 const showPreviewModal = ref(false)
 const previewFile = ref<ManifestEntry | null>(null)
-const previewHighlights = ref<BoundingBox[]>()
+const previewHighlightGroups = ref<HighlightGroup[]>()
 const targetNoteId = ref<string | null>(null)
 const highlightedPaths = ref<Set<string>>(new Set())
 const showDeleteModal = ref(false)
@@ -187,7 +187,9 @@ async function confirmDeleteChat() {
 
 function openPreview(file: ManifestEntry, highlights?: BoundingBox[]) {
   previewFile.value = file
-  previewHighlights.value = highlights
+  previewHighlightGroups.value = highlights && highlights.length > 0
+    ? [{ id: file.relPath, boxes: highlights }]
+    : undefined
   showPreviewModal.value = true
 }
 
@@ -423,7 +425,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
     <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
       :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
     <!-- File Preview Modal -->
-    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlights="previewHighlights" />
+    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlight-groups="previewHighlightGroups" />
 
     <!-- Delete Confirmation Modal -->
     <ConfirmationModal v-model="showDeleteModal" title="Delete Chat?"
