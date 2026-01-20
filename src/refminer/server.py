@@ -16,13 +16,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
+from urllib.parse import urlparse
 
 from refminer.analyze.workflow import analyze, EvidenceChunk
 from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
 from refminer.ingest.manifest import SUPPORTED_EXTENSIONS, load_manifest
 from refminer.ingest.pipeline import ingest_all
 from refminer.ingest.registry import check_duplicate, load_registry, save_registry
-from refminer.llm.deepseek import blocks_to_markdown, generate_answer, stream_answer, DeepSeekClient, _load_config, set_settings_manager
+from refminer.llm.openai_compatible import blocks_to_markdown, generate_answer, stream_answer, ChatCompletionsClient, _load_config, set_settings_manager
 from refminer.retrieve.search import retrieve
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
@@ -120,79 +121,206 @@ async def activate_project(project_id: str):
 
 # --- Settings Endpoints ---
 
+PROVIDERS = ("deepseek", "openai", "gemini", "anthropic", "custom")
+
+
 class ApiKeyRequest(BaseModel):
     api_key: str
+    provider: Optional[str] = None
 
 
 class ApiKeyValidateRequest(BaseModel):
     api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+
+
+class LlmSettingsRequest(BaseModel):
+    base_url: str
+    model: str
+    provider: Optional[str] = None
+
+
+class ModelsListRequest(BaseModel):
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    provider: Optional[str] = None
 
 
 @app.get("/api/settings")
 async def get_settings():
     """Get current settings (API key is masked)."""
+    provider = settings_manager.get_provider()
+    provider_keys = {
+        key: {
+            "has_key": settings_manager.has_api_key(key),
+            "masked_key": settings_manager.get_masked_api_key(key),
+        }
+        for key in PROVIDERS
+    }
+    provider_settings = settings_manager.get_provider_settings()
     return {
-        "has_api_key": settings_manager.has_api_key(),
-        "masked_api_key": settings_manager.get_masked_api_key(),
-        "base_url": settings_manager.get_base_url(),
-        "model": settings_manager.get_model(),
+        "active_provider": provider,
+        "provider_keys": provider_keys,
+        "provider_settings": provider_settings,
+        "has_api_key": settings_manager.has_api_key(provider),
+        "masked_api_key": settings_manager.get_masked_api_key(provider),
+        "base_url": settings_manager.get_base_url(provider),
+        "model": settings_manager.get_model(provider),
     }
 
 
 @app.post("/api/settings/api-key")
 async def save_api_key(req: ApiKeyRequest):
-    """Save the DeepSeek API key."""
+    """Save the provider API key."""
     api_key = req.api_key.strip()
     if not api_key:
         raise HTTPException(status_code=400, detail="API key cannot be empty")
-    settings_manager.set_api_key(api_key)
+    provider = req.provider or settings_manager.get_provider()
+    if provider not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+    settings_manager.set_api_key(api_key, provider)
     return {
         "success": True,
-        "has_api_key": True,
-        "masked_api_key": settings_manager.get_masked_api_key(),
+        "has_api_key": settings_manager.has_api_key(provider),
+        "masked_api_key": settings_manager.get_masked_api_key(provider),
+        "provider": provider,
     }
 
 
 @app.delete("/api/settings/api-key")
-async def delete_api_key():
+async def delete_api_key(provider: Optional[str] = None):
     """Remove the saved API key."""
-    settings_manager.clear_api_key()
-    return {"success": True, "has_api_key": settings_manager.has_api_key()}
+    provider = provider or settings_manager.get_provider()
+    if provider not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+    settings_manager.clear_api_key(provider)
+    return {"success": True, "has_api_key": settings_manager.has_api_key(provider), "provider": provider}
 
 
 @app.post("/api/settings/validate")
 async def validate_api_key(req: ApiKeyValidateRequest):
-    """Test if the current API key is valid by fetching the user balance."""
-    config = settings_manager.get_deepseek_config()
+    """Validate OpenAI-compatible API credentials and model selection."""
+    config = settings_manager.get_chat_completions_config()
     api_key = (req.api_key or "").strip() if req else ""
-    if api_key:
-        base_url = config.base_url if config else "https://api.deepseek.com"
-    else:
-        if not config:
-            raise HTTPException(status_code=400, detail="No API key configured")
-        api_key = config.api_key
-        base_url = config.base_url
+    base_url = (req.base_url or "").strip() if req else ""
+    model = (req.model or "").strip() if req else ""
+    provider = (req.provider or "").strip() if req else ""
+    provider = provider or settings_manager.get_provider()
+    if provider not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
 
-    try:
-        url = f"{base_url.rstrip('/')}/user/balance"
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        }
-        with httpx.Client(timeout=10.0) as client:
-            response = client.get(url, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-        return {
-            "valid": True,
-            "is_available": data.get("is_available"),
-            "balance_infos": data.get("balance_infos", []),
-        }
-    except httpx.HTTPStatusError as e:
-        error_body = e.response.text
-        return {"valid": False, "error": f"HTTP {e.response.status_code}: {error_body}"}
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
+    if not api_key:
+        api_key = settings_manager.get_api_key(provider)
+        if not api_key:
+            if not config:
+                raise HTTPException(status_code=400, detail="No API key configured")
+            api_key = config.api_key
+    if not base_url:
+        base_url = settings_manager.get_base_url(provider) if provider else (config.base_url if config else "https://api.openai.com/v1")
+    if not model:
+        model = settings_manager.get_model(provider) if provider else (config.model if config else "")
+
+    candidates = _candidate_model_urls(base_url)
+
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    last_error = ""
+    for url in candidates:
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+            return {"valid": True}
+        except httpx.HTTPStatusError as e:
+            last_error = f"HTTP {e.response.status_code}: {e.response.text}"
+        except Exception as e:
+            last_error = str(e)
+
+    return {"valid": False, "error": last_error or "Validation failed"}
+
+
+def _candidate_model_urls(base_url: str) -> list[str]:
+    stripped = base_url.rstrip("/")
+    candidates = [f"{stripped}/models"]
+    if "/v1" not in stripped:
+        candidates.append(f"{stripped}/v1/models")
+    return candidates
+
+
+def _fetch_models(base_url: str, api_key: str) -> list[str]:
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    last_error = ""
+    for url in _candidate_model_urls(base_url):
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+            models = data.get("data") if isinstance(data, dict) else None
+            if isinstance(models, list):
+                return [str(item.get("id")) for item in models if isinstance(item, dict) and item.get("id")]
+            last_error = "Unexpected models payload"
+        except httpx.HTTPStatusError as e:
+            last_error = f"HTTP {e.response.status_code}: {e.response.text}"
+        except Exception as e:
+            last_error = str(e)
+    raise HTTPException(status_code=400, detail=last_error or "Failed to fetch models")
+
+
+@app.post("/api/settings/models")
+async def list_models(req: ModelsListRequest):
+    """List available models via OpenAI-compatible /models endpoint."""
+    config = settings_manager.get_chat_completions_config()
+    api_key = (req.api_key or "").strip() if req else ""
+    base_url = (req.base_url or "").strip() if req else ""
+    provider = (req.provider or "").strip() if req else ""
+    provider = provider or settings_manager.get_provider()
+    if provider not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+
+    if not api_key:
+        api_key = settings_manager.get_api_key(provider)
+        if not api_key:
+            if not config:
+                raise HTTPException(status_code=400, detail="No API key configured")
+            api_key = config.api_key
+    if not base_url:
+        base_url = settings_manager.get_base_url(provider) if provider else (config.base_url if config else "https://api.openai.com/v1")
+
+    models = _fetch_models(base_url, api_key)
+    return {"models": models, "provider": provider}
+
+
+@app.post("/api/settings/llm")
+async def save_llm_settings(req: LlmSettingsRequest):
+    """Save OpenAI-compatible base URL and model name."""
+    base_url = req.base_url.strip()
+    model = req.model.strip()
+    provider = req.provider or settings_manager.get_provider()
+    if provider not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="Base URL cannot be empty")
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="Base URL must be a valid http(s) URL")
+    if not model:
+        raise HTTPException(status_code=400, detail="Model cannot be empty")
+
+    normalized_url = base_url.rstrip("/")
+    settings_manager.set_provider(provider)
+    settings_manager.set_base_url(normalized_url, provider)
+    settings_manager.set_model(model, provider)
+    return {"success": True, "base_url": normalized_url, "model": model, "active_provider": provider}
 
 
 @app.post("/api/settings/reset")
@@ -681,7 +809,7 @@ def _stream_summarize(messages: list[dict]) -> Iterator[str]:
     ]
 
     try:
-        client = DeepSeekClient(config)
+        client = ChatCompletionsClient(config)
         full_title = ""
         for delta in client.stream_chat(prompt_messages):
             for char in delta:

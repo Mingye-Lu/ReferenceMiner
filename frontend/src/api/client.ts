@@ -21,6 +21,14 @@ import { getFileName } from "../utils"
 // In development, VITE_API_URL can be set to point to the backend
 const API_BASE = import.meta.env.VITE_API_URL ?? ""
 
+const DEFAULT_PROVIDER_SETTINGS: Record<string, { baseUrl: string; model: string }> = {
+  deepseek: { baseUrl: "https://api.deepseek.com", model: "deepseek-chat" },
+  openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-1.5-flash" },
+  anthropic: { baseUrl: "https://api.anthropic.com/v1", model: "claude-3-haiku-20240307" },
+  custom: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, init)
   if (!response.ok) {
@@ -588,41 +596,69 @@ export async function activateProject(projectId: string): Promise<void> {
 
 export async function getSettings(): Promise<Settings> {
   const data = await fetchJson<any>("/api/settings")
+  const activeProvider = data.active_provider ?? "deepseek"
+  const defaults = DEFAULT_PROVIDER_SETTINGS[activeProvider] ?? DEFAULT_PROVIDER_SETTINGS.custom
+  const providerKeys: Record<string, { hasKey: boolean; maskedKey: string | null }> = {}
+  const rawKeys = data.provider_keys ?? {}
+  Object.keys(rawKeys).forEach((key) => {
+    providerKeys[key] = {
+      hasKey: rawKeys[key]?.has_key ?? false,
+      maskedKey: rawKeys[key]?.masked_key ?? null,
+    }
+  })
+  const providerSettings: Record<string, { baseUrl: string; model: string }> = {}
+  const rawSettings = data.provider_settings ?? {}
+  Object.keys(DEFAULT_PROVIDER_SETTINGS).forEach((provider) => {
+    const entry = rawSettings[provider] ?? {}
+    const fallback = DEFAULT_PROVIDER_SETTINGS[provider]
+    providerSettings[provider] = {
+      baseUrl: entry.base_url ?? entry.baseUrl ?? fallback.baseUrl,
+      model: entry.model ?? fallback.model,
+    }
+  })
   return {
-    hasApiKey: data.has_api_key ?? false,
-    maskedApiKey: data.masked_api_key ?? null,
-    baseUrl: data.base_url ?? "https://api.deepseek.com",
-    model: data.model ?? "deepseek-chat",
+    activeProvider,
+    providerKeys,
+    providerSettings,
+    baseUrl: data.base_url ?? defaults.baseUrl,
+    model: data.model ?? defaults.model,
   }
 }
 
-export async function saveApiKey(apiKey: string): Promise<{ success: boolean; maskedApiKey: string }> {
+export async function saveApiKey(apiKey: string, provider: string): Promise<{ success: boolean; maskedApiKey: string; provider: string }> {
   const data = await fetchJson<any>("/api/settings/api-key", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey }),
+    body: JSON.stringify({ api_key: apiKey, provider }),
   })
   return {
     success: data.success ?? false,
     maskedApiKey: data.masked_api_key ?? "",
+    provider: data.provider ?? provider,
   }
 }
 
-export async function deleteApiKey(): Promise<{ success: boolean; hasApiKey: boolean }> {
-  const data = await fetchJson<any>("/api/settings/api-key", {
+export async function deleteApiKey(provider: string): Promise<{ success: boolean; hasApiKey: boolean; provider: string }> {
+  const data = await fetchJson<any>(`/api/settings/api-key?provider=${encodeURIComponent(provider)}`, {
     method: "DELETE",
   })
   return {
     success: data.success ?? false,
     hasApiKey: data.has_api_key ?? false,
+    provider: data.provider ?? provider,
   }
 }
 
-export async function validateApiKey(apiKey?: string): Promise<ValidateResult> {
+export async function validateApiKey(apiKey?: string, baseUrl?: string, model?: string, provider?: string): Promise<ValidateResult> {
   const data = await fetchJson<any>("/api/settings/validate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey ?? "" }),
+    body: JSON.stringify({
+      api_key: apiKey ?? "",
+      base_url: baseUrl ?? "",
+      model: model ?? "",
+      provider: provider ?? "",
+    }),
   })
   return {
     valid: data.valid ?? false,
@@ -637,6 +673,20 @@ export async function validateApiKey(apiKey?: string): Promise<ValidateResult> {
   }
 }
 
+export async function saveLlmSettings(baseUrl: string, model: string, provider: string): Promise<{ success: boolean; baseUrl: string; model: string; activeProvider: string }> {
+  const data = await fetchJson<any>("/api/settings/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ base_url: baseUrl, model, provider }),
+  })
+  return {
+    success: data.success ?? false,
+    baseUrl: data.base_url ?? baseUrl,
+    model: data.model ?? model,
+    activeProvider: data.active_provider ?? provider,
+  }
+}
+
 export async function resetAllData(): Promise<{ success: boolean; message: string; deletedFiles: string[] }> {
   const data = await fetchJson<any>("/api/settings/reset", {
     method: "POST",
@@ -646,6 +696,19 @@ export async function resetAllData(): Promise<{ success: boolean; message: strin
     message: data.message ?? "",
     deletedFiles: data.deleted_files ?? [],
   }
+}
+
+export async function fetchModels(apiKey?: string, baseUrl?: string, provider?: string): Promise<string[]> {
+  const data = await fetchJson<any>("/api/settings/models", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey ?? "",
+      base_url: baseUrl ?? "",
+      provider: provider ?? "",
+    }),
+  })
+  return data.models ?? []
 }
 
 // =============================================================================

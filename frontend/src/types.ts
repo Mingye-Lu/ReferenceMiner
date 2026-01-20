@@ -155,8 +155,9 @@ export interface ProjectCreate {
 
 // Settings types
 export interface Settings {
-  hasApiKey: boolean
-  maskedApiKey: string | null
+  activeProvider: string
+  providerKeys: Record<string, { hasKey: boolean; maskedKey: string | null }>
+  providerSettings: Record<string, { baseUrl: string; model: string }>
   baseUrl: string
   model: string
 }

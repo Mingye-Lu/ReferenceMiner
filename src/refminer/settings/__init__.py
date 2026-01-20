@@ -1,5 +1,5 @@
 """Settings management module."""
 
-from refminer.settings.manager import DeepSeekConfig, SettingsManager
+from refminer.settings.manager import ChatCompletionsConfig, SettingsManager
 
-__all__ = ["DeepSeekConfig", "SettingsManager"]
+__all__ = ["ChatCompletionsConfig", "SettingsManager"]

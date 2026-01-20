@@ -43,15 +43,15 @@ class AnswerBlock:
 
 
 @dataclass
-class DeepSeekConfig:
+class ChatCompletionsConfig:
     api_key: str
     base_url: str
     model: str
     timeout: float = 60.0
 
 
-class DeepSeekClient:
-    def __init__(self, config: DeepSeekConfig) -> None:
+class ChatCompletionsClient:
+    def __init__(self, config: ChatCompletionsConfig) -> None:
         self._config = config
 
     def chat(self, messages: list[dict]) -> str:
@@ -215,23 +215,80 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
     return messages
 
 
-def _load_config() -> DeepSeekConfig | None:
+def _resolve_env_config() -> Optional[tuple[str, str, str]]:
+    api_key = (
+        os.getenv("LLM_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+        or os.getenv("GEMINI_API_KEY")
+        or os.getenv("ANTHROPIC_API_KEY")
+        or os.getenv("DEEPSEEK_API_KEY")
+    )
+    if not api_key:
+        return None
+
+    provider = "custom"
+    if os.getenv("OPENAI_API_KEY") and api_key == os.getenv("OPENAI_API_KEY"):
+        provider = "openai"
+    elif os.getenv("GEMINI_API_KEY") and api_key == os.getenv("GEMINI_API_KEY"):
+        provider = "gemini"
+    elif os.getenv("ANTHROPIC_API_KEY") and api_key == os.getenv("ANTHROPIC_API_KEY"):
+        provider = "anthropic"
+    elif os.getenv("DEEPSEEK_API_KEY") and api_key == os.getenv("DEEPSEEK_API_KEY"):
+        provider = "deepseek"
+
+    base_url = (
+        os.getenv("LLM_BASE_URL")
+        or os.getenv("OPENAI_BASE_URL")
+        or os.getenv("GEMINI_BASE_URL")
+        or os.getenv("ANTHROPIC_BASE_URL")
+        or os.getenv("DEEPSEEK_BASE_URL")
+    )
+
+    if not base_url:
+        if provider == "openai":
+            base_url = "https://api.openai.com/v1"
+        elif provider == "gemini":
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+        elif provider == "anthropic":
+            base_url = "https://api.anthropic.com/v1"
+        elif provider == "deepseek":
+            base_url = "https://api.deepseek.com"
+        else:
+            base_url = "https://api.openai.com/v1"
+
+    model = (
+        os.getenv("LLM_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or os.getenv("ANTHROPIC_MODEL")
+        or os.getenv("DEEPSEEK_MODEL")
+    )
+
+    if not model:
+        if provider == "deepseek":
+            model = "deepseek-chat"
+        else:
+            return None
+
+    return api_key, base_url, model
+
+
+def _load_config() -> ChatCompletionsConfig | None:
     # Try settings manager first (if configured by server)
     if _settings_manager is not None:
-        config = _settings_manager.get_deepseek_config()
+        config = _settings_manager.get_chat_completions_config()
         if config:
-            return DeepSeekConfig(
+            return ChatCompletionsConfig(
                 api_key=config.api_key,
                 base_url=config.base_url,
                 model=config.model
             )
     # Fall back to environment variables
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
+    env_config = _resolve_env_config()
+    if not env_config:
         return None
-    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-    return DeepSeekConfig(api_key=api_key, base_url=base_url, model=model)
+    api_key, base_url, model = env_config
+    return ChatCompletionsConfig(api_key=api_key, base_url=base_url, model=model)
 
 
 def blocks_to_markdown(blocks: Iterable[AnswerBlock]) -> str:
@@ -254,7 +311,7 @@ def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list
     config = _load_config()
     if not config:
         return None
-    client = DeepSeekClient(config)
+    client = ChatCompletionsClient(config)
     messages = _build_messages(question, evidence, keywords, history=history)
     response = client.chat(messages)
     _, citations = _format_evidence(evidence)
@@ -265,7 +322,7 @@ def stream_answer(question: str, evidence: list[EvidenceChunk], keywords: list[s
     config = _load_config()
     if not config:
         return None
-    client = DeepSeekClient(config)
+    client = ChatCompletionsClient(config)
     messages = _build_messages(question, evidence, keywords, history=history)
     _, citations = _format_evidence(evidence)
     return client.stream_chat(messages), citations
