@@ -40,6 +40,7 @@ export interface TimelineStep {
   phase: string
   message: string
   startTime: number  // epoch ms
+  details?: string
 }
 
 export interface ChatMessage {

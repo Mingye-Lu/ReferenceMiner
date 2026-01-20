@@ -11,6 +11,7 @@ const isPinned = inject<(id: string) => boolean>("isPinned")!
 const setHighlightedPaths = inject<(paths: string[]) => void>("setHighlightedPaths")!
 
 const isTimelineExpanded = ref(true)
+const expandedSteps = ref<Set<number>>(new Set())
 
 
 const currentTime = ref(Date.now())
@@ -181,6 +182,21 @@ function handleBodyClick(event: MouseEvent) {
     }
   }
 }
+
+function toggleStepDetails(index: number, details?: string) {
+  if (!details) return
+  const current = expandedSteps.value
+  if (current.has(index)) {
+    current.delete(index)
+  } else {
+    current.add(index)
+  }
+  expandedSteps.value = new Set(current)
+}
+
+function isStepExpanded(index: number): boolean {
+  return expandedSteps.value.has(index)
+}
 </script>
 
 <template>
@@ -208,14 +224,28 @@ function handleBodyClick(event: MouseEvent) {
         </div>
         <transition name="slide">
           <div v-if="isTimelineExpanded" class="timeline-content">
-            <div v-for="(step, i) in message.timeline" :key="i" class="step-item">
-              <div class="step-indicator">
-                <Loader2 v-if="message.isStreaming && i === message.timeline!.length - 1" class="step-spinner"
-                  :size="10" />
-                <span v-else class="step-dot"></span>
+            <div v-for="(step, i) in message.timeline" :key="i" class="step-item"
+              :class="{ expandable: !!step.details }" @click="toggleStepDetails(i, step.details)">
+              <div class="step-row">
+                <div class="step-indicator">
+                  <Loader2 v-if="message.isStreaming && i === message.timeline!.length - 1" class="step-spinner"
+                    :size="10" />
+                  <span v-else class="step-dot"></span>
+                </div>
+                <span class="step-msg">{{ step.message }}</span>
+                <span class="step-time">{{ formatElapsed(getStepElapsed(step, i)) }}</span>
+                <svg v-if="step.details" class="step-chevron" :class="{ 'rotate-180': isStepExpanded(i) }" width="14"
+                  height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
               </div>
-              <span class="step-msg">{{ step.message }}</span>
-              <span class="step-time">{{ formatElapsed(getStepElapsed(step, i)) }}</span>
+              <transition name="fade">
+                <div v-if="step.details && isStepExpanded(i)" class="step-details">
+                  <div class="step-details-label">Step details</div>
+                  <div class="step-details-text">{{ step.details }}</div>
+                </div>
+              </transition>
             </div>
           </div>
         </transition>
@@ -519,11 +549,21 @@ function handleBodyClick(event: MouseEvent) {
 
 .step-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 8px;
+}
+
+.step-item.expandable {
+  cursor: pointer;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .step-indicator {
@@ -557,6 +597,30 @@ function handleBodyClick(event: MouseEvent) {
   color: var(--color-neutral-500);
   min-width: 50px;
   text-align: right;
+}
+
+.step-chevron {
+  transition: transform 0.2s ease;
+  color: var(--color-neutral-450);
+  flex-shrink: 0;
+}
+
+.step-details {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-neutral-50);
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.step-details-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-neutral-500);
+  margin-bottom: 4px;
 }
 
 .spinner {

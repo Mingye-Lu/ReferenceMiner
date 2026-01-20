@@ -129,7 +129,8 @@ async function sendMessage(event?: KeyboardEvent) {
         currentAiMsg.timeline?.push({
           phase: payload.step,
           message: payload.title,
-          startTime: payload.timestamp * 1000
+          startTime: payload.timestamp * 1000,
+          details: payload.details || payload.plan || ""
         })
         if (payload.keywords) currentAiMsg.keywords = payload.keywords
       }

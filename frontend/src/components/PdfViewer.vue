@@ -24,6 +24,7 @@ const scale = ref(1.5)
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 let renderTask: pdfjsLib.RenderTask | null = null
+let renderSeq = 0
 
 // Drag-to-pan state
 const isDragMode = ref(false)
@@ -36,6 +37,15 @@ let scrollStartY = 0
 const loadPdf = async () => {
   try {
     if (!props.fileUrl) return
+    renderSeq += 1
+    if (renderTask) {
+      renderTask.cancel()
+      renderTask = null
+    }
+    if (pdfDoc) {
+      await pdfDoc.destroy()
+      pdfDoc = null
+    }
     isLoading.value = true
     error.value = undefined
 
@@ -70,15 +80,19 @@ const renderPage = async () => {
   if (!pdfDoc || !canvasRef.value || !overlayRef.value) return
 
   try {
+    const seq = ++renderSeq
     // Cancel any ongoing render task
     if (renderTask) {
       renderTask.cancel()
     }
 
     const page = await pdfDoc.getPage(currentPage.value)
+    if (seq !== renderSeq) return
     const viewport = page.getViewport({ scale: scale.value })
 
     const canvas = canvasRef.value
+    const overlay = overlayRef.value
+    if (!canvas || !overlay) return
     const context = canvas.getContext('2d')
     if (!context) return
 
@@ -93,6 +107,7 @@ const renderPage = async () => {
 
     renderTask = page.render(renderContext)
     await renderTask.promise
+    if (seq !== renderSeq) return
     renderTask = null
 
     syncOverlay(viewport)
@@ -253,6 +268,15 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  renderSeq += 1
+  if (renderTask) {
+    renderTask.cancel()
+    renderTask = null
+  }
+  if (pdfDoc) {
+    pdfDoc.destroy().catch(() => {})
+    pdfDoc = null
+  }
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('mouseup', handleMouseUp)
