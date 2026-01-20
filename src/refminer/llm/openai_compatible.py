@@ -30,7 +30,7 @@ def set_settings_manager(manager: "SettingsManager") -> None:
     _settings_manager = manager
 
 
-CITATION_RE = re.compile(r"\[C(\d+)\]")
+CITATION_RE = re.compile(r"\bC(\d+)\b")
 SECTION_RE = re.compile(r"^(Summary|Evidence|Limitations|Open Questions|Cross-check):\s*", re.IGNORECASE)
 BODY_RE = re.compile(r"^body:\s*", re.IGNORECASE)
 
@@ -120,6 +120,10 @@ def _format_evidence(evidence: Iterable[EvidenceChunk]) -> tuple[list[str], dict
         citations[index] = citation
         lines.append(f"[C{index}] {item.text}")
     return lines, citations
+
+
+def format_evidence(evidence: Iterable[EvidenceChunk]) -> tuple[list[str], dict[int, str]]:
+    return _format_evidence(evidence)
 
 
 def _extract_citation_ids(text: str) -> list[int]:

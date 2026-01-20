@@ -76,6 +76,9 @@ datas = [
 
     # jieba dictionary files (required for Chinese text processing)
     *collect_data_files('jieba'),
+
+    # LLM prompt templates
+    ('src/refminer/llm/prompts', 'refminer/llm/prompts'),
 ]
 
 # Analysis

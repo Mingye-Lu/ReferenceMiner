@@ -12,7 +12,10 @@ export function highlightTerms(text: string, terms: string[]): string {
     
   if (validTerms.length === 0) return text
   const regex = new RegExp(`(${validTerms.join("|")})`, "gi")
-  return text.replace(regex, '<mark style="background-color: #f3c969; color: #0f2a1d; padding: 0 2px; border-radius: 2px;">$1</mark>')
+  return text.replace(
+    regex,
+    '<mark style="background-color: var(--mark-bg); color: var(--mark-text); padding: 0 2px; border-radius: 2px;">$1</mark>'
+  )
 }
 
 export function getFileName(path: string): string {

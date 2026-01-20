@@ -37,23 +37,16 @@ const totalElapsed = computed(() => {
 
 
 function getStepElapsed(step: TimelineStep, index: number): number {
-  const timeline = props.message.timeline || []
-  const nextStep = timeline[index + 1]
-
-
   const stepStart = step.startTime || (step as any).timestamp || 0
   if (!stepStart) return 0
-
-  if (nextStep) {
-    const nextStart = nextStep.startTime || (nextStep as any).timestamp || 0
-    return nextStart - stepStart
-  } else if (props.message.isStreaming) {
-    return currentTime.value - stepStart
-  } else {
-    // Use completedAt if available, otherwise use current time
-    const endTime = props.message.completedAt || currentTime.value
-    return endTime - stepStart
+  if (step.endTime) {
+    return step.endTime - stepStart
   }
+  if (props.message.isStreaming) {
+    return currentTime.value - stepStart
+  }
+  const endTime = props.message.completedAt || currentTime.value
+  return endTime - stepStart
 }
 
 function startTimer() {
@@ -167,8 +160,19 @@ function handleMessageLeave() {
 
 function processMarkdown(text: string) {
   return renderMarkdown(text).replace(
-    /\[C(\d+)\]/g,
-    '<button class="citation-link" data-cid="$1">$1</button>'
+    /\[(C\d+(?:\s*,\s*C\d+)*)\]/g,
+    (_match, group) => {
+      const buttons = group
+        .split(/\s*,\s*/)
+        .map((token: string) => token.trim())
+        .filter(Boolean)
+        .map((token: string) => {
+          const id = token.replace(/^C/i, "")
+          return `<button class="citation-link" data-cid="${id}">${id}</button>`
+        })
+        .join("")
+      return buttons
+    }
   )
 }
 
