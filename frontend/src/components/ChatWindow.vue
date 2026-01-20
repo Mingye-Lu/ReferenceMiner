@@ -142,6 +142,9 @@ async function sendMessage(event?: KeyboardEvent) {
             if (payload.details || payload.plan) {
               timeline[i].details = payload.details || payload.plan
             }
+            if (payload.endTime) {
+              timeline[i].endTime = payload.endTime
+            }
             break
           }
         }

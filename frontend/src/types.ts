@@ -41,6 +41,7 @@ export interface TimelineStep {
   message: string
   startTime: number  // epoch ms
   details?: string
+  endTime?: number
 }
 
 export interface ChatMessage {

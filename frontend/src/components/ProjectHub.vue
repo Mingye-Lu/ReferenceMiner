@@ -58,6 +58,12 @@ const resetError = ref('')
 const resetSuccess = ref('')
 const baseUrlInput = ref('')
 const modelInput = ref('')
+// Display Settings
+// Display Settings
+const filesPerPage = ref(7)
+const notesPerPage = ref(4)
+const chatsPerPage = ref(0) // 0 = unlimited
+
 const providerOptions = [
     { value: 'openai', label: 'ChatGPT' },
     { value: 'gemini', label: 'Gemini' },
@@ -484,7 +490,30 @@ function syncLlmInputs(next: AppSettings | null) {
     modelInput.value = stored?.model || next.model || defaults.model
 }
 
+function saveDisplaySetting(key: 'filesPerPage' | 'notesPerPage' | 'chatsPerPage', value: number) {
+    if (key === 'filesPerPage') filesPerPage.value = value
+    if (key === 'notesPerPage') notesPerPage.value = value
+    if (key === 'chatsPerPage') chatsPerPage.value = value
+
+    localStorage.setItem(key, String(value))
+
+    // Notify other components
+    window.dispatchEvent(new CustomEvent('settingChanged', {
+        detail: { key, value }
+    }))
+}
+
 onMounted(async () => {
+    // Load display settings
+    const storedFiles = localStorage.getItem('filesPerPage')
+    if (storedFiles) filesPerPage.value = parseInt(storedFiles, 10)
+
+    const storedNotes = localStorage.getItem('notesPerPage')
+    if (storedNotes) notesPerPage.value = parseInt(storedNotes, 10)
+
+    const storedChats = localStorage.getItem('chatsPerPage')
+    if (storedChats) chatsPerPage.value = parseInt(storedChats, 10)
+
     await loadProjects()
 
     // Load current theme
@@ -612,7 +641,7 @@ onMounted(async () => {
                             <div class="file-name" :title="getFileName(file.relPath)">{{ getFileName(file.relPath) }}
                             </div>
                             <div class="file-meta">{{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024)
-                                }}KB</div>
+                            }}KB</div>
                         </div>
                         <div class="file-actions">
                             <button class="btn-icon" @click="handlePreview(file)" title="Preview">
@@ -752,15 +781,44 @@ onMounted(async () => {
                                     </div>
                                 </div>
                                 <div class="section-content">
+                                    <!-- Files Limit -->
                                     <div class="pref-setting-row">
                                         <div class="pref-setting-info">
-                                            <label class="form-label">Items Per Page</label>
-                                            <p class="form-hint">Maximum number of items to display in lists</p>
+                                            <label class="form-label">Project Files Limit</label>
+                                            <p class="form-hint">Items per page in sidebar (0 for unlimited)</p>
                                         </div>
-                                        <span class="settings-badge">Coming Soon</span>
+                                        <div class="input-group" style="width: 120px;">
+                                            <input type="number" min="0" class="form-input" :value="filesPerPage"
+                                                @input="(e) => saveDisplaySetting('filesPerPage', parseInt((e.target as HTMLInputElement).value) || 0)">
+                                        </div>
+                                    </div>
+
+                                    <!-- Notes Limit -->
+                                    <div class="pref-setting-row">
+                                        <div class="pref-setting-info">
+                                            <label class="form-label">Pinned Notes Limit</label>
+                                            <p class="form-hint">Notes per page in sidebar (0 for unlimited)</p>
+                                        </div>
+                                        <div class="input-group" style="width: 120px;">
+                                            <input type="number" min="0" class="form-input" :value="notesPerPage"
+                                                @input="(e) => saveDisplaySetting('notesPerPage', parseInt((e.target as HTMLInputElement).value) || 0)">
+                                        </div>
+                                    </div>
+
+                                    <!-- Chats Limit -->
+                                    <div class="pref-setting-row">
+                                        <div class="pref-setting-info">
+                                            <label class="form-label">Chat List Limit</label>
+                                            <p class="form-hint">Chats per page in sidebar (0 for unlimited)</p>
+                                        </div>
+                                        <div class="input-group" style="width: 120px;">
+                                            <input type="number" min="0" class="form-input" :value="chatsPerPage"
+                                                @input="(e) => saveDisplaySetting('chatsPerPage', parseInt((e.target as HTMLInputElement).value) || 0)">
+                                        </div>
                                     </div>
                                 </div>
                             </section>
+
                         </div>
                     </div>
 
@@ -914,9 +972,9 @@ onMounted(async () => {
                                                             class="balance-item">
                                                             <div class="balance-line">
                                                                 <span class="balance-currency">{{ info.currency
-                                                                    }}</span>
+                                                                }}</span>
                                                                 <span class="balance-amount">{{ info.totalBalance
-                                                                    }}</span>
+                                                                }}</span>
                                                             </div>
                                                             <div class="balance-meta">
                                                                 Granted {{ info.grantedBalance }} · Topped up {{
@@ -1674,7 +1732,7 @@ onMounted(async () => {
 
 .settings-content {
     flex: 1;
-    padding: 40px 60px;
+    padding: 0 60px;
     overflow-y: auto;
 }
 
@@ -1950,10 +2008,6 @@ onMounted(async () => {
 
 <style scoped>
 /* Advanced Settings Styles */
-.settings-section-container {
-    padding-bottom: 40px;
-}
-
 .settings-header {
     margin-bottom: 24px;
 }

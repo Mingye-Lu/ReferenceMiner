@@ -9,6 +9,8 @@ class TimelineStep:
     phase: str
     message: str
     startTime: float  # epoch ms
+    details: Optional[str] = None
+    endTime: Optional[float] = None
 
 
 @dataclass

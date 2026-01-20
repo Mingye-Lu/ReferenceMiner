@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from dataclasses import asdict
@@ -18,13 +19,19 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from urllib.parse import urlparse
 
-from refminer.analyze.workflow import analyze, EvidenceChunk
+from refminer.analyze.workflow import analyze
 from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
 from refminer.ingest.manifest import SUPPORTED_EXTENSIONS, load_manifest
 from refminer.ingest.pipeline import ingest_all
 from refminer.ingest.registry import check_duplicate, load_registry, save_registry
-from refminer.llm.openai_compatible import blocks_to_markdown, generate_answer, stream_answer, ChatCompletionsClient, _load_config, set_settings_manager
-from refminer.retrieve.search import retrieve
+from refminer.llm.openai_compatible import blocks_to_markdown, parse_answer_text, format_evidence, ChatCompletionsClient, _load_config, set_settings_manager
+from refminer.llm.agent import (
+    run_agent,
+    parse_agent_decision,
+    build_agent_messages,
+    build_tool_result_message,
+    execute_retrieve_tool,
+)
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
 from refminer.projects.manager import ProjectManager
@@ -515,10 +522,179 @@ def _format_citation(path: str, page: Optional[int], section: Optional[str]) -> 
     return path
 
 
+def _resolve_response_citations(
+    response_citations: list[str],
+    citations_map: dict[int, str],
+) -> list[str]:
+    resolved: list[str] = []
+    for item in response_citations:
+        text = str(item).strip()
+        match = re.match(r"^C(\d+)$", text, re.IGNORECASE)
+        if not match:
+            continue
+        idx = int(match.group(1))
+        citation = citations_map.get(idx)
+        if citation and citation not in resolved:
+            resolved.append(citation)
+    return resolved
+
+
 def _format_timestamp(epoch: Optional[float]) -> Optional[str]:
     if not epoch:
         return None
     return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
+
+
+def _contains_cjk(text: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in text)
+
+
+def _format_details(lines: list[str]) -> str:
+    return "\n".join(line for line in lines if line)
+
+
+def _format_ms(ms: float) -> str:
+    return f"{ms / 1000.0:.2f}s"
+
+
+def _clean_response_text(text: str) -> str:
+    if not text:
+        return text
+    cleaned_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.rstrip()
+        if stripped.endswith("\\"):
+            stripped = stripped[:-1].rstrip()
+        cleaned_lines.append(stripped)
+    cleaned = "\n".join(cleaned_lines).strip()
+    cleaned = re.sub(r"\\(?=\d+\.)", "\n", cleaned)
+    cleaned = re.sub(r"\\(?=[*-]\s)", "\n", cleaned)
+    cleaned = cleaned.replace("\\", "")
+    return cleaned
+
+
+def _emit_error_step(code: str, message: str) -> Iterator[str]:
+    details = _format_details(
+        [
+            f"Provider code: {code}",
+            f"Summary: {message}",
+            "Retry count: 0",
+        ]
+    )
+    yield _sse(
+        "step",
+        {
+            "step": "error",
+            "title": "Error",
+            "timestamp": time.time(),
+            "details": details,
+        },
+    )
+
+
+def _unescape_json_text(text: str) -> str:
+    return (
+        text.replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace('\\"', '"')
+        .replace("\\\\", "\\")
+    )
+
+
+def _extract_json_string_partial(buffer: str, key_name: str) -> Optional[str]:
+    key = f'"{key_name}"'
+    idx = buffer.find(key)
+    if idx == -1:
+        return None
+    colon = buffer.find(":", idx + len(key))
+    if colon == -1:
+        return None
+    quote = buffer.find('"', colon + 1)
+    if quote == -1:
+        return None
+    start = quote + 1
+    segment = buffer[start:]
+    last_quote = None
+    escaped = False
+    for i, ch in enumerate(segment):
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            last_quote = i
+            break
+    if last_quote is None:
+        partial = segment
+    else:
+        partial = segment[:last_quote]
+    return _unescape_json_text(partial)
+
+
+def _extract_nested_json_string_partial(buffer: str, parent_key: str, child_key: str) -> Optional[str]:
+    parent = f'"{parent_key}"'
+    idx = buffer.find(parent)
+    if idx == -1:
+        return None
+    return _extract_json_string_partial(buffer[idx:], child_key)
+
+
+def _stream_agent_decision(
+    client: ChatCompletionsClient,
+    messages: list[dict],
+) -> Iterator[str]:
+    buffer = ""
+    call_tool_emitted = False
+    call_tool_details = ""
+    answer_emitted = False
+    answer_text = ""
+
+    for delta in client.stream_chat(messages):
+        buffer += delta
+        if not call_tool_emitted and re.search(r'"intent"\s*:\s*"call_tool"', buffer):
+            call_tool_emitted = True
+            yield _sse(
+                "step",
+                {
+                    "step": "plan",
+                    "title": "Planning",
+                    "timestamp": time.time(),
+                    "details": "",
+                },
+            )
+        if call_tool_emitted:
+            partial = _extract_nested_json_string_partial(buffer, "response", "text")
+            if partial is not None and partial != call_tool_details:
+                call_tool_details = partial
+                yield _sse(
+                    "step_update",
+                    {
+                        "step": "plan",
+                        "details": call_tool_details,
+                    },
+                )
+        if not answer_emitted and re.search(r'"intent"\s*:\s*"respond"', buffer):
+            answer_emitted = True
+            yield _sse(
+                "step",
+                {
+                    "step": "answer",
+                    "title": "Generating Answer",
+                    "timestamp": time.time(),
+                    "details": "",
+                },
+            )
+        if answer_emitted:
+            partial = _extract_nested_json_string_partial(buffer, "response", "text")
+            if partial is not None and partial != answer_text:
+                delta_text = partial[len(answer_text):]
+                answer_text = partial
+                if delta_text:
+                    yield _sse("answer_delta", {"delta": delta_text})
+
+    return buffer, call_tool_emitted, call_tool_details, answer_emitted
 
 
 def _ensure_index() -> None:
@@ -558,7 +734,15 @@ def _sse(event: str, payload: Any) -> str:
     return f"event: {event}\ndata: {data}\n\n"
 
 
-def _stream_rag(
+def _chunk_text(text: str) -> Iterator[str]:
+    if not text:
+        return
+    for token in re.findall(r"\S+|\s+", text):
+        if token:
+            yield token
+
+
+def _stream_agent(
     project_id: str,
     question: str,
     context: Optional[list[str]] = None,
@@ -566,68 +750,313 @@ def _stream_rag(
     notes: Optional[list[dict]] = None,
     history: Optional[list[dict]] = None,
 ) -> Iterator[str]:
-    # Load manifest and ensure it exists
-    if not _bm25_path().exists():
-        yield _sse("error", {"code": "LACK_INGEST", "message": "Indexes not found. Run ingest first."})
+    dispatch_ts = time.time()
+    yield _sse("step", {"step": "dispatch", "title": "Thinking", "timestamp": dispatch_ts})
+    config = _load_config()
+    if not config:
+        analysis = analyze(question, [])
+        _, answer_markdown = _fallback_answer(analysis, [])
+        if answer_markdown:
+            yield _sse("answer_delta", {"delta": answer_markdown})
+        yield _sse("done", {})
         return
 
-    evidence: list[EvidenceChunk] = []
+    client = ChatCompletionsClient(config)
+    messages = build_agent_messages(question, history, context=context, use_notes=use_notes, notes=notes)
+    tool_calls = 0
+    current_step: Optional[str] = "dispatch"
 
-    yield _sse("step", {"step": "research", "title": "Searching References", "timestamp": time.time()})
+    def end_step(phase: Optional[str]) -> None:
+        if not phase:
+            return
+        yield _sse("step_update", {"step": phase, "endTime": int(time.time() * 1000)})
 
-    if use_notes and notes:
-        for note in notes:
-            try:
-                evidence.append(
-                    EvidenceChunk(
-                        chunk_id=note.get("chunkId") or note.get("chunk_id") or "",
-                        path=note.get("path") or "",
-                        page=note.get("page"),
-                        section=note.get("section"),
-                        text=note.get("text") or "",
-                        score=note.get("score") or 1.0,
-                    )
+    for _ in range(6):
+        try:
+            stream_gen = _stream_agent_decision(client, messages)
+            raw = ""
+            call_tool_emitted = False
+            call_tool_details = ""
+            answer_emitted = False
+            while True:
+                try:
+                    event = next(stream_gen)
+                    yield event
+                    if isinstance(event, str) and '"step": "plan"' in event:
+                        if current_step != "plan":
+                            for end_event in end_step(current_step):
+                                yield end_event
+                        current_step = "plan"
+                    if isinstance(event, str) and '"step": "answer"' in event:
+                        if current_step != "answer":
+                            for end_event in end_step(current_step):
+                                yield end_event
+                        current_step = "answer"
+                except StopIteration as stop:
+                    if stop.value:
+                        raw, call_tool_emitted, call_tool_details, answer_emitted = stop.value
+                    break
+        except Exception as e:
+            error_msg = str(e)
+            if "Content Exists Risk" in error_msg:
+                summary = "The AI provider flagged this content. Try rephrasing your question or using different references."
+                yield from _emit_error_step("CONTENT_FILTERED", summary)
+                yield _sse("error", {"code": "CONTENT_FILTERED", "message": summary})
+            else:
+                max_len = 800
+                trimmed = error_msg if len(error_msg) <= max_len else error_msg[:max_len] + "..."
+                summary = f"AI generation failed: {trimmed}"
+                yield from _emit_error_step("LLM_ERROR", summary)
+                yield _sse("error", {"code": "LLM_ERROR", "message": summary})
+            return
+
+        decision = parse_agent_decision(raw)
+        messages.append({"role": "assistant", "content": raw})
+
+        if not decision:
+            summary = "Malformed agent response."
+            yield from _emit_error_step("LLM_ERROR", summary)
+            yield _sse("error", {"code": "LLM_ERROR", "message": summary})
+            return
+
+        if decision.intent == "call_tool":
+            if not call_tool_emitted:
+                for end_event in end_step(current_step):
+                    yield end_event
+                yield _sse(
+                    "step",
+                    {
+                        "step": "plan",
+                        "title": "Planning",
+                        "timestamp": time.time(),
+                        "plan": decision.response_text,
+                        "details": decision.response_text,
+                    },
                 )
-            except Exception:
-                pass
-    else:
-        _, idx_dir = _get_bank_paths()
-        evidence = retrieve(question, index_dir=idx_dir, k=8, filter_files=context)
+                current_step = "plan"
+            elif decision.response_text and decision.response_text != call_tool_details:
+                yield _sse(
+                    "step_update",
+                    {
+                        "step": "plan",
+                        "details": decision.response_text,
+                    },
+                )
+            for end_event in end_step("plan"):
+                yield end_event
+            current_step = None
 
-    yield _sse("evidence", [asdict(e) for e in evidence])
+            for action in decision.actions:
+                tool = (action.get("tool") or "").strip()
+                if tool != "retrieve_evidence":
+                    summary = f"Unknown tool requested: {tool or 'empty'}."
+                    yield from _emit_error_step("LLM_ERROR", summary)
+                    yield _sse("error", {"code": "LLM_ERROR", "message": summary})
+                    return
+                tool_calls += 1
+                if tool_calls > 3:
+                    summary = "Too many tool calls."
+                    yield from _emit_error_step("LLM_ERROR", summary)
+                    yield _sse("error", {"code": "LLM_ERROR", "message": summary})
+                    return
 
-    yield _sse("step", {"step": "analyze", "title": "Analyzing Evidence", "timestamp": time.time()})
-    analysis = analyze(question, evidence)
+                if not _bm25_path().exists() and not (use_notes and notes):
+                    summary = "Indexes not found. Run ingest first."
+                    yield from _emit_error_step("LACK_INGEST", summary)
+                    yield _sse("error", {"code": "LACK_INGEST", "message": summary})
+                    return
 
-    yield _sse("step", {"step": "answer", "title": "Generating Answer", "timestamp": time.time()})
-    try:
-        stream_result = stream_answer(question, evidence, analysis.get("keywords", []), history=history)
-        if stream_result:
-            stream_iter, _citations = stream_result
-            for delta in stream_iter:
-                yield _sse("answer_delta", {"delta": delta})
-        else:
-            _, answer_markdown = _fallback_answer(analysis, evidence)
-            if answer_markdown:
-                yield _sse("answer_delta", {"delta": answer_markdown})
-    except Exception as e:
-        error_msg = str(e)
-        # Parse DeepSeek error messages for user-friendly display
-        if "Content Exists Risk" in error_msg:
-            yield _sse("error", {
-                "code": "CONTENT_FILTERED",
-                "message": "The AI provider flagged this content. Try rephrasing your question or using different references."
-            })
-        else:
-            yield _sse("error", {
-                "code": "LLM_ERROR",
-                "message": f"AI generation failed: {error_msg[:200]}"
-            })
+                _, idx_dir = _get_bank_paths()
+                pre_filters = (action.get("args") or {}).get("filter_files") or context or []
+                if pre_filters:
+                    pre_filter_label = ", ".join(pre_filters[:5])
+                    if len(pre_filters) > 5:
+                        pre_filter_label += f" (+{len(pre_filters) - 5} more)"
+                else:
+                    pre_filter_label = "All files"
+                pre_index_status = {
+                    "bm25": (idx_dir / "bm25.pkl").exists(),
+                    "vectors": (idx_dir / "vectors.faiss").exists(),
+                }
+                pre_query = (action.get("args") or {}).get("query") or question
+                pre_k = (action.get("args") or {}).get("k") or 3
+                pre_details = _format_details(
+                    [
+                        "Tool: retrieve_evidence",
+                        f"Query: {pre_query}",
+                        f"k: {pre_k}",
+                        f"Filters: {pre_filter_label}",
+                        f"Index: bm25={'on' if pre_index_status.get('bm25') else 'off'}, vectors={'on' if pre_index_status.get('vectors') else 'off'}",
+                    ]
+                )
+                for end_event in end_step(current_step):
+                    yield end_event
+                yield _sse(
+                    "step",
+                    {
+                        "step": "research",
+                        "title": "Searching References",
+                        "timestamp": time.time(),
+                        "details": pre_details,
+                    },
+                )
+                current_step = "research"
+                tool_result = execute_retrieve_tool(
+                    question=question,
+                    context=context,
+                    use_notes=use_notes,
+                    notes=notes,
+                    args=action.get("args") or {},
+                    index_dir=idx_dir,
+                )
+                meta = tool_result.meta
+                now_ts = time.time()
+                retrieve_sec = float(meta.get("retrieve_ms") or 0.0) / 1000.0
+                analyze_sec = float(meta.get("analyze_ms") or 0.0) / 1000.0
+                research_ts = max(dispatch_ts + 0.001, now_ts - (retrieve_sec + analyze_sec))
+                analyze_ts = max(research_ts + retrieve_sec, now_ts - analyze_sec)
+                filters = meta.get("filter_files") or []
+                if filters:
+                    filter_label = ", ".join(filters[:5])
+                    if len(filters) > 5:
+                        filter_label += f" (+{len(filters) - 5} more)"
+                else:
+                    filter_label = "All files"
+                index_status = meta.get("index_status") or {}
+                research_lines = [
+                    f"Tool: {meta.get('tool', 'retrieve_evidence')}",
+                    f"Query: {meta.get('query', '')}",
+                    f"k: {meta.get('k', 0)}",
+                    f"Filters: {filter_label}",
+                    f"Index: bm25={'on' if index_status.get('bm25') else 'off'}, vectors={'on' if index_status.get('vectors') else 'off'}",
+                    f"Runtime: {_format_ms(float(meta.get('retrieve_ms') or 0.0))}",
+                ]
+                research_details = _format_details(
+                    [
+                        *research_lines,
+                    ]
+                )
+                if current_step != "research":
+                    for end_event in end_step(current_step):
+                        yield end_event
+                    yield _sse(
+                        "step",
+                        {
+                            "step": "research",
+                            "title": "Searching References",
+                            "timestamp": research_ts,
+                            "details": research_details,
+                        },
+                    )
+                    current_step = "research"
+                else:
+                    yield _sse(
+                        "step_update",
+                        {
+                            "step": "research",
+                            "details": research_details,
+                        },
+                    )
+
+                matched_titles: list[str] = []
+                seen_titles: set[str] = set()
+                for item in tool_result.evidence:
+                    title = Path(item.path).name
+                    if title in seen_titles:
+                        continue
+                    seen_titles.add(title)
+                    matched_titles.append(title)
+                    if len(matched_titles) >= 6:
+                        break
+                if matched_titles:
+                    lines = research_lines + ["Matches:"]
+                    for title in matched_titles:
+                        lines.append(f"- {title}")
+                        yield _sse(
+                            "step_update",
+                            {"step": "research", "details": _format_details(lines)},
+                        )
+                yield _sse("evidence", [asdict(e) for e in tool_result.evidence])
+                top_paths = meta.get("top_paths") or []
+                keywords = meta.get("keywords") or []
+                analyze_details = _format_details(
+                    [
+                        f"Evidence count: {meta.get('evidence_count', 0)}",
+                        f"Top files: {', '.join(top_paths) if top_paths else 'None'}",
+                        f"Keywords: {', '.join(keywords) if keywords else 'None'}",
+                        f"Time: {_format_ms(float(meta.get('analyze_ms') or 0.0))}",
+                    ]
+                )
+                for end_event in end_step(current_step):
+                    yield end_event
+                yield _sse(
+                    "step",
+                    {
+                        "step": "analyze",
+                        "title": "Analyzing Evidence",
+                        "timestamp": analyze_ts,
+                        "details": analyze_details,
+                    },
+                )
+                current_step = "analyze"
+                messages.append(build_tool_result_message("retrieve_evidence", tool_result))
+            continue
+
+        if decision.intent == "respond":
+            if not decision.response_text:
+                summary = "Empty response from agent."
+                yield from _emit_error_step("LLM_ERROR", summary)
+                yield _sse("error", {"code": "LLM_ERROR", "message": summary})
+                return
+            cleaned_response = _clean_response_text(decision.response_text)
+            answer_start = time.perf_counter()
+            citation_ids = {
+                match.group(1)
+                for match in (re.match(r"^C(\d+)$", item.strip(), re.IGNORECASE) for item in decision.response_citations)
+                if match
+            }
+            language = "Chinese" if _contains_cjk(cleaned_response) else "English"
+            answer_details = _format_details(
+                [
+                    f"Citations: {len(citation_ids)}",
+                    f"Language: {language}",
+                    f"Response length: {len(cleaned_response)} chars",
+                    f"Time: {_format_ms((time.perf_counter() - answer_start) * 1000.0)}",
+                ]
+            )
+            if not answer_emitted:
+                for end_event in end_step(current_step):
+                    yield end_event
+                yield _sse(
+                    "step",
+                    {
+                        "step": "answer",
+                        "title": "Generating Answer",
+                        "timestamp": time.time(),
+                        "details": answer_details,
+                    },
+                )
+                current_step = "answer"
+                for chunk in _chunk_text(cleaned_response):
+                    yield _sse("answer_delta", {"delta": chunk})
+            else:
+                yield _sse(
+                    "step_update",
+                    {
+                        "step": "answer",
+                        "details": answer_details,
+                    },
+                )
+            for end_event in end_step("answer"):
+                yield end_event
+            yield _sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
+            yield _sse("done", {})
+            return
+
+        summary = "Unknown agent intent."
+        yield from _emit_error_step("LLM_ERROR", summary)
+        yield _sse("error", {"code": "LLM_ERROR", "message": summary})
         return
-
-    yield _sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
-    # Send final done event to signal completion
-    yield _sse("done", {})
 
 
 @app.get("/api/projects/{project_id}/manifest")
@@ -709,49 +1138,38 @@ async def get_status(project_id: str):
 
 @app.post("/api/projects/{project_id}/ask")
 async def ask(project_id: str, req: AskRequest):
-    # The original _ensure_index needs to be updated to be project-specific
-    # if not _bm25_path(project_id).exists():
-    #     _ensure_index(project_id)
-    if not _bm25_path().exists():
-        raise HTTPException(status_code=400, detail="Indexes not found. Run ingest first.")
+    _, idx_dir = _get_bank_paths()
+    result = run_agent(
+        req.question,
+        context=req.context,
+        use_notes=req.use_notes,
+        notes=req.notes,
+        history=req.history,
+        index_dir=idx_dir,
+    )
 
-    evidence: list[EvidenceChunk] = []
-    if req.use_notes and req.notes:
-        for note in req.notes:
-            try:
-                evidence.append(
-                    EvidenceChunk(
-                        chunk_id=note.get("chunkId") or note.get("chunk_id") or "",
-                        path=note.get("path") or "",
-                        page=note.get("page"),
-                        section=note.get("section"),
-                        text=note.get("text") or "",
-                        score=note.get("score") or 1.0,
-                    )
-                )
-            except Exception:
-                pass
-    else:
-        _, idx_dir = _get_bank_paths()
-        evidence = retrieve(req.question, index_dir=idx_dir, k=8, filter_files=req.context)
-    analysis = analyze(req.question, evidence)
+    evidence_payload = [asdict(item) for item in result.evidence]
+    analysis = result.analysis or analyze(req.question, result.evidence)
 
-    evidence_payload = [asdict(item) for item in evidence]
-
-    answer_blocks = None
-    try:
-        answer_blocks = generate_answer(req.question, evidence, analysis.get("keywords", []), history=req.history)
-    except Exception:
-        answer_blocks = None
-
-    if answer_blocks:
+    if result.response_text:
+        cleaned_response = _clean_response_text(result.response_text)
+        _lines, citations = format_evidence(result.evidence)
+        answer_blocks = parse_answer_text(cleaned_response, citations)
+        resolved_citations = _resolve_response_citations(result.response_citations, citations)
+        if resolved_citations:
+            if all(not block.citations for block in answer_blocks):
+                answer_blocks[0].citations = resolved_citations
+            else:
+                for block in answer_blocks:
+                    if not block.citations:
+                        block.citations = resolved_citations
         answer_payload = [
             {"heading": block.heading, "body": block.body, "citations": block.citations}
             for block in answer_blocks
         ]
         answer_markdown = blocks_to_markdown(answer_blocks)
     else:
-        answer_payload, answer_markdown = _fallback_answer(analysis, evidence)
+        answer_payload, answer_markdown = _fallback_answer(analysis, result.evidence)
 
     return {
         "question": req.question,
@@ -764,7 +1182,7 @@ async def ask(project_id: str, req: AskRequest):
 
 @app.post("/api/projects/{project_id}/ask/stream")
 async def ask_stream(project_id: str, req: AskRequest) -> StreamingResponse:
-    generator = _stream_rag(
+    generator = _stream_agent(
         project_id, # Pass project_id
         req.question,
         context=req.context,

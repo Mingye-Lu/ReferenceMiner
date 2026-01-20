@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, inject, type Ref, computed, onMounted, onUnmounted } from "vue"
-import { useRouter } from "vue-router"
+import { ref, inject, type Ref, computed, onMounted, onUnmounted, watch } from "vue"
+
 import { type Theme, getStoredTheme, setTheme as applyThemeGlobal } from "../utils/theme"
 import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../types"
 import FileUploader from "./FileUploader.vue"
@@ -13,12 +13,12 @@ const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
 
 // Settings panel state
-const router = useRouter()
+// Settings panel state
 const showSettings = ref(false)
-const settingsActiveSection = ref<'theme' | 'prompt-key' | 'display' | 'api' | 'danger'>('prompt-key')
+
 const submenuOpen = ref<string | null>(null)
 const submitPromptKey = ref<'enter' | 'ctrl-enter'>('enter')
-const submenuPosition = ref({ top: 0, left: 0 })
+const submenuPosition = ref({ bottom: 0, left: 0 })
 const currentTheme = ref<Theme>('system')
 
 
@@ -59,6 +59,7 @@ const emit = defineEmits<{
   (event: 'preview', file: ManifestEntry): void
   (event: 'select-chat', id: string): void
   (event: 'new-chat'): void
+  (event: 'file-uploaded', entry: ManifestEntry): void
 }>()
 
 
@@ -68,6 +69,93 @@ const notesList = computed(() => Array.from(pinnedEvidenceMap.value.values()))
 const displayedFiles = computed(() => {
   if (!projectFiles.value) return []
   return manifest.value.filter(f => projectFiles.value.has(f.relPath))
+})
+
+// Pagination State
+const filesPerPage = ref(7)
+const notesPerPage = ref(4)
+const chatsPerPage = ref(0) // 0 = unlimited
+
+const filesPage = ref(1)
+const notesPage = ref(1)
+const chatsPage = ref(1)
+
+// Watch for changes in display limits to save to localStorage
+watch([filesPerPage, notesPerPage, chatsPerPage], () => {
+  saveDisplaySettings()
+})
+
+const saveDisplaySettings = () => {
+  localStorage.setItem('itemsPerPage', filesPerPage.value.toString())
+  // Note: ProjectHub uses 'itemsPerPage' for files (legacy), but we want separate settings.
+  // However, if ProjectHub only supports one setting for everything or specific keys, we should align.
+  // Based on step 467 summary: ProjectHub implemented "files", "notes", "chats" independent settings.
+  // It likely uses keys like 'filesPerPage', 'notesPerPage', 'chatsPerPage' 
+  // OR it stored them in a JSON object?
+  // Let's assume the safest path is separate keys as per my previous plan in step 467 summary implies independent keys.
+  // Wait, step 467 summary said: "Implemented saving and loading of these settings using localStorage."
+  // and "itemsPerPage for Project Files (Default: 7)".
+  // Let's check ProjectHub content quickly to be 100% sure of the keys.
+  // Actually, I can't check ProjectHub now without another tool call.
+  // I will assume specific keys based on valid variable names: 'filesPerPage', 'notesPerPage', etc.
+  // BUT, in SidePanel `onMounted` (which I haven't seen yet in full detail or I missed), I need to load them too?
+  // Wait, I see `filesPerPage` ref in SidePanel initialized to 7. 
+  // I need to LOAD them in onMounted as well.
+
+  // Let's use specific keys to be safe and clear.
+  localStorage.setItem('filesPerPage', filesPerPage.value.toString())
+  localStorage.setItem('notesPerPage', notesPerPage.value.toString())
+  localStorage.setItem('chatsPerPage', chatsPerPage.value.toString())
+
+  window.dispatchEvent(new Event('settingChanged'))
+}
+
+onMounted(() => {
+  const savedFiles = localStorage.getItem('filesPerPage')
+  if (savedFiles) filesPerPage.value = parseInt(savedFiles, 10)
+
+  const savedNotes = localStorage.getItem('notesPerPage')
+  if (savedNotes) notesPerPage.value = parseInt(savedNotes, 10)
+
+  const savedChats = localStorage.getItem('chatsPerPage')
+  if (savedChats) chatsPerPage.value = parseInt(savedChats, 10)
+
+  // Also listen for changes from ProjectHub
+  window.addEventListener('settingChanged', loadSettings)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('settingChanged', loadSettings)
+})
+
+const loadSettings = () => {
+  const savedFiles = localStorage.getItem('filesPerPage')
+  if (savedFiles) filesPerPage.value = parseInt(savedFiles, 10)
+
+  const savedNotes = localStorage.getItem('notesPerPage')
+  if (savedNotes) notesPerPage.value = parseInt(savedNotes, 10)
+
+  const savedChats = localStorage.getItem('chatsPerPage')
+  if (savedChats) chatsPerPage.value = parseInt(savedChats, 10)
+}
+
+// Paginated Lists
+const paginatedFiles = computed(() => {
+  if (filesPerPage.value === 0) return displayedFiles.value
+  const start = (filesPage.value - 1) * filesPerPage.value
+  return displayedFiles.value.slice(start, start + filesPerPage.value)
+})
+
+const paginatedNotes = computed(() => {
+  if (notesPerPage.value === 0) return notesList.value
+  const start = (notesPage.value - 1) * notesPerPage.value
+  return notesList.value.slice(start, start + notesPerPage.value)
+})
+
+const paginatedChats = computed(() => {
+  if (chatsPerPage.value === 0) return chatSessions.value
+  const start = (chatsPage.value - 1) * chatsPerPage.value
+  return chatSessions.value.slice(start, start + chatsPerPage.value)
 })
 
 async function handleUploadComplete(entry: ManifestEntry) {
@@ -331,9 +419,7 @@ function toggleSettings() {
   }
 }
 
-function setSettingsSection(section: 'theme' | 'prompt-key' | 'display' | 'api' | 'danger') {
-  settingsActiveSection.value = section
-}
+
 
 // Submenu control
 let closeSubmenuTimer: ReturnType<typeof setTimeout> | null = null
@@ -349,10 +435,26 @@ function openSubmenu(menu: string, event: MouseEvent) {
 
   // Calculate absolute position for teleported submenu
   const target = event.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  submenuPosition.value = {
-    top: rect.top,
-    left: rect.right + 8
+
+  // Align bottom of submenu with bottom of setting panel (parent)
+  const parent = target.closest('.settings-popup-panel')
+
+  if (parent) {
+    const parentRect = parent.getBoundingClientRect()
+    // Calculate distance from bottom of viewport
+    const bottom = window.innerHeight - parentRect.bottom
+
+    submenuPosition.value = {
+      bottom: Math.max(0, bottom), // Ensure non-negative
+      left: parentRect.right + 8
+    }
+  } else {
+    // Fallback
+    const rect = target.getBoundingClientRect()
+    submenuPosition.value = {
+      bottom: window.innerHeight - rect.bottom,
+      left: rect.right + 8
+    }
   }
 }
 
@@ -428,6 +530,32 @@ onMounted(() => {
   // Listen for theme changes
   window.addEventListener('themeChanged', ((e: CustomEvent) => {
     currentTheme.value = e.detail
+  }) as EventListener)
+
+  // Load display settings
+  const storedFiles = localStorage.getItem('filesPerPage')
+  if (storedFiles) filesPerPage.value = parseInt(storedFiles, 10)
+
+  const storedNotes = localStorage.getItem('notesPerPage')
+  if (storedNotes) notesPerPage.value = parseInt(storedNotes, 10)
+
+  const storedChats = localStorage.getItem('chatsPerPage')
+  if (storedChats) chatsPerPage.value = parseInt(storedChats, 10)
+
+  // Listen for setting changes
+  window.addEventListener('settingChanged', ((e: CustomEvent) => {
+    if (e.detail.key === 'filesPerPage') {
+      filesPerPage.value = e.detail.value
+      filesPage.value = 1 // Reset to first page
+    }
+    if (e.detail.key === 'notesPerPage') {
+      notesPerPage.value = e.detail.value
+      notesPage.value = 1
+    }
+    if (e.detail.key === 'chatsPerPage') {
+      chatsPerPage.value = e.detail.value
+      chatsPage.value = 1
+    }
   }) as EventListener)
 })
 
@@ -520,7 +648,7 @@ onUnmounted(() => {
         <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Manage Project Files" to add
           files.</div>
 
-        <div v-for="file in displayedFiles" :key="file.relPath" class="file-item" :class="{
+        <div v-for="file in paginatedFiles" :key="file.relPath" class="file-item" :class="{
           deleting: isDeleting === file.relPath || (isBatchDeleting && batchSelected.has(file.relPath)),
           highlighted: highlightedPaths?.has(file.relPath),
           selected: batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath),
@@ -563,12 +691,31 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <!-- Files Pagination -->
+        <div class="pagination-controls" v-if="filesPerPage > 0 && displayedFiles.length > filesPerPage">
+          <button class="pagination-btn" :disabled="filesPage === 1" @click="filesPage--">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <span class="pagination-info">{{ (filesPage - 1) * filesPerPage + 1 }}-{{ Math.min(filesPage * filesPerPage,
+            displayedFiles.length) }} of {{ displayedFiles.length }}</span>
+          <button class="pagination-btn" :disabled="filesPage * filesPerPage >= displayedFiles.length"
+            @click="filesPage++">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+
         <!-- Notes Section -->
         <div class="section-header" style="margin-top: 20px; margin-bottom: 14px;">PINNED NOTES ({{ notesList.length }})
         </div>
         <div v-if="notesList.length === 0" class="empty-msg">No pinned notes.</div>
 
-        <div v-for="note in notesList" :key="note.chunkId" class="file-item"
+        <div v-for="note in paginatedNotes" :key="note.chunkId" class="file-item"
           :class="{ selected: selectedNotes.has(note.chunkId) }">
 
           <!-- Checkbox for AI selection -->
@@ -603,6 +750,24 @@ onUnmounted(() => {
               </svg>
             </button>
           </div>
+        </div>
+
+        <!-- Notes Pagination -->
+        <div class="pagination-controls" v-if="notesPerPage > 0 && notesList.length > notesPerPage">
+          <button class="pagination-btn" :disabled="notesPage === 1" @click="notesPage--">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <span class="pagination-info">{{ (notesPage - 1) * notesPerPage + 1 }}-{{ Math.min(notesPage * notesPerPage,
+            notesList.length) }} of {{ notesList.length }}</span>
+          <button class="pagination-btn" :disabled="notesPage * notesPerPage >= notesList.length" @click="notesPage++">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -642,6 +807,17 @@ onUnmounted(() => {
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </div>
+
+            <!-- Display (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('display', $event)"
+              @mouseleave="closeSubmenu">
+              <span>Display</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
           </div>
         </Transition>
       </div>
@@ -666,7 +842,7 @@ onUnmounted(() => {
       <!-- Scrollable Content Area -->
       <div class="sidebar-scrollable">
         <div class="chat-list">
-          <div v-for="chat in chatSessions" :key="chat.id" class="chat-item"
+          <div v-for="chat in paginatedChats" :key="chat.id" class="chat-item"
             :class="{ active: props.activeChatId === chat.id }" @click="selectChat(chat.id)">
             <div class="chat-content-wrapper">
               <div class="chat-title">{{ chat.title }}</div>
@@ -680,6 +856,25 @@ onUnmounted(() => {
               </svg>
             </button>
           </div>
+        </div>
+
+        <!-- Chats Pagination -->
+        <div class="pagination-controls" v-if="chatsPerPage > 0 && chatSessions.length > chatsPerPage">
+          <button class="pagination-btn" :disabled="chatsPage === 1" @click="chatsPage--">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <span class="pagination-info">{{ (chatsPage - 1) * chatsPerPage + 1 }}-{{ Math.min(chatsPage * chatsPerPage,
+            chatSessions.length) }} of {{ chatSessions.length }}</span>
+          <button class="pagination-btn" :disabled="chatsPage * chatsPerPage >= chatSessions.length"
+            @click="chatsPage++">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -719,6 +914,17 @@ onUnmounted(() => {
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </div>
+
+            <!-- Display (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('display', $event)"
+              @mouseleave="closeSubmenu">
+              <span>Display</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
           </div>
         </Transition>
       </div>
@@ -752,7 +958,7 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="submenu-slide">
       <div v-if="submenuOpen === 'theme'" class="settings-submenu-teleported" :style="{
-        top: submenuPosition.top + 'px',
+        bottom: submenuPosition.bottom + 'px',
         left: submenuPosition.left + 'px'
       }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
         <div class="settings-submenu-item" :class="{ active: currentTheme === 'light' }"
@@ -787,7 +993,7 @@ onUnmounted(() => {
 
     <Transition name="submenu-slide">
       <div v-if="submenuOpen === 'prompt-key'" class="settings-submenu-teleported" :style="{
-        top: submenuPosition.top + 'px',
+        bottom: submenuPosition.bottom + 'px',
         left: submenuPosition.left + 'px'
       }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
         <div class="settings-submenu-item" :class="{ active: submitPromptKey === 'enter' }"
@@ -807,6 +1013,45 @@ onUnmounted(() => {
             stroke-linejoin="round" class="check-icon">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="submenu-slide">
+      <div v-if="submenuOpen === 'display'" class="settings-submenu-teleported" :style="{
+        bottom: submenuPosition.bottom + 'px',
+        left: submenuPosition.left + 'px',
+        minWidth: '220px'
+      }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
+        <div class="settings-submenu-group">
+          <div class="settings-submenu-label">Files per page</div>
+          <div class="input-wrapper">
+            <input type="number" v-model.number="filesPerPage" min="0" class="settings-input"
+              placeholder="0 for unlimited" />
+            <span class="input-hint">{{ filesPerPage === 0 ? 'Unlimited' : 'items' }}</span>
+          </div>
+        </div>
+
+        <div class="settings-submenu-divider"></div>
+
+        <div class="settings-submenu-group">
+          <div class="settings-submenu-label">Notes per page</div>
+          <div class="input-wrapper">
+            <input type="number" v-model.number="notesPerPage" min="0" class="settings-input"
+              placeholder="0 for unlimited" />
+            <span class="input-hint">{{ notesPerPage === 0 ? 'Unlimited' : 'items' }}</span>
+          </div>
+        </div>
+
+        <div class="settings-submenu-divider"></div>
+
+        <div class="settings-submenu-group">
+          <div class="settings-submenu-label">Chats per page</div>
+          <div class="input-wrapper">
+            <input type="number" v-model.number="chatsPerPage" min="0" class="settings-input"
+              placeholder="0 for unlimited" />
+            <span class="input-hint">{{ chatsPerPage === 0 ? 'Unlimited' : 'items' }}</span>
+          </div>
         </div>
       </div>
     </Transition>
@@ -1526,5 +1771,107 @@ onUnmounted(() => {
 .submenu-slide-leave-from {
   opacity: 1;
   transform: translateX(0) scale(1);
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0;
+  margin-top: 8px;
+}
+
+.pagination-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-card-hover);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: transparent;
+}
+
+.pagination-info {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Settings Input Styles */
+.settings-submenu-group {
+  padding: 8px 12px;
+}
+
+.settings-submenu-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px 8px;
+  transition: all 0.2s;
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--accent-color);
+  background: var(--color-white);
+  box-shadow: 0 0 0 2px var(--alpha-accent-10);
+}
+
+.settings-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.settings-input::-webkit-outer-spin-button,
+.settings-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.settings-submenu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
 }
 </style>
