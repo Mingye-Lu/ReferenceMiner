@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -276,16 +277,28 @@ def run_agent(
     analysis: dict = {"scope": derive_scope(question)}
     tool_calls = 0
     used_tool = False
+    malformed_retries = 0
 
     for _ in range(max_turns):
         try:
             raw = stream_chat_text(client, messages)
         except Exception:
             break
+        sys.stderr.write(f"[agent] raw_response={raw}\n")
+        sys.stderr.flush()
         decision = parse_agent_decision(raw)
         messages.append({"role": "assistant", "content": raw})
 
         if not decision:
+            if malformed_retries < 2:
+                malformed_retries += 1
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Your last response was malformed. Respond again with exactly one JSON object that follows the schema in the system prompt. Do not include any extra text.",
+                    }
+                )
+                continue
             break
 
         if decision.intent == "call_tool":

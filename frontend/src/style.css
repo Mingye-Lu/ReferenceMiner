@@ -618,6 +618,11 @@ input[type="checkbox"].custom-checkbox:checked::after {
   margin-bottom: 0;
 }
 
+.markdown-body strong,
+.markdown-body b {
+  font-weight: 700;
+}
+
 /* --- Transitions --- */
 .slide-enter-active,
 .slide-leave-active {

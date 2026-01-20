@@ -12,6 +12,7 @@ const setHighlightedPaths = inject<(paths: string[]) => void>("setHighlightedPat
 
 const isTimelineExpanded = ref(true)
 const expandedSteps = ref<Set<number>>(new Set())
+const manualStepStates = ref<Map<number, boolean>>(new Map())
 
 
 const currentTime = ref(Date.now())
@@ -159,7 +160,8 @@ function handleMessageLeave() {
 }
 
 function processMarkdown(text: string) {
-  return renderMarkdown(text).replace(
+  const normalized = (text ?? "").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+  return renderMarkdown(normalized).replace(
     /\[(C\d+(?:\s*,\s*C\d+)*)\]/g,
     (_match, group) => {
       const buttons = group
@@ -192,8 +194,10 @@ function toggleStepDetails(index: number, details?: string) {
   const current = expandedSteps.value
   if (current.has(index)) {
     current.delete(index)
+    manualStepStates.value.set(index, false)
   } else {
     current.add(index)
+    manualStepStates.value.set(index, true)
   }
   expandedSteps.value = new Set(current)
 }
@@ -201,6 +205,34 @@ function toggleStepDetails(index: number, details?: string) {
 function isStepExpanded(index: number): boolean {
   return expandedSteps.value.has(index)
 }
+
+function autoExpandLatestStep() {
+  const steps = props.message.timeline || []
+  if (!steps.length) return
+  const latestIndex = steps.length - 1
+  const nextExpanded = new Set<number>()
+
+  for (let i = 0; i < steps.length; i++) {
+    if (manualStepStates.value.has(i)) {
+      if (manualStepStates.value.get(i)) {
+        nextExpanded.add(i)
+      }
+    }
+  }
+
+  if (!manualStepStates.value.has(latestIndex) || manualStepStates.value.get(latestIndex)) {
+    nextExpanded.add(latestIndex)
+  }
+
+  expandedSteps.value = nextExpanded
+}
+
+watch(() => props.message.timeline?.length, (len, prev) => {
+  if (!len) return
+  if (!prev || len !== prev) {
+    autoExpandLatestStep()
+  }
+})
 </script>
 
 <template>

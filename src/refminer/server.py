@@ -539,6 +539,23 @@ def _resolve_response_citations(
     return resolved
 
 
+def _filter_evidence_by_citations(
+    evidence: list[Any],
+    response_citations: list[str],
+) -> list[Any]:
+    if not response_citations:
+        return []
+    indices: list[int] = []
+    for item in response_citations:
+        match = re.match(r"^C(\d+)$", str(item).strip(), re.IGNORECASE)
+        if not match:
+            continue
+        idx = int(match.group(1)) - 1
+        if idx >= 0 and idx not in indices:
+            indices.append(idx)
+    return [evidence[i] for i in indices if i < len(evidence)]
+
+
 def _format_timestamp(epoch: Optional[float]) -> Optional[str]:
     if not epoch:
         return None
@@ -567,6 +584,16 @@ def _clean_response_text(text: str) -> str:
             stripped = stripped[:-1].rstrip()
         cleaned_lines.append(stripped)
     cleaned = "\n".join(cleaned_lines).strip()
+    cleaned = re.sub(r"\\(?=\d+\.)", "\n", cleaned)
+    cleaned = re.sub(r"\\(?=[*-]\s)", "\n", cleaned)
+    cleaned = cleaned.replace("\\", "")
+    return cleaned
+
+
+def _clean_stream_text(text: str) -> str:
+    if not text:
+        return text
+    cleaned = text.replace("\r", "")
     cleaned = re.sub(r"\\(?=\d+\.)", "\n", cleaned)
     cleaned = re.sub(r"\\(?=[*-]\s)", "\n", cleaned)
     cleaned = cleaned.replace("\\", "")
@@ -688,11 +715,13 @@ def _stream_agent_decision(
             )
         if answer_emitted:
             partial = _extract_nested_json_string_partial(buffer, "response", "text")
-            if partial is not None and partial != answer_text:
-                delta_text = partial[len(answer_text):]
-                answer_text = partial
-                if delta_text:
-                    yield _sse("answer_delta", {"delta": delta_text})
+            if partial is not None:
+                cleaned_partial = _clean_stream_text(partial)
+                if cleaned_partial != answer_text:
+                    delta_text = cleaned_partial[len(answer_text):]
+                    answer_text = cleaned_partial
+                    if delta_text:
+                        yield _sse("answer_delta", {"delta": delta_text})
 
     return buffer, call_tool_emitted, call_tool_details, answer_emitted
 
@@ -765,6 +794,7 @@ def _stream_agent(
     messages = build_agent_messages(question, history, context=context, use_notes=use_notes, notes=notes)
     tool_calls = 0
     current_step: Optional[str] = "dispatch"
+    malformed_retries = 0
 
     def end_step(phase: Optional[str]) -> None:
         if not phase:
@@ -811,9 +841,27 @@ def _stream_agent(
             return
 
         decision = parse_agent_decision(raw)
+        sys.stderr.write(f"[agent_stream] raw_response={raw}\n")
+        sys.stderr.flush()
         messages.append({"role": "assistant", "content": raw})
 
         if not decision:
+            if malformed_retries < 2:
+                malformed_retries += 1
+                yield _sse(
+                    "step_update",
+                    {
+                        "step": current_step or "dispatch",
+                        "details": "Malformed response detected. Retrying with stricter format.",
+                    },
+                )
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Your last response was malformed. Respond again with exactly one JSON object that follows the schema in the system prompt. Do not include any extra text.",
+                    }
+                )
+                continue
             summary = "Malformed agent response."
             yield from _emit_error_step("LLM_ERROR", summary)
             yield _sse("error", {"code": "LLM_ERROR", "message": summary})
@@ -1015,6 +1063,10 @@ def _stream_agent(
                 for match in (re.match(r"^C(\d+)$", item.strip(), re.IGNORECASE) for item in decision.response_citations)
                 if match
             }
+            if decision.response_citations:
+                filtered = _filter_evidence_by_citations(tool_result.evidence if 'tool_result' in locals() else [], decision.response_citations)
+                if filtered:
+                    yield _sse("evidence", [asdict(e) for e in filtered])
             language = "Chinese" if _contains_cjk(cleaned_response) else "English"
             answer_details = _format_details(
                 [
@@ -1148,7 +1200,11 @@ async def ask(project_id: str, req: AskRequest):
         index_dir=idx_dir,
     )
 
-    evidence_payload = [asdict(item) for item in result.evidence]
+    if result.response_text:
+        filtered_evidence = _filter_evidence_by_citations(result.evidence, result.response_citations)
+        evidence_payload = [asdict(item) for item in filtered_evidence]
+    else:
+        evidence_payload = [asdict(item) for item in result.evidence]
     analysis = result.analysis or analyze(req.question, result.evidence)
 
     if result.response_text:
