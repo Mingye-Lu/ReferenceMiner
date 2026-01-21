@@ -9,6 +9,10 @@ const props = defineProps<{
   initialPage?: number
 }>()
 
+const emit = defineEmits<{
+  (event: 'progress', percent: number): void
+}>()
+
 const startPage = computed(() => {
   if (props.initialPage) return props.initialPage
   const firstGroup = props.highlightGroups?.[0]
@@ -18,12 +22,8 @@ const startPage = computed(() => {
 </script>
 
 <template>
-  <PdfViewer
-    :file-url="fileUrl"
-    :highlight-groups="highlightGroups"
-    :initial-page="startPage"
-    class="pdf-preview"
-  />
+  <PdfViewer :file-url="fileUrl" :highlight-groups="highlightGroups" :initial-page="startPage"
+    @progress="emit('progress', $event)" class="pdf-preview" />
 </template>
 
 <style scoped>

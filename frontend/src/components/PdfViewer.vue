@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed, onBeforeUnmount } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 import type { HighlightGroup } from '../types'
+import { usePdfSettings } from '../composables/usePdfSettings'
 
 // Setup PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs'
@@ -12,6 +13,10 @@ const props = defineProps<{
   initialPage?: number
 }>()
 
+const emit = defineEmits<{
+  (event: 'progress', percent: number): void
+}>()
+
 const canvasRef = ref<HTMLCanvasElement>()
 const overlayRef = ref<HTMLDivElement>()
 const containerRef = ref<HTMLDivElement>()
@@ -20,11 +25,11 @@ const currentPage = ref(1)
 const totalPages = ref(0)
 const isLoading = ref(true)
 const error = ref<string>()
-const scale = ref(1.5)
+const scale = ref(1.0)
 const highlightEnabled = ref(true)
 const pageInput = ref('1')
 const fitMode = ref<'custom' | 'width'>('custom')
-const zoomInput = ref('150')
+const zoomInput = ref('100')
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 let renderTask: pdfjsLib.RenderTask | null = null
@@ -34,6 +39,15 @@ let lastPageNumber = 0
 let shouldAutoScroll = false
 let resizeObserver: ResizeObserver | null = null
 let resizeRaf = 0
+const { settings: pdfSettings } = usePdfSettings()
+const viewMode = computed(() => pdfSettings.value.viewMode)
+
+// Continuous scroll state
+const pageRefs = ref<(HTMLElement | null)[]>([])
+const visiblePages = ref<Set<number>>(new Set())
+let pageObserver: IntersectionObserver | null = null
+// Map of page number -> render task mainly for continuous mode cancellation
+const renderTasks = new Map<number, pdfjsLib.RenderTask>()
 
 const highlightPalette = [
   '#F59E0B',
@@ -52,6 +66,17 @@ const hasHighlights = computed(() => {
 
 const normalizedGroups = computed<HighlightGroup[]>(() => {
   return props.highlightGroups ?? []
+})
+
+// Page progress percentage
+const progressPercent = computed(() => {
+  if (totalPages.value === 0) return 0
+  return (currentPage.value / totalPages.value) * 100
+})
+
+// Emit progress to parent
+watch(progressPercent, (percent) => {
+  emit('progress', percent)
 })
 
 // Drag-to-pan state
@@ -99,7 +124,14 @@ const loadPdf = async () => {
 
     // Wait for DOM to update before rendering
     await nextTick()
-    await renderPage()
+    await nextTick()
+    if (viewMode.value === 'continuous') {
+      setupObserver()
+      const el = pageRefs.value[currentPage.value - 1]
+      if (el) el.scrollIntoView({ block: 'start' })
+    } else {
+      await renderPage()
+    }
   } catch (err) {
     console.error('Error loading PDF:', err)
     error.value = 'Failed to load PDF'
@@ -121,8 +153,8 @@ const renderPage = async () => {
     if (seq !== renderSeq) return
     const viewport = page.getViewport({ scale: scale.value })
 
-    const canvas = canvasRef.value
-    const overlay = overlayRef.value
+    const canvas = viewMode.value === 'single' ? canvasRef.value : (pageRefs.value[currentPage.value - 1]?.querySelector('canvas') as HTMLCanvasElement)
+    const overlay = viewMode.value === 'single' ? overlayRef.value : (pageRefs.value[currentPage.value - 1]?.querySelector('.pdf-overlay') as HTMLDivElement)
     if (!canvas || !overlay) return
     const context = canvas.getContext('2d')
     if (!context) return
@@ -170,6 +202,191 @@ const syncOverlay = (viewport: any) => {
   overlayRef.value.style.width = `${viewport.width}px`
   overlayRef.value.style.height = `${viewport.height}px`
 }
+
+// Continuous mode rendering
+const renderSpecificPage = async (pageNum: number) => {
+  if (!pdfDoc) return
+
+  const pageEl = pageRefs.value[pageNum - 1]
+  if (!pageEl) return
+
+  const canvas = pageEl.querySelector('canvas') as HTMLCanvasElement
+  const overlay = pageEl.querySelector('.pdf-overlay') as HTMLElement
+  if (!canvas || !overlay) return
+
+  // Skip if already rendered with same scale (simple check, can be improved)
+  if (canvas.hasAttribute('data-rendered-scale') &&
+    canvas.getAttribute('data-rendered-scale') === String(scale.value)) {
+    return
+  }
+
+  try {
+    // Cancel existing task for this page if any
+    if (renderTasks.has(pageNum)) {
+      renderTasks.get(pageNum)?.cancel()
+      renderTasks.delete(pageNum)
+    }
+
+    const page = await pdfDoc.getPage(pageNum)
+    const viewport = page.getViewport({ scale: scale.value })
+
+    // Resize canvas
+    canvas.height = viewport.height
+    canvas.width = viewport.width
+    // Resize overlay
+    overlay.style.width = `${viewport.width}px`
+    overlay.style.height = `${viewport.height}px`
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport,
+      canvas, // Include canvas to satisfy type requirements if needed
+    }
+
+    const task = page.render(renderContext)
+    renderTasks.set(pageNum, task)
+
+    await task.promise
+    renderTasks.delete(pageNum)
+
+    canvas.setAttribute('data-rendered-scale', String(scale.value))
+
+    // Render highlights for this page
+    renderHighlightsForPage(viewport, pageNum, overlay)
+
+  } catch (err: any) {
+    if (err?.name !== 'RenderingCancelledException') {
+      console.error(`Error rendering page ${pageNum}:`, err)
+    }
+  }
+}
+
+const renderHighlightsForPage = (viewport: any, pageNum: number, overlay: HTMLElement) => {
+  overlay.innerHTML = ''
+  if (!highlightEnabled.value || !hasHighlights.value) return
+
+  const groups = normalizedGroups.value
+  const pdfHeight = (viewport.viewBox?.[3] ?? 0) - (viewport.viewBox?.[1] ?? 0)
+
+  groups.forEach((group, groupIndex) => {
+    // Determine color from palette
+    const color = group.color || colorForGroup(group, groupIndex)
+    const border = color
+    const background = toAlpha(color, 0.35)
+
+    group.boxes.forEach(box => {
+      // Filter strictly by page
+      if (box.page !== pageNum) return
+
+      const rect = document.createElement('div')
+      rect.className = 'pdf-highlight'
+
+      // Use same coordinate conversion as renderHighlights
+      const [x0, y0, x1, y1] = viewport.convertToViewportRectangle([
+        box.x0,
+        pdfHeight - box.y1,
+        box.x1,
+        pdfHeight - box.y0,
+      ])
+
+      const left = Math.min(x0, x1)
+      const top = Math.min(y0, y1)
+      const width = Math.abs(x1 - x0)
+      const height = Math.abs(y1 - y0)
+
+      rect.style.position = 'absolute'
+      rect.style.left = `${left}px`
+      rect.style.top = `${top}px`
+      rect.style.width = `${width}px`
+      rect.style.height = `${height}px`
+      rect.style.background = background
+      rect.style.border = `1px solid ${border}`
+      rect.style.pointerEvents = 'none'
+
+      overlay.appendChild(rect)
+    })
+  })
+}
+
+// Setup IntersectionObserver for continuous mode
+const setupObserver = () => {
+  if (pageObserver) pageObserver.disconnect()
+
+  visiblePages.value.clear()
+
+  pageObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const pageNum = parseInt((entry.target as HTMLElement).dataset.page || '0')
+      if (!pageNum) return
+
+      if (entry.isIntersecting) {
+        visiblePages.value.add(pageNum)
+        renderSpecificPage(pageNum)
+      } else {
+        visiblePages.value.delete(pageNum)
+        // Optional: clear canvas to save memory if very far off screen?
+        // For now, keep rendered to avoid flickering when scrolling back
+      }
+    })
+
+    // Update current page to the most visible one
+    updateCurrentPageFromScroll()
+  }, {
+    root: pageContainerRef.value,
+    threshold: [0.1, 0.5]
+  })
+
+  // Observe all pages
+  nextTick(() => {
+    pageRefs.value.forEach(el => {
+      if (el) pageObserver?.observe(el)
+    })
+  })
+}
+
+const updateCurrentPageFromScroll = () => {
+  // Find the page closest to center or top
+  // Simple heuristic: min page number in visible set, or sort by intersection ratio if available
+  if (visiblePages.value.size === 0) return
+
+  const sorted = Array.from(visiblePages.value).sort((a, b) => a - b)
+  // Prefer the middle-ish page if multiple are visible, or just the first fully visible one.
+  // Let's just take the first one for simplicity, or we can improve logic.
+  // If we are scrolling down, the bottom page enters. If we scroll up, top enters.
+  // A robust way is to check element positions relative to container.
+  // For now: just take the smallest page number visible (top-most in view).
+  const topMost = sorted[0]
+  if (topMost !== currentPage.value) {
+    currentPage.value = topMost
+    pageInput.value = String(topMost)
+  }
+}
+
+watch(viewMode, async (newMode) => {
+  // Reset state when switching modes
+  if (newMode === 'continuous') {
+    await nextTick()
+    setupObserver()
+    // Scroll to current page
+    const el = pageRefs.value[currentPage.value - 1]
+    el?.scrollIntoView({ block: 'start' })
+  } else {
+    if (pageObserver) {
+      pageObserver.disconnect()
+      pageObserver = null
+    }
+    await nextTick()
+    renderPage()
+  }
+})
+
+onBeforeUnmount(() => {
+  if (pageObserver) pageObserver.disconnect()
+  renderTasks.forEach(task => task.cancel())
+})
 
 const renderHighlights = (viewport: any, pageNumber: number) => {
   if (!overlayRef.value) return
@@ -269,17 +486,7 @@ const applyScale = (nextScale: number) => {
   renderPage()
 }
 
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++
-  }
-}
 
-const prevPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--
-  }
-}
 
 const zoomIn = () => {
   applyScale(scale.value + 0.25)
@@ -287,15 +494,6 @@ const zoomIn = () => {
 
 const zoomOut = () => {
   applyScale(scale.value - 0.25)
-}
-
-const toggleHighlights = () => {
-  highlightEnabled.value = !highlightEnabled.value
-  if (lastViewport) {
-    renderHighlights(lastViewport, lastPageNumber)
-  } else {
-    renderPage()
-  }
 }
 
 const fitToWidth = async () => {
@@ -310,20 +508,6 @@ const fitToWidth = async () => {
   renderPage()
 }
 
-const goToPage = () => {
-  const raw = parseInt(pageInput.value, 10)
-  if (!Number.isFinite(raw)) {
-    pageInput.value = `${currentPage.value}`
-    return
-  }
-  const clamped = clamp(raw, 1, totalPages.value || 1)
-  if (clamped !== currentPage.value) {
-    currentPage.value = clamped
-  } else {
-    pageInput.value = `${clamped}`
-  }
-}
-
 const goToZoom = () => {
   const raw = parseInt(zoomInput.value, 10)
   if (!Number.isFinite(raw)) {
@@ -334,6 +518,17 @@ const goToZoom = () => {
   applyScale(clampedPercent / 100)
   zoomInput.value = `${Math.round(scale.value * 100)}`
 }
+
+const toggleHighlights = () => {
+  highlightEnabled.value = !highlightEnabled.value
+  if (lastViewport) {
+    renderHighlights(lastViewport, lastPageNumber)
+  } else {
+    renderPage()
+  }
+}
+
+
 
 const refreshHighlights = () => {
   if (!lastViewport) return
@@ -376,13 +571,62 @@ watch(
 
 
 // Drag-to-pan functionality (H key for Hand tool - standard in PDF viewers)
+// Arrow keys for page navigation
 const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null
   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
     return
   }
+
+  // H key for pan mode
   if (e.key === 'h' && !isDragMode.value && pageContainerRef.value) {
     isDragMode.value = true
+  }
+
+  // Arrow keys for page navigation
+  if (e.key === 'ArrowLeft') {
+    prevPage()
+    e.preventDefault()
+  } else if (e.key === 'ArrowRight') {
+    nextPage()
+    e.preventDefault()
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    // Allow native scroll
+  }
+}
+
+
+const scrollToPage = (pageNum: number) => {
+  if (viewMode.value === 'single') {
+    currentPage.value = pageNum
+    renderPage()
+  } else {
+    // Continuous: just scroll to it
+    currentPage.value = pageNum
+    const el = pageRefs.value[pageNum - 1]
+    el?.scrollIntoView({ block: 'start' })
+  }
+}
+
+const goToPage = () => {
+  let p = parseInt(pageInput.value)
+  if (isNaN(p)) return
+  if (p < 1) p = 1
+  if (p > totalPages.value) p = totalPages.value
+
+  scrollToPage(p)
+  pageInput.value = String(p)
+}
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    scrollToPage(currentPage.value - 1)
+  }
+}
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    scrollToPage(currentPage.value + 1)
   }
 }
 
@@ -444,7 +688,7 @@ onUnmounted(() => {
     renderTask = null
   }
   if (pdfDoc) {
-    pdfDoc.destroy().catch(() => {})
+    pdfDoc.destroy().catch(() => { })
     pdfDoc = null
   }
   window.removeEventListener('keydown', handleKeyDown)
@@ -461,7 +705,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="pdf-viewer">
+  <div ref="containerRef" class="pdf-viewer" :style="{ '--pdf-progress': progressPercent + '%' }">
     <div v-if="isLoading" class="pdf-loading">
       <div class="spinner"></div>
       <p>Loading PDF...</p>
@@ -474,75 +718,90 @@ onUnmounted(() => {
     <div v-else class="pdf-content">
       <div class="pdf-controls">
         <div class="control-group">
-          <button class="nav-btn" @click="prevPage" :disabled="currentPage <= 1" title="Previous page">
+          <button class="nav-btn" @click="prevPage" :disabled="currentPage <= 1" title="Previous page (←)">
             Prev
           </button>
           <div class="page-input">
-            <input
-              v-model="pageInput"
-              type="number"
-              min="1"
-              :max="totalPages"
-              @keydown.enter="goToPage"
-              @blur="goToPage"
-              aria-label="Page number"
-            />
-            <span>/ {{ totalPages }}</span>
+            <input v-model="pageInput" type="number" min="1" :max="totalPages" @keydown.enter="goToPage"
+              @blur="goToPage" aria-label="Page number" />
+            <span class="separator">/</span>
+            <span class="total">{{ totalPages }}</span>
           </div>
-          <button class="nav-btn" @click="nextPage" :disabled="currentPage >= totalPages" title="Next page">
+          <button class="nav-btn" @click="nextPage" :disabled="currentPage >= totalPages" title="Next page (→)">
             Next
           </button>
         </div>
 
         <div class="control-group">
-          <button class="zoom-btn" @click="zoomOut" :disabled="scale <= 0.5" title="Zoom out">-</button>
+          <button class="nav-btn" @click="zoomOut" :disabled="scale <= 0.5" title="Zoom out">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+          </button>
           <label class="zoom-input">
-            <input
-              v-model="zoomInput"
-              type="number"
-              min="50"
-              max="300"
-              step="10"
-              @keydown.enter="goToZoom"
-              @blur="goToZoom"
-              aria-label="Zoom percentage"
-            />
+            <input v-model="zoomInput" type="number" min="50" max="300" step="10" @keydown.enter="goToZoom"
+              @blur="goToZoom" aria-label="Zoom percentage" />
             <span>%</span>
           </label>
-          <button class="zoom-btn" @click="zoomIn" :disabled="scale >= 3" title="Zoom in">+</button>
-          <button class="fit-btn" @click="fitToWidth" :disabled="!totalPages" title="Fit page to width">
+          <button class="nav-btn" @click="zoomIn" :disabled="scale >= 3" title="Zoom in">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+          </button>
+          <button class="nav-btn" @click="fitToWidth" :disabled="!totalPages" title="Fit page to width">
             Fit width
           </button>
         </div>
 
         <div class="control-group end">
-          <button
-            class="highlight-toggle"
-            :class="{ active: highlightEnabled }"
-            @click="toggleHighlights"
-            :title="highlightEnabled ? 'Hide highlights' : 'Show highlights'"
-          >
+          <button class="highlight-toggle" :class="{ active: highlightEnabled }" @click="toggleHighlights"
+            :title="highlightEnabled ? 'Hide highlights' : 'Show highlights'">
             Highlights
           </button>
           <div class="keyboard-hint" :class="{ active: isDragMode }">
             <kbd>H</kbd>
-            <span v-if="isDragMode">Pan mode active</span>
+            <span v-if="isDragMode">Pan mode</span>
             <span v-else>Hold to pan</span>
           </div>
         </div>
+
+        <!-- Progress Bar (Sticky with controls) -->
+        <div class="pdf-progress-bar"></div>
       </div>
 
-      <div
-        ref="pageContainerRef"
-        class="pdf-page-container"
-        :class="{ 'drag-mode': isDragMode, 'dragging': isDragging }"
-        @mousedown="handleMouseDown"
-        @mousemove="handleMouseMove"
-      >
-        <div class="pdf-canvas-wrapper">
+      <div ref="pageContainerRef" class="pdf-page-container"
+        :class="{ 'drag-mode': isDragMode, 'dragging': isDragging, 'continuous-mode': viewMode === 'continuous' }"
+        @mousedown="handleMouseDown" @mousemove="handleMouseMove" @scroll="viewMode === 'continuous' ? null : null">
+        <!-- Scroll listener can be handled by observer in continuous -->
+
+        <!-- Single Page View -->
+        <div v-if="viewMode === 'single'" class="pdf-canvas-wrapper">
           <canvas ref="canvasRef"></canvas>
           <div ref="overlayRef" class="pdf-overlay"></div>
         </div>
+
+        <!-- Continuous View -->
+        <div v-else class="pdf-continuous-list">
+          <div v-for="page in totalPages" :key="page" ref="pageRefs" class="pdf-page-wrapper" :data-page="page"
+            :style="{ minHeight: '800px', marginBottom: '16px' }">
+            <!-- Height placeholder until loaded? Ideally we know aspect ratio. 
+                      For now just a min-height. Once rendered it snaps to size. 
+                      Better to have a loader or static size if possible. -->
+            <div class="pdf-canvas-wrapper">
+              <canvas></canvas>
+              <div class="pdf-overlay"></div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -578,7 +837,9 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .pdf-controls {
@@ -588,51 +849,53 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 10px 16px;
   padding: 10px 14px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-card);
+  box-shadow: 0 2px 8px var(--alpha-black-05);
   position: sticky;
   top: 0;
   z-index: 5;
 }
 
-.pdf-controls button {
-  padding: 6px 12px;
-  background: var(--color-white);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+/* Dark mode controls */
+[data-theme="dark"] .pdf-controls {
+  background: var(--color-neutral-900);
+  border-bottom-color: var(--color-neutral-800);
+  box-shadow: 0 2px 12px var(--alpha-black-20);
 }
 
-.pdf-controls button:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
-  border-color: var(--border-card-hover);
-}
 
-.pdf-controls button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  border-color: transparent;
-}
 
-.pdf-controls button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.2);
-}
-
+/* Control groups with visual separation */
 .control-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  background: var(--color-neutral-100);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .control-group {
+  background: var(--color-neutral-850);
 }
 
 .control-group.end {
   margin-left: auto;
+  background: transparent;
+  padding: 0;
+  gap: 8px;
+}
+
+/* Icon buttons (zoom +/-) */
+
+
+/* Page indicator with progress bar */
+.page-indicator-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .page-input {
@@ -641,10 +904,37 @@ onUnmounted(() => {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid var(--border-input);
-  background: var(--color-white);
+  border: 1px solid var(--border-card);
+  background: transparent;
   color: var(--text-secondary);
   font-size: 12px;
+  transition: all 0.2s;
+}
+
+.page-input:hover {
+  border-color: var(--border-card-hover);
+  background: var(--bg-card-hover);
+}
+
+.page-input:focus-within {
+  border-color: var(--accent-color);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+[data-theme="dark"] .page-input {
+  background: var(--color-neutral-800);
+  border-color: var(--color-neutral-700);
+}
+
+[data-theme="dark"] .page-input:hover {
+  background: var(--color-neutral-750);
+  border-color: var(--color-neutral-600);
+}
+
+[data-theme="dark"] .page-input:focus-within {
+  background: var(--color-neutral-750);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.2);
 }
 
 .page-input input {
@@ -657,20 +947,92 @@ onUnmounted(() => {
   outline: none;
 }
 
-.page-input input:focus {
-  outline: none;
+[data-theme="dark"] .page-input input {
+  color: var(--text-primary);
 }
 
+.page-input .separator {
+  color: var(--text-secondary);
+}
+
+.page-input .total {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide input number arrows */
+.page-input input::-webkit-outer-spin-button,
+.page-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.page-input input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Page progress bar */
+.page-progress-bar {
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-neutral-200);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .page-progress-bar {
+  background: var(--color-neutral-700);
+}
+
+.page-progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
+  border-radius: 1px;
+}
+
+/* Zoom input */
 .zoom-input {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px 6px;
   border-radius: 6px;
-  border: 1px solid var(--border-input);
-  background: var(--color-white);
+  border: 1px solid var(--border-card);
+  background: transparent;
   color: var(--text-secondary);
   font-size: 12px;
+  transition: all 0.2s;
+}
+
+.zoom-input:hover {
+  border-color: var(--border-card-hover);
+  background: var(--bg-card-hover);
+}
+
+.zoom-input:focus-within {
+  border-color: var(--accent-color);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+[data-theme="dark"] .zoom-input {
+  background: var(--color-neutral-800);
+  border-color: var(--color-neutral-700);
+}
+
+[data-theme="dark"] .zoom-input:hover {
+  background: var(--color-neutral-750);
+  border-color: var(--color-neutral-600);
+}
+
+[data-theme="dark"] .zoom-input:focus-within {
+  background: var(--color-neutral-750);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.2);
 }
 
 .zoom-input input {
@@ -684,55 +1046,100 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
+[data-theme="dark"] .zoom-input input {
+  color: var(--text-primary);
+}
+
+/* Hide input number arrows */
+.zoom-input input::-webkit-outer-spin-button,
+.zoom-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.zoom-input input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+
+/* Highlight toggle button */
 .highlight-toggle {
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
   border: 1px solid var(--border-card);
-  background-color: transparent;
+  background: transparent;
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
-}
-
-.highlight-toggle:hover {
-  background-color: var(--bg-selected);
-  border-color: var(--accent-bright);
-  color: var(--accent-color);
+  transition: all 0.2s;
 }
 
 .highlight-toggle.active {
-  background-color: var(--bg-selected);
-  border-color: var(--accent-bright);
+  background: var(--accent-soft);
+  border-color: var(--accent-color);
   color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-soft);
 }
 
+[data-theme="dark"] .highlight-toggle.active {
+  background: rgba(var(--accent-color-rgb), 0.15);
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+}
+
+.highlight-toggle:not(.active):hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-card-hover);
+  color: var(--text-primary);
+}
+
+/* Keyboard hint */
 .keyboard-hint {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--color-neutral-100);
+  border-radius: 6px;
   color: var(--text-secondary);
   font-size: 12px;
-  transition: color 0.2s;
+  transition: all 0.2s;
+}
+
+[data-theme="dark"] .keyboard-hint {
+  background: var(--color-neutral-850);
 }
 
 .keyboard-hint.active {
   color: var(--accent-color);
+  background: var(--accent-soft);
+}
+
+[data-theme="dark"] .keyboard-hint.active {
+  background: rgba(var(--accent-color-rgb), 0.15);
+  color: var(--accent-bright);
 }
 
 .keyboard-hint kbd {
   display: inline-block;
-  padding: 2px 6px;
-  font-family: monospace;
+  padding: 3px 7px;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
-  background: var(--bg-button);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px var(--alpha-black-10);
   transition: all 0.2s;
+}
+
+[data-theme="dark"] .keyboard-hint kbd {
+  background: var(--color-neutral-700);
+  border-color: var(--color-neutral-600);
+  color: var(--color-neutral-100);
 }
 
 .keyboard-hint.active kbd {
@@ -752,8 +1159,26 @@ onUnmounted(() => {
 .pdf-page-container {
   flex: 1;
   overflow: auto;
-  padding: 24px;
+  padding: 12px;
   background: var(--bg-app);
+  position: relative;
+}
+
+/* PDF progress bar */
+.pdf-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: var(--pdf-progress, 0%);
+  background: var(--accent-color);
+  z-index: 10;
+  transition: width 0.3s ease;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .pdf-progress-bar {
+  background: var(--accent-bright);
 }
 
 .pdf-page-container.drag-mode {
@@ -801,10 +1226,26 @@ canvas {
     background: var(--alpha-highlight-50);
     transform: scale(1.02);
   }
+
   100% {
     background: var(--alpha-highlight-40);
     transform: scale(1);
   }
+}
+
+/* Improve dark mode text contrast */
+[data-theme="dark"] .pdf-controls {
+  color: var(--color-neutral-200);
+}
+
+
+
+
+
+[data-theme="dark"] .page-input .separator,
+[data-theme="dark"] .page-input .total,
+[data-theme="dark"] .zoom-input span {
+  color: var(--color-neutral-400);
 }
 
 @media (max-width: 720px) {
@@ -831,4 +1272,3 @@ canvas {
   }
 }
 </style>
-

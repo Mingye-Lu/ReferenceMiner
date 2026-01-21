@@ -481,6 +481,29 @@ body {
   color: var(--text-primary);
 }
 
+.nav-btn {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nav-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+}
+
 .citation-link {
   display: inline-flex;
   align-items: center;

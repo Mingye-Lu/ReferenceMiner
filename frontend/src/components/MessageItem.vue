@@ -5,7 +5,7 @@ import { renderMarkdown } from "../utils/markdown"
 import { Loader2, CircleCheck } from "lucide-vue-next"
 
 const props = defineProps<{ message: ChatMessage }>()
-const openEvidence = inject<(item: EvidenceChunk) => void>("openEvidence")!
+const openEvidence = inject<(item: EvidenceChunk, related?: EvidenceChunk[]) => void>("openEvidence")!
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")
 const isPinned = inject<(id: string) => boolean>("isPinned")!
 const setHighlightedPaths = inject<(paths: string[]) => void>("setHighlightedPaths")!
@@ -184,9 +184,16 @@ function handleBodyClick(event: MouseEvent) {
   if (btn && btn.dataset.cid) {
     const index = parseInt(btn.dataset.cid) - 1
     if (props.message.sources && props.message.sources[index]) {
-      openEvidence(props.message.sources[index])
+      const source = props.message.sources[index]
+      const related = props.message.sources.filter(s => s.path === source.path)
+      openEvidence(source, related)
     }
   }
+}
+
+function handleEvidenceClick(source: EvidenceChunk) {
+  const related = props.message.sources?.filter(s => s.path === source.path) || []
+  openEvidence(source, related)
 }
 
 function toggleStepDetails(index: number, details?: string) {
@@ -302,7 +309,7 @@ watch(() => props.message.timeline?.length, (len, prev) => {
           <transition name="fade">
             <div v-if="isCapsuleHovered" class="source-popover">
               <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="popover-item"
-                @click="openEvidence(source)" @mouseenter="setHighlightedPaths([source.path])"
+                @click="handleEvidenceClick(source)" @mouseenter="setHighlightedPaths([source.path])"
                 @mouseleave="setHighlightedPaths([])">
                 <div class="popover-line">
                   <div class="popover-pin-icon" :class="{ visible: isPinned(source.chunkId) }">
@@ -333,7 +340,7 @@ watch(() => props.message.timeline?.length, (len, prev) => {
         <div class="stream-label">References</div>
         <div class="stream-scroll">
           <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="stream-card"
-            @click="openEvidence(source)">
+            @click="handleEvidenceClick(source)">
             <div class="card-header">
               <span class="card-idx">{{ idx + 1 }}</span>
               <span class="card-title" :title="source.path">{{ source.path.split('/').pop() }}</span>

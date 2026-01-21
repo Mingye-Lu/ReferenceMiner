@@ -33,6 +33,7 @@ const project = ref<Project | null>(null)
 const isDrawerOpen = ref(false)
 const drawerTab = ref<"reader" | "notebook">("reader")
 const activeEvidence = ref<EvidenceChunk | null>(null)
+const activeRelatedEvidence = ref<EvidenceChunk[]>([])
 const showPreviewModal = ref(false)
 const previewFile = ref<ManifestEntry | null>(null)
 const previewHighlightGroups = ref<HighlightGroup[]>()
@@ -92,8 +93,9 @@ function toggleDrawer(open?: boolean) {
   isDrawerOpen.value = open ?? !isDrawerOpen.value
 }
 
-function openEvidence(item: EvidenceChunk) {
+function openEvidence(item: EvidenceChunk, related: EvidenceChunk[] = []) {
   activeEvidence.value = item
+  activeRelatedEvidence.value = related
   drawerTab.value = "reader"
   isDrawerOpen.value = true
 }
@@ -423,7 +425,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 
     <div class="drawer-overlay" :class="{ open: isDrawerOpen }" @click="toggleDrawer(false)"></div>
     <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
-      :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
+      :related-evidence="activeRelatedEvidence" :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
     <!-- File Preview Modal -->
     <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlight-groups="previewHighlightGroups" />
 
@@ -537,25 +539,7 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   gap: 12px;
 }
 
-.nav-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all 0.2s;
-}
 
-.nav-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-bright);
-  color: var(--text-primary);
-}
 
 .main-layout {
   display: flex;

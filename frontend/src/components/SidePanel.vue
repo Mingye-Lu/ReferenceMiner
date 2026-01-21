@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, type Ref, computed, onMounted, onUnmounted, watch } from "vue"
+import { ref, inject, type Ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue"
 
 import { type Theme, getStoredTheme, setTheme as applyThemeGlobal } from "../utils/theme"
 import type { ManifestEntry, ChatSession, EvidenceChunk, Project } from "../types"
@@ -8,6 +8,7 @@ import BankFileSelectorModal from "./BankFileSelectorModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import AlertModal from "./AlertModal.vue"
 import { fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
+import { usePdfSettings } from "../composables/usePdfSettings"
 
 const activeTab = ref<"corpus" | "chats">("corpus")
 const isDeleting = ref<string | null>(null)
@@ -18,7 +19,7 @@ const showSettings = ref(false)
 
 const submenuOpen = ref<string | null>(null)
 const submitPromptKey = ref<'enter' | 'ctrl-enter'>('enter')
-const submenuPosition = ref({ bottom: 0, left: 0 })
+const submenuPosition = ref<{ top?: number, bottom?: number, left: number }>({ bottom: 0, left: 0 })
 const currentTheme = ref<Theme>('system')
 
 
@@ -39,6 +40,9 @@ const projectFiles = inject<Ref<Set<string>>>("projectFiles")!
 const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
 const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
 const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
+const { settings: pdfSettings, setViewMode } = usePdfSettings()
+const viewMode = computed(() => pdfSettings.value.viewMode)
+
 const chatSessions = inject<Ref<ChatSession[]>>("chatSessions")!
 const deleteChat = inject<(id: string) => void>("deleteChat")!
 const currentProject = inject<Ref<Project | null>>("currentProject")!
@@ -431,31 +435,44 @@ function openSubmenu(menu: string, event: MouseEvent) {
     closeSubmenuTimer = null
   }
 
+  // Set off-screen initially to measure height
+  submenuPosition.value = { left: -9999 }
   submenuOpen.value = menu
 
-  // Calculate absolute position for teleported submenu
   const target = event.currentTarget as HTMLElement
-
-  // Align bottom of submenu with bottom of setting panel (parent)
   const parent = target.closest('.settings-popup-panel')
 
-  if (parent) {
-    const parentRect = parent.getBoundingClientRect()
-    // Calculate distance from bottom of viewport
-    const bottom = window.innerHeight - parentRect.bottom
+  nextTick(() => {
+    const el = document.querySelector('.settings-submenu-teleported') as HTMLElement
+    if (!el) return
 
-    submenuPosition.value = {
-      bottom: Math.max(0, bottom), // Ensure non-negative
+    const submenuHeight = el.offsetHeight
+    const parentRect = parent ? parent.getBoundingClientRect() : target.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+
+    // Default: Align Bottom (submenu bottom aligned with panel bottom)
+    // Calculate where the top would be in this case:
+    // displayedTop = PanelBottom - SubmenuHeight
+    const bottomAlignTop = parentRect.bottom - submenuHeight
+
+    // Condition: If submenu top (in bottom-align) is BELOW the item top, snap to item top.
+    // i.e. if bottomAlignTop > targetRect.top.
+    let pos: { top?: number, bottom?: number, left: number } = {
       left: parentRect.right + 8
     }
-  } else {
-    // Fallback
-    const rect = target.getBoundingClientRect()
-    submenuPosition.value = {
-      bottom: window.innerHeight - rect.bottom,
-      left: rect.right + 8
+
+    if (bottomAlignTop > targetRect.top) {
+      // Submenu is too low (gap between item and submenu), align to item top
+      pos.top = targetRect.top
+    } else {
+      // Standard Bottom Align
+      pos.bottom = window.innerHeight - parentRect.bottom
+      // Ensure non-negative (though innerHeight >= bottom usually)
+      pos.bottom = Math.max(0, pos.bottom!)
     }
-  }
+
+    submenuPosition.value = pos
+  })
 }
 
 function closeSubmenu() {
@@ -797,6 +814,17 @@ onUnmounted(() => {
               </svg>
             </div>
 
+            <!-- PDF View Mode (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('pdfView', $event)"
+              @mouseleave="closeSubmenu">
+              <span>PDF View</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+
             <!-- Submit prompt key (with submenu) -->
             <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('prompt-key', $event)"
               @mouseleave="closeSubmenu">
@@ -904,6 +932,17 @@ onUnmounted(() => {
               </svg>
             </div>
 
+            <!-- PDF View Mode (with submenu) -->
+            <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('pdfView', $event)"
+              @mouseleave="closeSubmenu">
+              <span>PDF View</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+
             <!-- Submit prompt key (with submenu) -->
             <div class="settings-popup-item has-submenu" @mouseenter="openSubmenu('prompt-key', $event)"
               @mouseleave="closeSubmenu">
@@ -958,7 +997,8 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="submenu-slide">
       <div v-if="submenuOpen === 'theme'" class="settings-submenu-teleported" :style="{
-        bottom: submenuPosition.bottom + 'px',
+        top: submenuPosition.top !== undefined ? submenuPosition.top + 'px' : 'auto',
+        bottom: submenuPosition.bottom !== undefined ? submenuPosition.bottom + 'px' : 'auto',
         left: submenuPosition.left + 'px'
       }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
         <div class="settings-submenu-item" :class="{ active: currentTheme === 'light' }"
@@ -992,8 +1032,37 @@ onUnmounted(() => {
     </Transition>
 
     <Transition name="submenu-slide">
+      <div v-if="submenuOpen === 'pdfView'" class="settings-submenu-teleported" :style="{
+        top: submenuPosition.top !== undefined ? submenuPosition.top + 'px' : 'auto',
+        bottom: submenuPosition.bottom !== undefined ? submenuPosition.bottom + 'px' : 'auto',
+        left: submenuPosition.left + 'px',
+        minWidth: '200px'
+      }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
+        <div class="settings-submenu-item" :class="{ active: viewMode === 'single' }"
+          @click.stop="setViewMode('single')">
+          <span>Single Page</span>
+          <svg v-if="viewMode === 'single'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <div class="settings-submenu-item" :class="{ active: viewMode === 'continuous' }"
+          @click.stop="setViewMode('continuous')">
+          <span>Continuous Scroll</span>
+          <svg v-if="viewMode === 'continuous'" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="check-icon">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="submenu-slide">
       <div v-if="submenuOpen === 'prompt-key'" class="settings-submenu-teleported" :style="{
-        bottom: submenuPosition.bottom + 'px',
+        top: submenuPosition.top !== undefined ? submenuPosition.top + 'px' : 'auto',
+        bottom: submenuPosition.bottom !== undefined ? submenuPosition.bottom + 'px' : 'auto',
         left: submenuPosition.left + 'px'
       }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">
         <div class="settings-submenu-item" :class="{ active: submitPromptKey === 'enter' }"
@@ -1019,7 +1088,8 @@ onUnmounted(() => {
 
     <Transition name="submenu-slide">
       <div v-if="submenuOpen === 'display'" class="settings-submenu-teleported" :style="{
-        bottom: submenuPosition.bottom + 'px',
+        top: submenuPosition.top !== undefined ? submenuPosition.top + 'px' : 'auto',
+        bottom: submenuPosition.bottom !== undefined ? submenuPosition.bottom + 'px' : 'auto',
         left: submenuPosition.left + 'px',
         minWidth: '220px'
       }" @mouseenter="keepSubmenuOpen" @mouseleave="closeSubmenuImmediately">

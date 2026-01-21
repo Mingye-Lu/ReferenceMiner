@@ -7,6 +7,7 @@ import { getFileUrl } from "../api/client"
 const props = defineProps<{
   tab: "reader" | "notebook"
   evidence: EvidenceChunk | null
+  relatedEvidence?: EvidenceChunk[]
   highlightNoteId: string | null
   isOpen?: boolean
 }>()
@@ -84,6 +85,12 @@ watch(pinnedEvidenceMap, (newMap) => {
 }, { deep: true })
 
 const contentRef = ref<HTMLElement | null>(null)
+const pdfProgress = ref(0)
+
+const handleProgress = (percent: number) => {
+  pdfProgress.value = percent
+}
+
 const previewFile = computed<ManifestEntry | null>(() => {
   if (!props.evidence) return null
   const entry = manifest.value.find(f => f.relPath === props.evidence?.path)
@@ -95,8 +102,21 @@ const previewFileUrl = computed(() => {
   return getFileUrl(projectId.value, previewFile.value.relPath)
 })
 const previewHighlightGroups = computed<HighlightGroup[] | undefined>(() => {
+  if (!props.evidence) return undefined
+
+  // If we have related evidence (from same message context), use that
+  if (props.relatedEvidence && props.relatedEvidence.length > 0) {
+    return props.relatedEvidence
+      .filter(e => e.bbox && e.bbox.length > 0)
+      .map(e => ({
+        id: e.chunkId,
+        boxes: e.bbox || []
+      }))
+  }
+
+  // Fallback to single evidence
   if (!props.evidence?.bbox || props.evidence.bbox.length === 0) return undefined
-  return [{ id: props.evidence.chunkId, boxes: props.evidence.bbox }]
+  return [{ id: props.evidence.chunkId, boxes: props.evidence.bbox || [] }]
 })
 const canRenderPdfPreview = computed(() => {
   return previewFile.value?.fileType === "pdf"
@@ -205,12 +225,9 @@ function handlePin() {
         </div>
 
         <div v-if="canRenderPdfPreview" class="reader-preview">
-          <PdfPreview
-            :file-url="previewFileUrl"
-            :highlight-groups="previewHighlightGroups"
-            :initial-page="props.evidence?.page ?? undefined"
-            class="reader-pdf"
-          />
+          <PdfPreview :file-url="previewFileUrl" :highlight-groups="previewHighlightGroups"
+            :initial-page="props.evidence?.page ?? undefined" @progress="handleProgress"
+            :style="{ '--pdf-progress': pdfProgress + '%' }" class="reader-pdf" />
         </div>
       </div>
       <div v-else class="empty-state">
@@ -354,7 +371,7 @@ function handlePin() {
 
 .reader-preview {
   width: 100%;
-  height: calc(100vh - 260px);
+  height: calc(100vh - 200px);
   border: 1px solid var(--border-card);
   border-radius: 10px;
   overflow: hidden;
@@ -369,14 +386,12 @@ function handlePin() {
 
 /* Sticky Actions */
 .sticky-actions {
-  position: sticky;
+  position: absolute;
   top: 0;
-  float: right;
+  right: 0;
   display: flex;
   gap: 8px;
   z-index: 20;
-  margin-bottom: 12px;
-  margin-left: 12px;
 }
 
 .pill-btn {
@@ -412,8 +427,7 @@ function handlePin() {
 
 .doc-header {
   margin-bottom: 20px;
-  padding-right: 0;
-  clear: both;
+  padding-right: 90px;
 }
 
 .doc-title {

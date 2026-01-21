@@ -12,6 +12,7 @@ import BankFileSelectorModal from "./BankFileSelectorModal.vue"
 import { Plus, Search, Loader2, Upload, FileText, Trash2, Settings, ListOrdered } from "lucide-vue-next"
 import { type Theme, getStoredTheme, setTheme } from "../utils/theme"
 import { getFileName } from "../utils"
+import { usePdfSettings } from "../composables/usePdfSettings"
 
 const router = useRouter()
 const activeTab = ref<'projects' | 'bank' | 'settings'>('projects')
@@ -59,11 +60,14 @@ const resetError = ref('')
 const resetSuccess = ref('')
 const baseUrlInput = ref('')
 const modelInput = ref('')
-// Display Settings
+
 // Display Settings
 const filesPerPage = ref(7)
 const notesPerPage = ref(4)
 const chatsPerPage = ref(0) // 0 = unlimited
+
+const { settings: pdfSettings, setViewMode } = usePdfSettings()
+const viewMode = computed(() => pdfSettings.value.viewMode)
 
 const providerOptions = [
     { value: 'openai', label: 'ChatGPT' },
@@ -116,6 +120,11 @@ const themeOptions = [
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
     { value: 'system', label: 'System' }
+]
+
+const pdfViewOptions = [
+    { value: 'single', label: 'Single Page' },
+    { value: 'continuous', label: 'Continuous Scroll' }
 ]
 
 async function loadProjects() {
@@ -800,8 +809,7 @@ onUnmounted(() => {
                             }}KB</div>
                         </div>
                         <div class="file-actions">
-                            <button class="btn-icon tooltip" data-tooltip="Preview file"
-                                @click="handlePreview(file)">
+                            <button class="btn-icon tooltip" data-tooltip="Preview file" @click="handlePreview(file)">
                                 <Search :size="16" />
                             </button>
                             <button class="btn-icon tooltip" data-tooltip="Reprocess file"
@@ -823,25 +831,30 @@ onUnmounted(() => {
                     </button>
                     <Transition name="queue-panel">
                         <div v-if="isQueueOpen" class="queue-panel">
-                        <div v-if="queueItems.length === 0" class="queue-empty">No active tasks.</div>
-                        <div v-else class="queue-list">
-                            <div v-for="item in queueItems" :key="item.id" class="queue-item">
-                                <div class="queue-name" :title="item.name">{{ item.name }}</div>
-                                <div class="queue-meta">
-                                    <span class="queue-status" :class="item.status">{{ formatQueueStatus(item.status) }}</span>
-                                    <span v-if="item.phase" class="queue-phase">{{ formatQueuePhase(item.phase) }}</span>
-                                    <span v-if="item.progress >= 0" class="queue-progress-text">{{ item.progress }}%</span>
-                                </div>
-                                <div v-if="item.progress >= 0" class="queue-progress">
-                                    <div class="queue-progress-fill" :style="{ width: `${item.progress}%` }"></div>
-                                </div>
-                                <div v-if="item.status === 'error' && item.error" class="queue-error">{{ item.error }}</div>
-                                <div v-if="item.status === 'duplicate' && item.duplicatePath" class="queue-duplicate">
-                                    Duplicate: {{ item.duplicatePath }}
+                            <div v-if="queueItems.length === 0" class="queue-empty">No active tasks.</div>
+                            <div v-else class="queue-list">
+                                <div v-for="item in queueItems" :key="item.id" class="queue-item">
+                                    <div class="queue-name" :title="item.name">{{ item.name }}</div>
+                                    <div class="queue-meta">
+                                        <span class="queue-status" :class="item.status">{{
+                                            formatQueueStatus(item.status) }}</span>
+                                        <span v-if="item.phase" class="queue-phase">{{ formatQueuePhase(item.phase)
+                                        }}</span>
+                                        <span v-if="item.progress >= 0" class="queue-progress-text">{{ item.progress
+                                        }}%</span>
+                                    </div>
+                                    <div v-if="item.progress >= 0" class="queue-progress">
+                                        <div class="queue-progress-fill" :style="{ width: `${item.progress}%` }"></div>
+                                    </div>
+                                    <div v-if="item.status === 'error' && item.error" class="queue-error">{{ item.error
+                                    }}</div>
+                                    <div v-if="item.status === 'duplicate' && item.duplicatePath"
+                                        class="queue-duplicate">
+                                        Duplicate: {{ item.duplicatePath }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
                     </Transition>
                 </div>
             </div>
@@ -915,6 +928,36 @@ onUnmounted(() => {
                                         </div>
                                         <CustomSelect :model-value="currentTheme" :options="themeOptions"
                                             @update:model-value="(value) => setTheme(value as Theme)" />
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- PDF View Mode -->
+                            <section class="settings-card">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path
+                                                d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z">
+                                            </path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">PDF Viewing</h4>
+                                        <p class="section-description">Customize how you read documents</p>
+                                    </div>
+                                </div>
+                                <div class="section-content">
+                                    <div class="pref-setting-row">
+                                        <div class="pref-setting-info">
+                                            <label class="form-label">Default View Mode</label>
+                                            <p class="form-hint">Choose between single page or continuous scrolling</p>
+                                        </div>
+                                        <CustomSelect :model-value="viewMode" :options="pdfViewOptions"
+                                            @update:model-value="(value) => setViewMode(value as 'single' | 'continuous')" />
                                     </div>
                                 </div>
                             </section>
@@ -1224,6 +1267,8 @@ onUnmounted(() => {
 
                                 </div>
                             </section>
+
+
 
                             <!-- Danger Zone Section -->
                             <section class="settings-card danger-zone-card">
