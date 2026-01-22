@@ -54,7 +54,7 @@ You MUST respond with **exactly one JSON object** and **no extra text**.
 ### If `intent = call_tool`
 
 * `response.text` MUST be non-empty
-  -> It should briefly justify the tool usage (the “root” or rationale).
+  -> It should briefly justify the tool usage (the “root�?or rationale).
 * `response.citations` MUST be empty
 * `actions.length >= 1`
 
@@ -72,12 +72,23 @@ Invalid combinations are not allowed.
 
 ### Available Tools
 
-1) retrieve_evidence
+1) rag_search
    - Description: Search the indexed references and return evidence.
    - Args:
      - query: string (required)
      - k: integer (optional, default 3)
      - filter_files: list of file paths to restrict search (optional)
+
+2) read_chunk
+   - Description: Fetch a chunk by chunk_id and optionally include adjacent chunks.
+   - Args:
+     - chunk_id: string (required)
+     - radius: integer (optional, default 1) number of chunks before/after to include
+
+3) get_abstract
+   - Description: Fetch the heuristically extracted abstract for a file.
+   - Args:
+     - rel_path: string (required) file path from the references root (filename accepted if unique)
 
 * Tools are executed **in the order listed** in `actions`.
 * You may call multiple tools in a single turn.
@@ -88,7 +99,7 @@ Invalid combinations are not allowed.
 
 ## Evidence & Citations
 
-* Citations (`[C1]`, `[C2]`, …) may ONLY refer to evidence returned by tools.
+* Citations (`[C1]`, `[C2]`, �? may ONLY refer to evidence returned by tools.
 * Do NOT invent citations.
 * Do NOT cite information that was not retrieved.
 
@@ -156,3 +167,4 @@ Every response must be:
 * Evidence-respecting
 
 Failure to follow these rules is incorrect behavior.
+

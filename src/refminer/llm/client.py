@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 import re
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, Iterator, Optional
 
@@ -54,6 +56,16 @@ class ChatCompletionsClient:
     def __init__(self, config: ChatCompletionsConfig) -> None:
         self._config = config
 
+    def _maybe_log_request(self, payload: dict) -> None:
+        if os.getenv("LLM_DEBUG_REQUEST") != "1":
+            return
+        try:
+            sys.stderr.write(f"[agent_stream] llm_request={json.dumps(payload, ensure_ascii=True)}\n")
+            sys.stderr.flush()
+        except Exception:
+            sys.stderr.write("[agent_stream] llm_request=<failed to serialize request>\n")
+            sys.stderr.flush()
+
     def chat(self, messages: list[dict]) -> str:
         url = f"{self._config.base_url.rstrip('/')}/chat/completions"
         payload = {
@@ -61,6 +73,7 @@ class ChatCompletionsClient:
             "messages": messages,
             "stream": False,
         }
+        self._maybe_log_request(payload)
         headers = {
             "Authorization": f"Bearer {self._config.api_key}",
             "Content-Type": "application/json",
@@ -78,6 +91,7 @@ class ChatCompletionsClient:
             "messages": messages,
             "stream": True,
         }
+        self._maybe_log_request(payload)
         headers = {
             "Authorization": f"Bearer {self._config.api_key}",
             "Content-Type": "application/json",
@@ -118,7 +132,7 @@ def _format_evidence(evidence: Iterable[EvidenceChunk]) -> tuple[list[str], dict
         elif item.section:
             citation = f"{citation} {item.section}"
         citations[index] = citation
-        lines.append(f"[C{index}] {item.text}")
+        lines.append(f"[C{index}] (chunk_id={item.chunk_id}) {item.text}")
     return lines, citations
 
 

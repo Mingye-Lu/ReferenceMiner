@@ -76,6 +76,7 @@ async function loadHighlights() {
 }
 
 watch(() => props.file, () => {
+  allChunkGroups.value = null
   if (isDocx.value) {
     nextTick(() => loadDocx())
   }
