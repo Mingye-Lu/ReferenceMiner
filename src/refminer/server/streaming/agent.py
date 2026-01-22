@@ -15,6 +15,7 @@ from refminer.llm.agent import (
     parse_agent_decision,
 )
 from refminer.llm.tools import (
+    execute_get_document_outline_tool,
     execute_get_abstract_tool,
     execute_keyword_search_tool,
     execute_list_files_tool,
@@ -252,7 +253,7 @@ def stream_agent(
 
             for action in decision.actions:
                 tool = (action.get("tool") or "").strip()
-                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search"}:
+                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search", "get_document_outline"}:
                     summary = f"Unknown tool requested: {tool or 'empty'}."
                     yield from emit_error_step("LLM_ERROR", summary)
                     yield sse("error", {"code": "LLM_ERROR", "message": summary})
@@ -349,6 +350,20 @@ def stream_agent(
                         ]
                     )
                     step_title = "Searching Keywords"
+                elif tool == "get_document_outline":
+                    if not chunks_path().exists():
+                        summary = "Chunks not found. Run ingest first."
+                        yield from emit_error_step("LACK_INGEST", summary)
+                        yield sse("error", {"code": "LACK_INGEST", "message": summary})
+                        return
+                    pre_rel_path = (action.get("args") or {}).get("rel_path") or ""
+                    pre_details = format_details(
+                        [
+                            "Tool: get_document_outline",
+                            f"File: {pre_rel_path}",
+                        ]
+                    )
+                    step_title = "Loading Outline"
                 else:
                     if not manifest_path().exists():
                         summary = "Manifest not found. Run ingest first."
@@ -401,6 +416,11 @@ def stream_agent(
                         question=question,
                         args=action.get("args") or {},
                         context=context,
+                        index_dir=idx_dir,
+                    )
+                elif tool == "get_document_outline":
+                    tool_result = execute_get_document_outline_tool(
+                        args=action.get("args") or {},
                         index_dir=idx_dir,
                     )
                 else:
@@ -462,6 +482,14 @@ def stream_agent(
                         f"Match: {'all' if meta.get('match_all', True) else 'any'}",
                         f"Searched: {searched_info}",
                         f"Found: {meta.get('matches_found', 0)}",
+                        f"Runtime: {format_ms(float(meta.get('retrieve_ms') or 0.0))}",
+                    ]
+                elif tool == "get_document_outline":
+                    research_lines = [
+                        f"Tool: {meta.get('tool', 'get_document_outline')}",
+                        f"File: {meta.get('rel_path', '')}",
+                        f"Found: {meta.get('outline_count', 0)}",
+                        f"Source: {meta.get('source', 'unknown')}",
                         f"Runtime: {format_ms(float(meta.get('retrieve_ms') or 0.0))}",
                     ]
                 else:

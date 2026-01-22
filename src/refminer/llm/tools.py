@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Optional
+import re
 
 from refminer.analyze.workflow import EvidenceChunk, analyze
 from refminer.ingest.manifest import ManifestEntry, load_manifest
@@ -70,6 +71,99 @@ def _resolve_manifest_entry(target: str, manifest: list[ManifestEntry]) -> Manif
     if len(matches) == 1:
         return matches[0]
     return None
+
+
+def _section_depth(title: str) -> int:
+    if not title:
+        return 1
+    match = re.match(r"^\s*(\d+(?:\.\d+)*)\b", title)
+    if match:
+        return len(match.group(1).split("."))
+    hash_match = re.match(r"^\s*(#{1,6})\s+", title)
+    if hash_match:
+        return len(hash_match.group(1))
+    return 1
+
+
+def _candidate_heading_from_line(line: str) -> tuple[str, int] | None:
+    stripped = line.strip()
+    if not stripped:
+        return None
+    if len(stripped) > 140:
+        return None
+
+    md = re.match(r"^\s*(#{1,6})\s+(.+)$", stripped)
+    if md:
+        return md.group(2).strip(), len(md.group(1))
+
+    numbered = re.match(r"^\s*(\d+(?:\.\d+)*)(?:\.)?\s+(.+)$", stripped)
+    if numbered:
+        title = f"{numbered.group(1)} {numbered.group(2).strip()}"
+        depth = len(numbered.group(1).split("."))
+        return title, depth
+
+    if stripped.isupper() and len(stripped) <= 80:
+        return stripped, 1
+
+    words = re.findall(r"[A-Za-z][A-Za-z-]*", stripped)
+    if len(words) >= 2:
+        caps = sum(1 for w in words if w[0].isupper())
+        if (caps / len(words)) >= 0.6 and not stripped.endswith("."):
+            return stripped, 1
+
+    return None
+
+
+def _build_outline_from_sections(chunks: list[tuple[str, dict]]) -> list[dict[str, Any]]:
+    outline: list[dict[str, Any]] = []
+    last_section: str | None = None
+    for chunk_id, item in chunks:
+        section = (item.get("section") or "").strip()
+        if not section:
+            continue
+        if section == last_section:
+            continue
+        last_section = section
+        outline.append(
+            {
+                "title": section,
+                "depth": _section_depth(section),
+                "page": item.get("page"),
+                "chunk_id": chunk_id,
+            }
+        )
+    return outline
+
+
+def _build_outline_from_text(
+    chunks: list[tuple[str, dict]],
+    max_items: int,
+) -> list[dict[str, Any]]:
+    outline: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for chunk_id, item in chunks:
+        text = item.get("text") or ""
+        if not text:
+            continue
+        for line in text.splitlines():
+            candidate = _candidate_heading_from_line(line)
+            if not candidate:
+                continue
+            title, depth = candidate
+            if title in seen:
+                continue
+            seen.add(title)
+            outline.append(
+                {
+                    "title": title,
+                    "depth": depth,
+                    "page": item.get("page"),
+                    "chunk_id": chunk_id,
+                }
+            )
+            if len(outline) >= max_items:
+                return outline
+    return outline
 
 
 def execute_retrieve_tool(
@@ -179,6 +273,81 @@ def execute_get_abstract_tool(
         analysis=analysis,
         formatted_evidence=formatted_evidence,
         citations=citations,
+        meta=meta,
+    )
+
+
+def execute_get_document_outline_tool(
+    args: dict[str, Any],
+    index_dir: Optional[Path] = None,
+) -> ToolResult:
+    idx_dir = index_dir or get_index_dir(None)
+    rel_path = (args.get("rel_path") or args.get("path") or args.get("file") or "").strip()
+    max_items = int(args.get("max_items") or 50)
+    max_items = max(1, min(max_items, 200))
+
+    retrieve_start = perf_counter()
+    manifest = load_manifest(index_dir=idx_dir)
+    entry = _resolve_manifest_entry(rel_path, manifest)
+    resolved_path = entry.rel_path if entry else rel_path
+    chunks = load_chunks(idx_dir)
+    retrieve_ms = (perf_counter() - retrieve_start) * 1000.0
+
+    if not resolved_path:
+        return ToolResult(
+            evidence=[],
+            analysis={"summary": "No file specified", "outline_count": 0},
+            formatted_evidence=["No file specified"],
+            citations={},
+            meta={"tool": "get_document_outline", "error": "no_file"},
+        )
+
+    file_chunks: list[tuple[str, dict, int]] = []
+    for chunk_id, item in chunks.items():
+        if item.get("path") != resolved_path:
+            continue
+        _, index = _split_chunk_id(chunk_id)
+        file_chunks.append((chunk_id, item, index or 0))
+    file_chunks.sort(key=lambda item: item[2])
+
+    ordered_chunks = [(cid, item) for cid, item, _ in file_chunks]
+
+    outline = _build_outline_from_sections(ordered_chunks)
+    source = "sections"
+    if not outline:
+        outline = _build_outline_from_text(ordered_chunks, max_items=max_items)
+        source = "heuristics"
+
+    outline = outline[:max_items]
+
+    formatted_lines: list[str] = []
+    for item in outline:
+        page = item.get("page")
+        page_part = f"p.{page}" if page else "p.?"
+        formatted_lines.append(
+            f"- {item.get('title')} ({page_part}, chunk_id={item.get('chunk_id')})"
+        )
+
+    summary = (
+        f"Found {len(outline)} sections in {resolved_path}"
+        if outline
+        else f"No outline headings found for {resolved_path}"
+    )
+    analysis = {"summary": summary, "outline_count": len(outline)}
+    meta = {
+        "tool": "get_document_outline",
+        "rel_path": resolved_path,
+        "found": bool(outline),
+        "outline_count": len(outline),
+        "outline": outline,
+        "source": source,
+        "retrieve_ms": retrieve_ms,
+    }
+    return ToolResult(
+        evidence=[],
+        analysis=analysis,
+        formatted_evidence=[summary] + formatted_lines,
+        citations={},
         meta=meta,
     )
 

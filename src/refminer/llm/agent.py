@@ -10,6 +10,7 @@ from refminer.analyze.workflow import EvidenceChunk, derive_scope
 from refminer.llm.client import ChatCompletionsClient, _load_config
 from refminer.llm.tools import (
     ToolResult,
+    execute_get_document_outline_tool,
     execute_get_abstract_tool,
     execute_keyword_search_tool,
     execute_list_files_tool,
@@ -227,7 +228,7 @@ def run_agent(
                 plans.append(decision.response_text)
             for action in decision.actions:
                 tool = (action.get("tool") or "").strip()
-                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search"}:
+                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search", "get_document_outline"}:
                     return AgentResult(
                         response_text="",
                         response_citations=[],
@@ -275,6 +276,11 @@ def run_agent(
                         context=context,
                         index_dir=index_dir,
                     )
+                elif tool == "get_document_outline":
+                    tool_result = execute_get_document_outline_tool(
+                        args=action.get("args") or {},
+                        index_dir=index_dir,
+                    )
                 else:
                     tool_result = execute_get_abstract_tool(
                         question=question,
@@ -306,4 +312,3 @@ def run_agent(
         plans=plans,
         used_tool=used_tool,
     )
-

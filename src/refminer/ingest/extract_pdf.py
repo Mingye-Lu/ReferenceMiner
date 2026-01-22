@@ -26,6 +26,7 @@ class PdfTextBlock:
     text: str
     page: int
     bbox: list[BoundingBox] | None = None
+    section: str | None = None
 
 
 def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
@@ -93,6 +94,46 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
             c1 = sum(group1) / len(group1)
             c2 = sum(group2) / len(group2)
         return (min(c1, c2), max(c1, c2))
+
+    heading_number_re = re.compile(r"^\s*(\d+(?:\.\d+)*)(?:\.)?\s+\S+")
+    heading_markdown_re = re.compile(r"^\s*(#{1,6})\s+\S+")
+
+    def _detect_heading_text(
+        para_lines: list[dict],
+        normalized_text: str,
+        median_font_size: float,
+    ) -> str | None:
+        if not normalized_text:
+            return None
+        merged = " ".join(line.strip() for line in normalized_text.splitlines() if line.strip())
+        if not merged:
+            return None
+        if len(merged) > 140:
+            return None
+        if len(para_lines) > 3:
+            return None
+
+        font_sizes = [line.get("font_size") or 0.0 for line in para_lines]
+        max_size = max(font_sizes) if font_sizes else 0.0
+        size_boost = median_font_size and max_size >= (median_font_size * 1.15)
+
+        if heading_markdown_re.match(merged):
+            return heading_markdown_re.sub("", merged).strip()
+        if heading_number_re.match(merged):
+            return merged
+        if merged.isupper() and len(merged) <= 80:
+            return merged
+
+        words = re.findall(r"[A-Za-z][A-Za-z-]*", merged)
+        if words:
+            caps = sum(1 for w in words if w[0].isupper())
+            title_case = (caps / len(words)) >= 0.6
+        else:
+            title_case = False
+
+        if size_boost and title_case and not merged.endswith("."):
+            return merged
+        return None
 
     doc = fitz.open(path)
     blocks: list[PdfTextBlock] = []
@@ -357,6 +398,8 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                 if not normalized_text:
                     continue
 
+                section = _detect_heading_text(para_lines, normalized_text, median_font_size)
+
                 bbox_list: list[BoundingBox] = []
                 for raw_start, raw_end, (x0, y0, x1, y1) in span_entries:
                     mapped = _map_span(raw_start, raw_end, char_map, len(normalized_text))
@@ -380,6 +423,7 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                         text=normalized_text,
                         page=page["page_num"],
                         bbox=bbox_list if bbox_list else None,
+                        section=section,
                     )
                 )
 

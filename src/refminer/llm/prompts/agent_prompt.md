@@ -83,7 +83,20 @@ Fetch a document's abstract/summary. Use for quick document overview.
 |-----|------|-------------|
 | rel_path | string | File path or unique filename (required) |
 
-### 5. keyword_search
+### 5. get_document_outline
+Return a document's section outline (headings + structure).
+
+```json
+{ "tool": "get_document_outline", "args": { "rel_path": "survey.pdf" } }
+{ "tool": "get_document_outline", "args": { "rel_path": "report.pdf", "max_items": 40 } }
+```
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| rel_path | string | File path or unique filename (required) |
+| max_items | int | Maximum sections to return (default: 50) |
+
+### 6. keyword_search
 Exact term matching in document text. Better than `rag_search` for precise terms like author names, acronyms, identifiers, or exact phrases.
 
 ```json
@@ -111,6 +124,7 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 | "Find papers by author Smith" | `keyword_search` with author name |
 | "Where is LSTM mentioned?" | `keyword_search` (exact acronym) |
 | "Summarize paper Y" | `get_abstract` then `rag_search` in that file |
+| "Show me the sections of paper Y" | `get_document_outline` |
 | "Compare papers A and B on topic X" | `rag_search` with filter_files for each |
 | "Tell me more about [chunk reference]" | `read_chunk` with radius |
 | "What PDFs are available?" | `list_files` with file_type="pdf" |
@@ -130,6 +144,7 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 - **Explore then search**: `list_files` → `rag_search` (when unsure what's available)
 - **Search then expand**: `rag_search` → `read_chunk` (when a result needs more context)
 - **Overview then deep-dive**: `get_abstract` → `rag_search` (for document-specific questions)
+- **Outline then target**: `get_document_outline` → `rag_search` with filter_files (to search within a section)
 - **Precise then broad**: `keyword_search` → `rag_search` (find exact term, then explore context)
 
 ---
@@ -166,6 +181,7 @@ User question
     ├─ Need more context on a chunk? ──→ read_chunk
     │
     ├─ Need document overview? ──→ get_abstract
+    ├─ Need document outline? ──→ get_document_outline
     │
     └─ Have sufficient evidence? ──→ respond with citations
 ```

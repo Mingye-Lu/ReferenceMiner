@@ -42,7 +42,12 @@ def extract_document(path: Path, file_type: str) -> ExtractedDocument:
         blocks, page_count = extract_pdf_text(path)
         text_blocks = [block.text for block in blocks]
         page_map = [block.page for block in blocks]
-        section_map = [None for _ in blocks]
+        section_map: list[str | None] = []
+        current_section: str | None = None
+        for block in blocks:
+            if block.section:
+                current_section = block.section
+            section_map.append(current_section)
         # Extract bbox data, converting BoundingBox objects to dicts
         bbox_map = [
             [asdict(bbox) for bbox in block.bbox] if block.bbox else None
