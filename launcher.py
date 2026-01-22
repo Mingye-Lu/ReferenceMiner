@@ -11,7 +11,31 @@ import sys
 import webbrowser
 import threading
 import time
+import subprocess
 from pathlib import Path
+
+
+def parent_is_alive(pid: int) -> bool:
+    """Check if a process with the given PID exists on Windows."""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True,
+            text=True,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+        )
+        return str(pid) in result.stdout
+    except Exception:
+        return False
+
+
+def watch_parent(parent_pid: int) -> None:
+    """Exit when parent process dies."""
+    while True:
+        time.sleep(2)
+        if not parent_is_alive(parent_pid):
+            print("Parent process exited, shutting down...")
+            os._exit(0)
 
 
 def get_base_dir() -> Path:
@@ -31,6 +55,8 @@ def ensure_directories() -> None:
 
 def open_browser(port: int, delay: float = 1.5) -> None:
     """Open browser after server starts."""
+    if os.environ.get("REFMINER_OPEN_BROWSER") != "1":
+        return
     time.sleep(delay)
     url = f"http://localhost:{port}"
     print(f"Opening browser at {url}")
@@ -68,6 +94,15 @@ def main() -> None:
 
     # Open browser in background thread
     threading.Thread(target=open_browser, args=(port,), daemon=True).start()
+
+    # Start parent watchdog if launched from Electron
+    parent_pid = os.environ.get("REFMINER_PARENT_PID")
+    if parent_pid:
+        threading.Thread(
+            target=watch_parent,
+            args=(int(parent_pid),),
+            daemon=True,
+        ).start()
 
     # Run the server
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")

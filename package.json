@@ -1,0 +1,48 @@
+{
+  "name": "referenceminer-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "electron:dev": "npm --prefix frontend run build && electron .",
+    "electron:run": "electron .",
+    "electron:build": "npx electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.2.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.referenceminer.app",
+    "productName": "ReferenceMiner",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**",
+      "frontend/dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/ReferenceMiner.exe",
+        "to": "backend/ReferenceMiner.exe"
+      }
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        "dir",
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
