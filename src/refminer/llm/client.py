@@ -9,14 +9,6 @@ from typing import TYPE_CHECKING, Iterable, Iterator, Optional
 
 import httpx
 
-try:
-    from dotenv import load_dotenv
-except Exception:  # pragma: no cover - optional dependency
-    load_dotenv = None
-
-if load_dotenv:
-    load_dotenv()
-
 from refminer.analyze.workflow import EvidenceChunk
 
 if TYPE_CHECKING:
@@ -233,80 +225,18 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
     return messages
 
 
-def _resolve_env_config() -> Optional[tuple[str, str, str]]:
-    api_key = (
-        os.getenv("LLM_API_KEY")
-        or os.getenv("OPENAI_API_KEY")
-        or os.getenv("GEMINI_API_KEY")
-        or os.getenv("ANTHROPIC_API_KEY")
-        or os.getenv("DEEPSEEK_API_KEY")
-    )
-    if not api_key:
-        return None
-
-    provider = "custom"
-    if os.getenv("OPENAI_API_KEY") and api_key == os.getenv("OPENAI_API_KEY"):
-        provider = "openai"
-    elif os.getenv("GEMINI_API_KEY") and api_key == os.getenv("GEMINI_API_KEY"):
-        provider = "gemini"
-    elif os.getenv("ANTHROPIC_API_KEY") and api_key == os.getenv("ANTHROPIC_API_KEY"):
-        provider = "anthropic"
-    elif os.getenv("DEEPSEEK_API_KEY") and api_key == os.getenv("DEEPSEEK_API_KEY"):
-        provider = "deepseek"
-
-    base_url = (
-        os.getenv("LLM_BASE_URL")
-        or os.getenv("OPENAI_BASE_URL")
-        or os.getenv("GEMINI_BASE_URL")
-        or os.getenv("ANTHROPIC_BASE_URL")
-        or os.getenv("DEEPSEEK_BASE_URL")
-    )
-
-    if not base_url:
-        if provider == "openai":
-            base_url = "https://api.openai.com/v1"
-        elif provider == "gemini":
-            base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
-        elif provider == "anthropic":
-            base_url = "https://api.anthropic.com/v1"
-        elif provider == "deepseek":
-            base_url = "https://api.deepseek.com"
-        else:
-            base_url = "https://api.openai.com/v1"
-
-    model = (
-        os.getenv("LLM_MODEL")
-        or os.getenv("OPENAI_MODEL")
-        or os.getenv("GEMINI_MODEL")
-        or os.getenv("ANTHROPIC_MODEL")
-        or os.getenv("DEEPSEEK_MODEL")
-    )
-
-    if not model:
-        if provider == "deepseek":
-            model = "deepseek-chat"
-        else:
-            return None
-
-    return api_key, base_url, model
-
-
 def _load_config() -> ChatCompletionsConfig | None:
-    # Try settings manager first (if configured by server)
-    if _settings_manager is not None:
-        config = _settings_manager.get_chat_completions_config()
-        if config:
-            return ChatCompletionsConfig(
-                api_key=config.api_key,
-                base_url=config.base_url,
-                model=config.model
-            )
-    # Fall back to environment variables
-    env_config = _resolve_env_config()
-    if not env_config:
+    """Load LLM configuration from settings manager."""
+    if _settings_manager is None:
         return None
-    api_key, base_url, model = env_config
-    return ChatCompletionsConfig(api_key=api_key, base_url=base_url, model=model)
+    config = _settings_manager.get_chat_completions_config()
+    if not config:
+        return None
+    return ChatCompletionsConfig(
+        api_key=config.api_key,
+        base_url=config.base_url,
+        model=config.model
+    )
 
 
 def blocks_to_markdown(blocks: Iterable[AnswerBlock]) -> str:

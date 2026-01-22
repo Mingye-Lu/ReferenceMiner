@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -114,27 +113,20 @@ class SettingsManager:
         return settings if isinstance(settings, dict) else {}
 
     def get_api_key(self, provider: Optional[str] = None) -> Optional[str]:
-        """Get API key for a provider, fallback to env var if available."""
+        """Get API key for a provider."""
         provider = provider or self.get_provider()
         keys = self._get_provider_keys()
         key = keys.get(provider)
         if key:
             return key.strip()
 
+        # Check legacy deepseek key location
         if provider == "deepseek":
             legacy = self._settings.get("deepseek_api_key")
             if legacy:
                 return legacy.strip()
-            env_key = os.getenv("DEEPSEEK_API_KEY")
-            return env_key.strip() if env_key else None
 
-        env_map = {
-            "openai": "OPENAI_API_KEY",
-            "gemini": "GEMINI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY",
-        }
-        env_key = os.getenv(env_map.get(provider, ""))
-        return env_key.strip() if env_key else None
+        return None
 
     def set_api_key(self, api_key: str, provider: Optional[str] = None) -> None:
         """Save API key for a provider."""
@@ -156,10 +148,6 @@ class SettingsManager:
         stored = provider_entry.get("base_url") or self._settings.get("llm_base_url") or self._settings.get("deepseek_base_url")
         if stored:
             return stored
-        if provider == "deepseek":
-            env_url = os.getenv("DEEPSEEK_BASE_URL")
-            if env_url:
-                return env_url
         return DEFAULT_BASE_URLS.get(provider, DEFAULT_BASE_URLS["custom"])
 
     def set_base_url(self, base_url: str, provider: Optional[str] = None) -> None:
@@ -184,10 +172,6 @@ class SettingsManager:
         stored = provider_entry.get("model") or self._settings.get("llm_model") or self._settings.get("deepseek_model")
         if stored:
             return stored
-        if provider == "deepseek":
-            env_model = os.getenv("DEEPSEEK_MODEL")
-            if env_model:
-                return env_model
         return DEFAULT_MODELS.get(provider, DEFAULT_MODELS["custom"])
 
     def set_model(self, model: str, provider: Optional[str] = None) -> None:
