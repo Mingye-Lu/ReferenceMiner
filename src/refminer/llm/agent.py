@@ -6,23 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from refminer.analyze.workflow import EvidenceChunk, analyze, derive_scope
-from refminer.ingest.manifest import ManifestEntry, load_manifest
-from refminer.llm.client import ChatCompletionsClient, _load_config, format_evidence
-from refminer.retrieve.search import load_chunks, retrieve
-from refminer.utils.paths import get_index_dir
+from refminer.analyze.workflow import EvidenceChunk, derive_scope
+from refminer.llm.client import ChatCompletionsClient, _load_config
+from refminer.llm.tools import (
+    ToolResult,
+    execute_get_abstract_tool,
+    execute_keyword_search_tool,
+    execute_list_files_tool,
+    execute_read_chunk_tool,
+    execute_retrieve_tool,
+)
 
 
 AGENT_PROMPT_PATH = Path(__file__).parent / "prompts" / "agent_prompt.md"
-
-
-@dataclass
-class ToolResult:
-    evidence: list[EvidenceChunk]
-    analysis: dict
-    formatted_evidence: list[str]
-    citations: dict[int, str]
-    meta: dict[str, Any]
 
 
 @dataclass
@@ -174,255 +170,6 @@ def build_tool_result_message(tool_name: str, result: ToolResult) -> dict:
     return {"role": "user", "content": f"TOOL_RESULT: {json.dumps(payload, ensure_ascii=False)}"}
 
 
-def _notes_to_evidence(notes: list[dict]) -> list[EvidenceChunk]:
-    evidence: list[EvidenceChunk] = []
-    for note in notes:
-        try:
-            evidence.append(
-                EvidenceChunk(
-                    chunk_id=note.get("chunkId") or note.get("chunk_id") or "",
-                    path=note.get("path") or "",
-                    page=note.get("page"),
-                    section=note.get("section"),
-                    text=note.get("text") or "",
-                    score=note.get("score") or 1.0,
-                    bbox=note.get("bbox"),
-                )
-            )
-        except Exception:
-            continue
-    return evidence
-
-
-def execute_retrieve_tool(
-    question: str,
-    context: Optional[list[str]],
-    use_notes: bool,
-    notes: Optional[list[dict]],
-    args: dict[str, Any],
-    index_dir: Optional[Path] = None,
-) -> ToolResult:
-    from time import perf_counter
-
-    idx_dir = index_dir or get_index_dir(None)
-    query = (args.get("query") or question).strip()
-    k = int(args.get("k") or 3)
-    filter_files = args.get("filter_files") or context
-    bm25_exists = (idx_dir / "bm25.pkl").exists()
-    vectors_exists = (idx_dir / "vectors.faiss").exists()
-
-    retrieve_start = perf_counter()
-    if use_notes and notes:
-        query = "notes"
-        evidence = _notes_to_evidence(notes)
-    else:
-        evidence = retrieve(query, index_dir=idx_dir, k=k, filter_files=filter_files)
-    retrieve_ms = (perf_counter() - retrieve_start) * 1000.0
-
-    analyze_start = perf_counter()
-    analysis = analyze(question, evidence)
-    analyze_ms = (perf_counter() - analyze_start) * 1000.0
-    formatted_evidence, citations = format_evidence(evidence)
-
-    top_paths: list[str] = []
-    seen_paths: set[str] = set()
-    for item in evidence:
-        if item.path in seen_paths:
-            continue
-        seen_paths.add(item.path)
-        top_paths.append(item.path)
-        if len(top_paths) >= 3:
-            break
-
-    meta = {
-        "tool": "rag_search",
-        "query": query,
-        "k": k,
-        "filter_files": filter_files or [],
-        "index_status": {"bm25": bm25_exists, "vectors": vectors_exists},
-        "retrieve_ms": retrieve_ms,
-        "analyze_ms": analyze_ms,
-        "evidence_count": len(evidence),
-        "top_paths": top_paths,
-        "keywords": analysis.get("keywords", []),
-    }
-    return ToolResult(
-        evidence=evidence,
-        analysis=analysis,
-        formatted_evidence=formatted_evidence,
-        citations=citations,
-        meta=meta,
-    )
-
-
-def _split_chunk_id(chunk_id: str) -> tuple[str | None, int | None]:
-    if not chunk_id:
-        return None, None
-    if ":" not in chunk_id:
-        return None, None
-    path_part, index_part = chunk_id.rsplit(":", 1)
-    try:
-        index = int(index_part)
-    except ValueError:
-        return None, None
-    if index < 1:
-        return None, None
-    return path_part, index
-
-
-def _resolve_manifest_entry(target: str, manifest: list[ManifestEntry]) -> ManifestEntry | None:
-    if not target:
-        return None
-    for entry in manifest:
-        if entry.rel_path == target:
-            return entry
-    name = Path(target).name
-    if not name:
-        return None
-    matches = [entry for entry in manifest if Path(entry.rel_path).name == name]
-    if len(matches) == 1:
-        return matches[0]
-    return None
-
-
-def execute_get_abstract_tool(
-    question: str,
-    args: dict[str, Any],
-    index_dir: Optional[Path] = None,
-) -> ToolResult:
-    from time import perf_counter
-
-    idx_dir = index_dir or get_index_dir(None)
-    rel_path = (args.get("rel_path") or args.get("path") or args.get("file") or "").strip()
-
-    retrieve_start = perf_counter()
-    manifest = load_manifest(index_dir=idx_dir)
-    entry = _resolve_manifest_entry(rel_path, manifest)
-    retrieve_ms = (perf_counter() - retrieve_start) * 1000.0
-
-    evidence: list[EvidenceChunk] = []
-    resolved_path = entry.rel_path if entry else rel_path
-    abstract_text = entry.abstract if entry else None
-    if abstract_text:
-        evidence.append(
-            EvidenceChunk(
-                chunk_id=f"{resolved_path}:abstract",
-                path=resolved_path,
-                page=None,
-                section="abstract",
-                text=abstract_text,
-                score=1.0,
-                bbox=None,
-            )
-        )
-
-    analyze_start = perf_counter()
-    analysis = analyze(question, evidence)
-    analyze_ms = (perf_counter() - analyze_start) * 1000.0
-    formatted_evidence, citations = format_evidence(evidence)
-    meta = {
-        "tool": "get_abstract",
-        "rel_path": resolved_path,
-        "title": entry.title if entry else None,
-        "found": bool(abstract_text),
-        "retrieve_ms": retrieve_ms,
-        "analyze_ms": analyze_ms,
-        "evidence_count": len(evidence),
-        "keywords": analysis.get("keywords", []),
-    }
-    return ToolResult(
-        evidence=evidence,
-        analysis=analysis,
-        formatted_evidence=formatted_evidence,
-        citations=citations,
-        meta=meta,
-    )
-
-
-def execute_read_chunk_tool(
-    question: str,
-    args: dict[str, Any],
-    index_dir: Optional[Path] = None,
-) -> ToolResult:
-    from time import perf_counter
-
-    idx_dir = index_dir or get_index_dir(None)
-    chunk_id = (args.get("chunk_id") or "").strip()
-    radius = int(args.get("radius") or 1)
-    radius = max(0, radius)
-
-    retrieve_start = perf_counter()
-    chunks = load_chunks(idx_dir)
-    target_ids: list[str] = []
-    path_part, index = _split_chunk_id(chunk_id)
-
-    if path_part and index:
-        start = max(1, index - radius)
-        end = index + radius
-        for i in range(start, end + 1):
-            candidate = f"{path_part}:{i}"
-            if candidate in chunks:
-                target_ids.append(candidate)
-    elif chunk_id and chunk_id in chunks:
-        target_ids.append(chunk_id)
-
-    evidence: list[EvidenceChunk] = []
-    for cid in target_ids:
-        item = chunks.get(cid)
-        if not item:
-            continue
-        score = 1.0
-        if index is not None:
-            _, current_index = _split_chunk_id(cid)
-            if current_index is not None:
-                score = 1.0 / (1 + abs(current_index - index))
-        evidence.append(
-            EvidenceChunk(
-                chunk_id=cid,
-                path=item.get("path") or "",
-                page=item.get("page"),
-                section=item.get("section"),
-                text=item.get("text") or "",
-                score=score,
-                bbox=item.get("bbox"),
-            )
-        )
-    retrieve_ms = (perf_counter() - retrieve_start) * 1000.0
-
-    analyze_start = perf_counter()
-    analysis = analyze(question, evidence)
-    analyze_ms = (perf_counter() - analyze_start) * 1000.0
-    formatted_evidence, citations = format_evidence(evidence)
-    top_paths: list[str] = []
-    seen_paths: set[str] = set()
-    for item in evidence:
-        if item.path in seen_paths:
-            continue
-        seen_paths.add(item.path)
-        top_paths.append(item.path)
-        if len(top_paths) >= 3:
-            break
-    meta = {
-        "tool": "read_chunk",
-        "chunk_id": chunk_id,
-        "radius": radius,
-        "resolved_ids": target_ids,
-        "found": len(evidence),
-        "retrieve_ms": retrieve_ms,
-        "analyze_ms": analyze_ms,
-        "evidence_count": len(evidence),
-        "top_paths": top_paths,
-        "keywords": analysis.get("keywords", []),
-    }
-    return ToolResult(
-        evidence=evidence,
-        analysis=analysis,
-        formatted_evidence=formatted_evidence,
-        citations=citations,
-        meta=meta,
-    )
-
-
 def run_agent(
     question: str,
     context: Optional[list[str]] = None,
@@ -480,7 +227,7 @@ def run_agent(
                 plans.append(decision.response_text)
             for action in decision.actions:
                 tool = (action.get("tool") or "").strip()
-                if tool not in {"rag_search", "read_chunk", "get_abstract"}:
+                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search"}:
                     return AgentResult(
                         response_text="",
                         response_citations=[],
@@ -513,6 +260,19 @@ def run_agent(
                     tool_result = execute_read_chunk_tool(
                         question=question,
                         args=action.get("args") or {},
+                        index_dir=index_dir,
+                    )
+                elif tool == "list_files":
+                    tool_result = execute_list_files_tool(
+                        args=action.get("args") or {},
+                        context=context,
+                        index_dir=index_dir,
+                    )
+                elif tool == "keyword_search":
+                    tool_result = execute_keyword_search_tool(
+                        question=question,
+                        args=action.get("args") or {},
+                        context=context,
                         index_dir=index_dir,
                     )
                 else:

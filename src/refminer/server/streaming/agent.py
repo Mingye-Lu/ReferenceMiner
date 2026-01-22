@@ -12,10 +12,14 @@ from refminer.analyze.workflow import analyze
 from refminer.llm.agent import (
     build_agent_messages,
     build_tool_result_message,
-    execute_retrieve_tool,
-    execute_read_chunk_tool,
-    execute_get_abstract_tool,
     parse_agent_decision,
+)
+from refminer.llm.tools import (
+    execute_get_abstract_tool,
+    execute_keyword_search_tool,
+    execute_list_files_tool,
+    execute_read_chunk_tool,
+    execute_retrieve_tool,
 )
 from refminer.llm.client import ChatCompletionsClient, _load_config
 from refminer.server.globals import get_bank_paths
@@ -248,7 +252,7 @@ def stream_agent(
 
             for action in decision.actions:
                 tool = (action.get("tool") or "").strip()
-                if tool not in {"rag_search", "read_chunk", "get_abstract"}:
+                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search"}:
                     summary = f"Unknown tool requested: {tool or 'empty'}."
                     yield from emit_error_step("LLM_ERROR", summary)
                     yield sse("error", {"code": "LLM_ERROR", "message": summary})
@@ -260,7 +264,27 @@ def stream_agent(
                     yield sse("error", {"code": "LLM_ERROR", "message": summary})
                     return
 
-                if tool == "rag_search":
+                if tool == "list_files":
+                    if not manifest_path().exists():
+                        summary = "Manifest not found. Run ingest first."
+                        yield from emit_error_step("LACK_INGEST", summary)
+                        yield sse("error", {"code": "LACK_INGEST", "message": summary})
+                        return
+                    pre_file_type = (action.get("args") or {}).get("file_type") or ""
+                    pre_pattern = (action.get("args") or {}).get("pattern") or ""
+                    filter_parts = []
+                    if pre_file_type:
+                        filter_parts.append(f"type={pre_file_type}")
+                    if pre_pattern:
+                        filter_parts.append(f"pattern={pre_pattern}")
+                    pre_details = format_details(
+                        [
+                            "Tool: list_files",
+                            f"Filters: {', '.join(filter_parts) if filter_parts else 'none'}",
+                        ]
+                    )
+                    step_title = "Listing Files"
+                elif tool == "rag_search":
                     if not bm25_path().exists() and not (use_notes and notes):
                         summary = "Indexes not found. Run ingest first."
                         yield from emit_error_step("LACK_INGEST", summary)
@@ -305,6 +329,26 @@ def stream_agent(
                         ]
                     )
                     step_title = "Loading Chunk Context"
+                elif tool == "keyword_search":
+                    if not chunks_path().exists():
+                        summary = "Chunks not found. Run ingest first."
+                        yield from emit_error_step("LACK_INGEST", summary)
+                        yield sse("error", {"code": "LACK_INGEST", "message": summary})
+                        return
+                    pre_keywords = (action.get("args") or {}).get("keywords") or ""
+                    if isinstance(pre_keywords, list):
+                        pre_keywords_str = ", ".join(pre_keywords[:5])
+                    else:
+                        pre_keywords_str = str(pre_keywords)
+                    pre_match_all = (action.get("args") or {}).get("match_all", True)
+                    pre_details = format_details(
+                        [
+                            "Tool: keyword_search",
+                            f"Keywords: {pre_keywords_str}",
+                            f"Match: {'all' if pre_match_all else 'any'}",
+                        ]
+                    )
+                    step_title = "Searching Keywords"
                 else:
                     if not manifest_path().exists():
                         summary = "Manifest not found. Run ingest first."
@@ -346,6 +390,19 @@ def stream_agent(
                         args=action.get("args") or {},
                         index_dir=idx_dir,
                     )
+                elif tool == "list_files":
+                    tool_result = execute_list_files_tool(
+                        args=action.get("args") or {},
+                        context=context,
+                        index_dir=idx_dir,
+                    )
+                elif tool == "keyword_search":
+                    tool_result = execute_keyword_search_tool(
+                        question=question,
+                        args=action.get("args") or {},
+                        context=context,
+                        index_dir=idx_dir,
+                    )
                 else:
                     tool_result = execute_get_abstract_tool(
                         question=question,
@@ -381,6 +438,31 @@ def stream_agent(
                         f"Chunk ID: {meta.get('chunk_id', '')}",
                         f"Radius: {meta.get('radius', 0)}",
                         f"Found: {meta.get('found', 0)}",
+                    ]
+                elif tool == "list_files":
+                    by_type = meta.get("by_type") or {}
+                    type_summary = ", ".join(f"{count} {ftype}" for ftype, count in sorted(by_type.items()))
+                    research_lines = [
+                        f"Tool: {meta.get('tool', 'list_files')}",
+                        f"Total in bank: {meta.get('total_in_bank', 0)}",
+                        f"Matched: {meta.get('matched_count', 0)}",
+                        f"Types: {type_summary or 'none'}",
+                    ]
+                elif tool == "keyword_search":
+                    keywords = meta.get("keywords") or []
+                    keywords_str = ", ".join(keywords[:5])
+                    if len(keywords) > 5:
+                        keywords_str += f" (+{len(keywords) - 5} more)"
+                    searched_info = f"{meta.get('chunks_searched', 0)}/{meta.get('total_chunks', 0)}"
+                    if meta.get("early_termination"):
+                        searched_info += " (capped)"
+                    research_lines = [
+                        f"Tool: {meta.get('tool', 'keyword_search')}",
+                        f"Keywords: {keywords_str}",
+                        f"Match: {'all' if meta.get('match_all', True) else 'any'}",
+                        f"Searched: {searched_info}",
+                        f"Found: {meta.get('matches_found', 0)}",
+                        f"Runtime: {format_ms(float(meta.get('retrieve_ms') or 0.0))}",
                     ]
                 else:
                     research_lines = [
