@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from "vue"
 import { useRouter } from "vue-router"
-import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles, getSettings, saveApiKey, saveLlmSettings, validateApiKey, deleteApiKey, resetAllData, fetchModels, reprocessReferenceBankStream, reprocessReferenceFileStream } from "../api/client"
-import type { Project, ManifestEntry, BalanceInfo, Settings as AppSettings, UploadQueueItem, UploadStatus, UploadPhase } from "../types"
+import { fetchProjects, createProject, fetchBankManifest, deleteFile, deleteProject, selectProjectFiles, getSettings, saveApiKey, saveLlmSettings, validateApiKey, deleteApiKey, resetAllData, fetchModels, reprocessReferenceBankStream, reprocessReferenceFileStream, fetchUpdateCheck } from "../api/client"
+import type { Project, ManifestEntry, BalanceInfo, Settings as AppSettings, UploadQueueItem, UploadStatus, UploadPhase, UpdateCheck } from "../types"
 import ProjectCard from "./ProjectCard.vue"
 import FileUploader from "./FileUploader.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
@@ -15,6 +15,7 @@ import { getFileName } from "../utils"
 import { usePdfSettings } from "../composables/usePdfSettings"
 
 const router = useRouter()
+const isDev = import.meta.env.DEV
 const activeTab = ref<'projects' | 'bank' | 'settings'>('projects')
 const settingsSection = ref<'preferences' | 'advanced'>('preferences')
 const currentTheme = ref<Theme>('system')
@@ -60,6 +61,9 @@ const resetError = ref('')
 const resetSuccess = ref('')
 const baseUrlInput = ref('')
 const modelInput = ref('')
+const updateInfo = ref<UpdateCheck | null>(null)
+const isCheckingUpdate = ref(false)
+const updateError = ref('')
 
 // Display Settings
 const filesPerPage = ref(7)
@@ -114,6 +118,41 @@ const apiKeyStatusMessage = computed(() => {
     return balanceAvailable.value === false
         ? 'API key is valid, but balance is insufficient'
         : 'API key is valid'
+})
+
+const currentVersionLabel = computed(() => {
+    return updateInfo.value?.current?.version ?? 'unknown'
+})
+
+const latestVersionLabel = computed(() => {
+    if (!updateInfo.value) return 'Not checked yet'
+    const latest = updateInfo.value.latest
+    if (!latest || !latest.version) {
+        return 'No release found'
+    }
+    const version = latest.version ? `v${latest.version}` : 'commit'
+    const source = latest.source ? ` via ${latest.source}` : ''
+    return `${version}${source}`
+})
+
+const lastCheckedLabel = computed(() => {
+    const checkedAt = updateInfo.value?.checkedAt
+    if (!checkedAt) return ''
+    return new Date(checkedAt).toLocaleString()
+})
+
+const updateBadgeText = computed(() => {
+    if (!updateInfo.value) return 'Not checked'
+    if (updateInfo.value.error) return 'Check failed'
+    if (!updateInfo.value.latest?.version) return 'No release'
+    return updateInfo.value.isUpdateAvailable ? 'Update available' : 'Up to date'
+})
+
+const updateBadgeClass = computed(() => {
+    if (!updateInfo.value) return 'neutral'
+    if (updateInfo.value.error) return 'error'
+    if (!updateInfo.value.latest?.version) return 'neutral'
+    return updateInfo.value.isUpdateAvailable ? 'available' : 'current'
 })
 
 const themeOptions = [
@@ -596,6 +635,27 @@ async function handleLoadModels() {
         isLoadingModels.value = false
     }
 }
+
+async function handleUpdateCheck() {
+    isCheckingUpdate.value = true
+    updateError.value = ''
+    try {
+        updateInfo.value = await fetchUpdateCheck()
+        if (updateInfo.value?.error) {
+            updateError.value = updateInfo.value.error
+        }
+    } catch (e: any) {
+        updateError.value = e.message || 'Failed to check for updates'
+    } finally {
+        isCheckingUpdate.value = false
+    }
+}
+
+onMounted(() => {
+    if (!isDev) {
+        handleUpdateCheck()
+    }
+})
 
 function formatValidationError(error?: string): string {
     if (!error) return ''
@@ -1269,6 +1329,58 @@ onUnmounted(() => {
                             </section>
 
 
+
+                            <section class="settings-card">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 12a9 9 0 1 1-9-9" />
+                                            <path d="M22 3 12 13" />
+                                            <path d="M22 3 15 3" />
+                                            <path d="M22 3 22 10" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="section-title">Updates</h4>
+                                        <p class="section-description">Check for new versions from GitHub</p>
+                                    </div>
+                                </div>
+
+                                <div class="section-content">
+                                    <div class="settings-item">
+                                        <div class="settings-item-info">
+                                            <span class="settings-label">Current version</span>
+                                            <p class="settings-desc">{{ currentVersionLabel }}</p>
+                                        </div>
+                                        <div class="settings-control">
+                                            <span class="settings-badge update-badge" :class="updateBadgeClass">{{
+                                                updateBadgeText }}</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="settings-item">
+                                        <div class="settings-item-info">
+                                            <span class="settings-label">Latest</span>
+                                            <p class="settings-desc">{{ latestVersionLabel }}</p>
+                                            <p v-if="lastCheckedLabel" class="settings-desc">Last checked: {{
+                                                lastCheckedLabel }}</p>
+                                        </div>
+                                        <div class="settings-control">
+                                            <button class="btn btn-outline" @click="handleUpdateCheck"
+                                                :disabled="isCheckingUpdate">
+                                                {{ isCheckingUpdate ? 'Checking...' : 'Check for updates' }}
+                                            </button>
+                                            <a v-if="updateInfo?.latest?.url" class="btn btn-primary-sm"
+                                                :href="updateInfo.latest.url" target="_blank"
+                                                rel="noopener noreferrer">Open</a>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="updateError" class="error-message">{{ updateError }}</div>
+                                </div>
+                            </section>
 
                             <!-- Danger Zone Section -->
                             <section class="settings-card danger-zone-card">
@@ -2941,6 +3053,30 @@ onUnmounted(() => {
 .btn-danger-action:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.update-badge.neutral {
+    background: var(--color-neutral-150);
+    color: var(--text-secondary);
+    border: 1px solid var(--color-neutral-250);
+}
+
+.update-badge.current {
+    background: var(--color-success-50);
+    color: var(--color-success-700);
+    border: 1px solid var(--color-success-200);
+}
+
+.update-badge.available {
+    background: var(--color-warning-100);
+    color: var(--color-warning-800);
+    border: 1px solid var(--color-warning-400);
+}
+
+.update-badge.error {
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+    border: 1px solid var(--color-danger-200);
 }
 
 @media (max-width: 640px) {

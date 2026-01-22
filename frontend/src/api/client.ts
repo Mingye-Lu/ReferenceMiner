@@ -14,6 +14,7 @@ import type {
   ProjectCreate,
   ChatMessage,
   Settings,
+  UpdateCheck,
   ValidateResult
 } from "../types"
 import { getFileName } from "../utils"
@@ -713,6 +714,24 @@ export async function resetAllData(): Promise<{ success: boolean; message: strin
     success: data.success ?? false,
     message: data.message ?? "",
     deletedFiles: data.deleted_files ?? [],
+  }
+}
+
+export async function fetchUpdateCheck(): Promise<UpdateCheck> {
+  const data = await fetchJson<any>("/api/settings/update-check")
+  return {
+    repo: data.repo ?? "",
+    current: {
+      version: data.current?.version ?? "unknown",
+    },
+    latest: {
+      version: data.latest?.version ?? null,
+      url: data.latest?.url ?? null,
+      source: data.latest?.source ?? null,
+    },
+    isUpdateAvailable: data.is_update_available ?? false,
+    checkedAt: data.checked_at ?? undefined,
+    error: data.error ?? null,
   }
 }
 export type ReprocessEventHandler = {

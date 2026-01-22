@@ -1,6 +1,7 @@
 """Settings management endpoints."""
 from __future__ import annotations
 
+import time
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -15,10 +16,38 @@ from refminer.server.models import (
     ModelsListRequest,
 )
 from refminer.server.utils import clear_bank_indexes
+from refminer.utils.versioning import (
+    get_local_version,
+    get_repo_slug,
+    is_newer_version,
+    normalize_version,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 PROVIDERS = ("deepseek", "openai", "gemini", "anthropic", "custom")
+GITHUB_API = "https://api.github.com"
+
+
+def _github_headers() -> dict:
+    return {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "ReferenceMiner",
+    }
+
+
+def _github_get_json(url: str) -> Optional[dict]:
+    with httpx.Client(timeout=10.0) as client:
+        response = client.get(url, headers=_github_headers())
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    data = response.json()
+    return data if isinstance(data, dict) else None
+
+
+def _fetch_latest_release(repo: str) -> Optional[dict]:
+    return _github_get_json(f"{GITHUB_API}/repos/{repo}/releases/latest")
 
 
 def _candidate_model_urls(base_url: str) -> list[str]:
@@ -214,3 +243,38 @@ async def reset_all_data():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset data: {str(e)}")
+
+
+@router.get("/update-check")
+async def update_check():
+    """Check GitHub for a newer version."""
+    repo = get_repo_slug()
+    repo_url = f"https://github.com/{repo}"
+    current_version = get_local_version()
+    result = {
+        "repo": repo,
+        "current": {"version": current_version},
+        "latest": {"version": None, "url": None, "source": None},
+        "is_update_available": False,
+        "checked_at": int(time.time() * 1000),
+        "error": None,
+    }
+
+    try:
+        latest_release = _fetch_latest_release(repo)
+        if latest_release:
+            tag = latest_release.get("tag_name")
+            version = normalize_version(tag)
+            result["latest"] = {
+                "version": version,
+                "url": latest_release.get("html_url") or repo_url,
+                "source": "release",
+            }
+    except Exception as e:
+        result["error"] = str(e)
+
+    latest_version = result["latest"]["version"]
+    if latest_version and is_newer_version(latest_version, current_version):
+        result["is_update_available"] = True
+
+    return result

@@ -194,3 +194,18 @@ export interface ValidateResult {
   isAvailable?: boolean
   balanceInfos?: BalanceInfo[]
 }
+
+export interface UpdateCheck {
+  repo: string
+  current: {
+    version: string
+  }
+  latest: {
+    version?: string | null
+    url?: string | null
+    source?: string | null
+  }
+  isUpdateAvailable: boolean
+  checkedAt?: number
+  error?: string | null
+}

@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from refminer.utils.paths import get_references_dir
+from refminer.version import APP_VERSION
 from refminer.server.globals import BASE_DIR, FRONTEND_DIR, _is_bundled
 from refminer.server.routes import (
     projects_router,
@@ -20,7 +21,7 @@ from refminer.server.routes import (
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    app = FastAPI(title="ReferenceMiner API", version="0.1.0")
+    app = FastAPI(title="ReferenceMiner API", version=APP_VERSION)
 
     # CORS: Allow localhost dev server in dev mode, or same-origin in bundled mode
     cors_origins = ["*"] if _is_bundled() else ["http://localhost:5173", "http://127.0.0.1:5173"]
