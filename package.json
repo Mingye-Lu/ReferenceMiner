@@ -6,7 +6,9 @@
   "scripts": {
     "electron:dev": "npm --prefix frontend run build && electron .",
     "electron:run": "electron .",
-    "electron:build": "npx electron-builder"
+    "electron:build": "npx electron-builder",
+    "installer:dev": "npm --prefix installer run dev",
+    "installer:build": "npm --prefix installer run build"
   },
   "devDependencies": {
     "electron": "^31.2.1",

@@ -401,3 +401,24 @@ uv run python referenceminer.py ingest --no-vectors  # Skip vector indexing
 ---
 
 > **ReferenceMiner** — If it is not cited, it does not count.
+
+---
+
+## Offline Installer (Custom UI)
+
+The offline installer lives in `installer/` and bundles a payload from the built desktop app + backend.
+
+Build steps:
+
+```bash
+# 1) Build backend + desktop app (existing flow)
+build.bat
+
+# 2) Stage offline payload for the custom installer
+powershell -ExecutionPolicy Bypass -File scripts/prepare-offline-payload.ps1
+
+# 3) Build the installer UI app
+cd installer
+npm install
+npm run build
+```

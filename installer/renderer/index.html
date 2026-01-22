@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReferenceMiner Installer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="brand-panel">
+        <div class="brand-card">
+          <img src="../assets/icon.png" alt="ReferenceMiner" class="brand-logo" />
+          <div class="brand-text">
+            <div class="brand-name">ReferenceMiner</div>
+            <div class="brand-subtitle">Offline Installer</div>
+          </div>
+        </div>
+        <div class="status">
+          <div class="status-title">Install status</div>
+          <div id="statusMessage" class="status-message">Ready to install.</div>
+        </div>
+        <div class="steps">
+          <div class="step" data-step="1">
+            <div class="step-index">01</div>
+            <div class="step-label">Destination</div>
+          </div>
+          <div class="step" data-step="2">
+            <div class="step-index">02</div>
+            <div class="step-label">Options</div>
+          </div>
+          <div class="step" data-step="3">
+            <div class="step-index">03</div>
+            <div class="step-label">Install</div>
+          </div>
+          <div class="step" data-step="4">
+            <div class="step-index">04</div>
+            <div class="step-label">Finish</div>
+          </div>
+        </div>
+        <div class="meta">
+          <span id="versionLabel">v1.0.0</span>
+          <button id="openLogs" class="ghost-button">View logs</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section id="pane-1" class="pane active">
+          <h1>Choose your install location</h1>
+          <p class="lead">
+            This offline installer includes all components. Choose where ReferenceMiner will live.
+          </p>
+          <div class="input-group">
+            <label for="installDir">Install directory</label>
+            <div class="path-picker">
+              <input id="installDir" type="text" />
+              <button id="browseDir" class="secondary-button">Browse</button>
+            </div>
+          </div>
+          <div id="existingInstall" class="existing-install hidden">
+            <div class="existing-title">Existing install detected</div>
+            <div class="existing-text">Choose repair or uninstall, or continue to overwrite.</div>
+            <div class="existing-actions">
+              <button id="repairInstall" class="secondary-button">Repair</button>
+              <button id="uninstallInstall" class="secondary-button danger">Uninstall</button>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="nextToOptions" class="primary-button">Continue</button>
+          </div>
+        </section>
+
+        <section id="pane-2" class="pane">
+          <h1>Set your preferences</h1>
+          <p class="lead">Pick how ReferenceMiner should integrate with Windows.</p>
+          <div class="options-grid">
+            <label class="option-card">
+              <input id="optDesktop" type="checkbox" checked />
+              <span class="option-title">Desktop shortcut</span>
+              <span class="option-text">Quick access from the desktop.</span>
+            </label>
+            <label class="option-card">
+              <input id="optStartMenu" type="checkbox" checked />
+              <span class="option-title">Start menu shortcut</span>
+              <span class="option-text">Pinned in your programs list.</span>
+            </label>
+            <label class="option-card">
+              <input id="optLaunch" type="checkbox" checked />
+              <span class="option-title">Launch after install</span>
+              <span class="option-text">Open ReferenceMiner when setup finishes.</span>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="backToLocation" class="secondary-button">Back</button>
+            <button id="nextToInstall" class="primary-button">Install</button>
+          </div>
+        </section>
+
+        <section id="pane-3" class="pane">
+          <h1>Installing ReferenceMiner</h1>
+          <p class="lead">Copying offline payload and registering system shortcuts.</p>
+          <div class="progress-wrap">
+            <div class="progress-bar">
+              <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="progressLabel" class="progress-label">Waiting to start...</div>
+          </div>
+          <div class="log-box" id="logBox"></div>
+          <div class="actions">
+            <button id="cancelInstall" class="secondary-button">Cancel</button>
+          </div>
+        </section>
+
+        <section id="pane-4" class="pane">
+          <h1>All done</h1>
+          <p class="lead">ReferenceMiner is ready. You can launch it now or close the installer.</p>
+          <div class="finish-card">
+            <div class="finish-row">
+              <div class="finish-label">Install location</div>
+              <div id="finalPath" class="finish-value"></div>
+            </div>
+            <div class="finish-row">
+              <div class="finish-label">Version</div>
+              <div id="finalVersion" class="finish-value"></div>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="finishClose" class="secondary-button">Close</button>
+            <button id="finishLaunch" class="primary-button">Launch ReferenceMiner</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

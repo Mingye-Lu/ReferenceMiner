@@ -23,6 +23,8 @@ build/
 dist/
 *.exe
 dist-electron/
+dist-installer/
+installer/payload/
 
 # Claude Code
 .claude/

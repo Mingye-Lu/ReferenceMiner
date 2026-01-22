@@ -796,7 +796,7 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <main class="hub-content">
+        <main class="hub-content" :class="{ 'settings-active': activeTab === 'settings' }">
             <!-- Projects Tab -->
             <div v-if="activeTab === 'projects'">
                 <div v-if="loading" class="loading-state">
@@ -958,7 +958,7 @@ onUnmounted(() => {
 
                         <div class="start-settings-content">
                             <!-- Theme Card -->
-                            <section class="settings-card">
+                            <section class="settings-card updates-card">
                                 <div class="section-header">
                                     <div class="section-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
@@ -1354,7 +1354,7 @@ onUnmounted(() => {
                                             <span class="settings-label">Current version</span>
                                             <p class="settings-desc">{{ currentVersionLabel }}</p>
                                         </div>
-                                        <div class="settings-control">
+                                        <div class="settings-control update-status">
                                             <span class="settings-badge update-badge" :class="updateBadgeClass">{{
                                                 updateBadgeText }}</span>
                                         </div>
@@ -1364,10 +1364,10 @@ onUnmounted(() => {
                                         <div class="settings-item-info">
                                             <span class="settings-label">Latest</span>
                                             <p class="settings-desc">{{ latestVersionLabel }}</p>
-                                            <p v-if="lastCheckedLabel" class="settings-desc">Last checked: {{
+                                            <p v-if="lastCheckedLabel" class="settings-desc update-meta">Last checked: {{
                                                 lastCheckedLabel }}</p>
                                         </div>
-                                        <div class="settings-control">
+                                        <div class="settings-control update-actions">
                                             <button class="btn btn-outline" @click="handleUpdateCheck"
                                                 :disabled="isCheckingUpdate">
                                                 {{ isCheckingUpdate ? 'Checking...' : 'Check for updates' }}
@@ -1580,6 +1580,10 @@ onUnmounted(() => {
     padding: 60px;
     flex: 1;
     overflow-y: auto;
+}
+
+.hub-content.settings-active {
+    padding: 0;
 }
 
 .project-grid {
@@ -2320,7 +2324,7 @@ onUnmounted(() => {
 
 .settings-content {
     flex: 1;
-    padding: 0 60px;
+    padding: 30px 60px 30px;
     overflow-y: auto;
 }
 
@@ -2973,6 +2977,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-width: 0;
 }
 
 .step-title {
@@ -2998,10 +3003,27 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 .model-select-row :deep(.custom-select-wrapper) {
     flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .llm-config-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .model-select-row {
+        align-items: stretch;
+    }
+
+    .model-select-row .btn {
+        width: 100%;
+    }
 }
 
 
@@ -3077,6 +3099,54 @@ onUnmounted(() => {
     background: var(--color-danger-50);
     color: var(--color-danger-700);
     border: 1px solid var(--color-danger-200);
+}
+
+.updates-card .settings-item {
+    align-items: center;
+    padding: 10px 0;
+}
+
+.updates-card .settings-item-info {
+    min-width: 0;
+}
+
+.updates-card .update-status {
+    flex-shrink: 0;
+}
+
+.updates-card .update-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.updates-card .update-meta {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.updates-card .section-content {
+    padding: 16px;
+    gap: 12px;
+}
+
+.updates-card .section-header {
+    padding: 14px;
+}
+
+@media (max-width: 640px) {
+    .updates-card .settings-item {
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .updates-card .update-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .updates-card .update-actions .btn {
+        width: 100%;
+    }
 }
 
 @media (max-width: 640px) {
