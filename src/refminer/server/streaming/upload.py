@@ -131,6 +131,7 @@ def stream_upload(
             "abstract": entry.abstract,
             "page_count": entry.page_count,
             "size_bytes": entry.size_bytes,
+            "bibliography": entry.bibliography,
         }
         status_value = "replaced" if existing_path and replace_existing else ("reused" if reuse_existing else "processed")
 

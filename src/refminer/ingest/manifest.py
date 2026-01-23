@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
@@ -33,6 +33,7 @@ class ManifestEntry:
     title: str | None = None
     abstract: str | None = None
     page_count: int | None = None
+    bibliography: dict[str, Any] | None = None
 
 
 def iter_reference_files(root: Path) -> Iterable[Path]:

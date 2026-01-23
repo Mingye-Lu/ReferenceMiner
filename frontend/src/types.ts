@@ -1,5 +1,40 @@
 export type FileType = "pdf" | "docx" | "image" | "table" | "text"
 
+export interface BibliographyAuthor {
+  family?: string | null
+  given?: string | null
+  literal?: string | null
+  sequence?: number | null
+}
+
+export interface Bibliography {
+  docType?: string | null
+  language?: string | null
+  title?: string | null
+  subtitle?: string | null
+  authors?: BibliographyAuthor[]
+  organization?: string | null
+  year?: number | null
+  date?: string | null
+  journal?: string | null
+  volume?: string | null
+  issue?: string | null
+  pages?: string | null
+  publisher?: string | null
+  place?: string | null
+  conference?: string | null
+  institution?: string | null
+  reportNumber?: string | null
+  standardNumber?: string | null
+  patentNumber?: string | null
+  url?: string | null
+  accessed?: string | null
+  doi?: string | null
+  doiStatus?: string | null
+  extraction?: Record<string, any> | null
+  verification?: Record<string, any> | null
+}
+
 export interface ManifestEntry {
   relPath: string
   fileType: FileType
@@ -8,6 +43,7 @@ export interface ManifestEntry {
   pageCount?: number | null
   sizeBytes?: number
   sha256?: string
+  bibliography?: Bibliography | null
 }
 
 export interface BoundingBox {

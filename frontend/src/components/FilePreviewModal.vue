@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, inject, type Ref } from "vue"
 import BaseModal from "./BaseModal.vue"
+import FileMetadataModal from "./FileMetadataModal.vue"
 import PdfPreview from "./PdfPreview.vue"
 import type { ManifestEntry, Project, HighlightGroup } from "../types"
 import { renderAsync } from "docx-preview"
@@ -26,6 +27,7 @@ const docxContainer = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
 const allChunkGroups = ref<HighlightGroup[] | null>(null)
 const isFullscreen = ref(true)
+const showMetadataModal = ref(false)
 
 const fileUrl = computed(() => {
   if (!props.file) return ""
@@ -95,6 +97,9 @@ function handleClose() {
     <template #header-content>
       <div class="preview-header">
         <h3 class="preview-title">{{ file ? getFileName(file.relPath) : 'Preview' }}</h3>
+        <button class="preview-meta" @click="showMetadataModal = true" :disabled="!file" title="Edit metadata">
+          Metadata
+        </button>
         <button class="preview-toggle" @click="isFullscreen = !isFullscreen" :title="isFullscreen ? 'Exit full screen' : 'Full screen'">
           <Minimize2 v-if="isFullscreen" :size="16" />
           <Maximize2 v-else :size="16" />
@@ -118,6 +123,7 @@ function handleClose() {
         <p><a :href="fileUrl" target="_blank">Download File</a></p>
       </div>
     </div>
+    <FileMetadataModal v-model="showMetadataModal" :file="file" />
   </BaseModal>
 </template>
 
@@ -136,7 +142,6 @@ function handleClose() {
 }
 
 .preview-toggle {
-  margin-left: auto;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   color: var(--text-primary);
@@ -153,6 +158,28 @@ function handleClose() {
 .preview-toggle:hover {
   background: var(--bg-card-hover);
   border-color: var(--accent-bright);
+}
+
+.preview-meta {
+  margin-left: auto;
+  background: var(--color-neutral-120);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preview-meta:hover {
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+}
+
+.preview-meta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .preview-content {

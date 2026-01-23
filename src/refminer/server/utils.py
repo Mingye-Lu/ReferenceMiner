@@ -10,7 +10,7 @@ from typing import Any, Iterator, Optional
 
 from fastapi import HTTPException
 
-from refminer.ingest.manifest import load_manifest
+from refminer.ingest.manifest import load_manifest, write_manifest
 from refminer.server.globals import get_bank_paths
 
 
@@ -106,6 +106,31 @@ def load_manifest_entries() -> list:
         return load_manifest(index_dir=idx_dir)
     except Exception:
         return []
+
+
+def update_manifest_entry(rel_path: str, update_fn) -> Optional[Any]:
+    """Update a manifest entry in-place and persist changes."""
+    try:
+        _, idx_dir = get_bank_paths()
+        manifest = load_manifest(index_dir=idx_dir)
+    except Exception:
+        return None
+
+    target = None
+    for entry in manifest:
+        if entry.rel_path == rel_path:
+            target = entry
+            break
+
+    if not target:
+        return None
+
+    update_fn(target)
+    try:
+        write_manifest(manifest, index_dir=idx_dir)
+    except Exception:
+        return None
+    return target
 
 
 def load_chunk_highlights(rel_path: str) -> list[dict[str, Any]]:

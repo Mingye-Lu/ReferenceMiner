@@ -75,3 +75,7 @@ class FileSelectionRequest(BaseModel):
 
 class BatchDeleteRequest(BaseModel):
     rel_paths: list[str]
+
+
+class FileMetadataUpdateRequest(BaseModel):
+    bibliography: Optional[dict] = None

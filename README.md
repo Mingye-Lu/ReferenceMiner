@@ -12,6 +12,7 @@ Instead of crawling the web (which introduces legal, ethical, and reproducibilit
 
 - **Folder awareness** — Knows exactly what files exist in `references/`, their types, structure, and metadata.
 - **Document understanding** — Extracts titles, abstracts, sections, and full text from PDFs and DOCX files. Tracks page numbers and section boundaries.
+- **Metadata extraction** — Heuristic extraction of bibliographic metadata (title, authors, year, DOI) with specialized support for Chinese academic journals.
 - **Chart and figure interpretation** — Uses surrounding text and captions by default. Can fall back to vision-based analysis on demand.
 - **Hybrid retrieval** — Combines keyword search (BM25) and semantic search (vector embeddings) with reciprocal rank fusion.
 - **Deep analytical responses** — Breaks questions into sub-questions, synthesizes across multiple sources, identifies agreements, contradictions, and gaps.
@@ -290,6 +291,45 @@ id, role, content, timestamp, sources, keywords, isStreaming
 ```
 
 Data flows: `ManifestEntry` → extracted into `Chunk` → scored as `EvidenceChunk` → cited in `ChatMessage`
+
+---
+
+## Metadata Extraction
+
+ReferenceMiner automatically extracts bibliographic metadata from PDFs during ingestion. The extraction supports both Western and Chinese academic journals.
+
+### Supported Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `title` | Document title | "老有所学"能否促进"老有所为" |
+| `authors` | List of author names | [{"literal": "黄家乐"}, {"literal": "宋亦芳"}] |
+| `year` | Publication year | 2025 |
+| `doi` | Digital Object Identifier | 10.1234/example |
+| `doc_type` | Document type code | J (journal), M (book), C (conference), D (thesis) |
+| `language` | Detected language | "zh" or "en" |
+
+### Chinese Journal Support
+
+Specialized heuristics for Chinese academic journals (CNKI, Wanfang, VIP, etc.):
+
+- **Author formats**: `□黄家乐¹˒² 宋亦芳¹˒²` with affiliation superscripts
+- **Publication year**: Extracted from `文章编号：1001-7518（2025）12-077-11`
+- **Author bios**: Falls back to `作者简介：黄家乐（1993—），女，...` pattern
+- **Language detection**: Automatic CJK character detection
+
+### Re-extracting Metadata
+
+In the web UI, open the file's metadata modal and click **Extract** to re-run extraction. This replaces existing metadata with fresh extraction results.
+
+API endpoint:
+```bash
+# Replace existing metadata
+POST /api/files/{rel_path}/metadata/extract?force=true
+
+# Merge with existing (fill gaps only)
+POST /api/files/{rel_path}/metadata/extract
+```
 
 ---
 

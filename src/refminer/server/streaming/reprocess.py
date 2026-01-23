@@ -9,6 +9,7 @@ from typing import AsyncIterator
 from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
 from refminer.ingest.manifest import build_manifest, write_manifest
 from refminer.ingest.extract import extract_document
+from refminer.ingest.bibliography import extract_pdf_bibliography, merge_bibliography
 from refminer.ingest.registry import HashRegistry, register_file, save_registry
 from refminer.index.bm25 import build_bm25, save_bm25
 from refminer.index.chunk import chunk_text
@@ -19,6 +20,8 @@ from refminer.server.utils import (
     resolve_rel_path,
     clear_bank_indexes,
     write_chunks_file,
+    load_manifest_entries,
+    update_manifest_entry,
 )
 
 
@@ -27,6 +30,8 @@ async def stream_reprocess() -> AsyncIterator[str]:
     try:
         ref_dir, idx_dir = get_bank_paths()
         idx_dir.mkdir(parents=True, exist_ok=True)
+        existing_entries = await asyncio.to_thread(load_manifest_entries)
+        existing_map = {entry.rel_path: entry.bibliography for entry in existing_entries if entry.bibliography}
 
         yield sse("progress", {"phase": "resetting", "percent": 5})
         await asyncio.sleep(0)
@@ -41,6 +46,9 @@ async def stream_reprocess() -> AsyncIterator[str]:
 
         chunks_payload: list[dict] = []
         for index, entry in enumerate(manifest_entries, start=1):
+            preserved_bibliography = existing_map.get(entry.rel_path)
+            if preserved_bibliography:
+                entry.bibliography = preserved_bibliography
             yield sse("file", {
                 "rel_path": entry.rel_path,
                 "status": "processing",
@@ -55,6 +63,9 @@ async def stream_reprocess() -> AsyncIterator[str]:
             entry.abstract = extracted.abstract
             entry.page_count = extracted.page_count
             entry.title = extracted.title
+            if entry.file_type == "pdf":
+                extracted_bib = await asyncio.to_thread(extract_pdf_bibliography, extracted.text_blocks, entry.title)
+                entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
             if extracted.text_blocks:
                 chunks = await asyncio.to_thread(
                     chunk_text,
@@ -121,6 +132,8 @@ async def stream_reprocess_file(rel_path: str) -> AsyncIterator[str]:
         if not file_path.exists():
             yield sse("error", {"code": "NOT_FOUND", "message": f"File not found: {resolved_path}"})
             return
+        existing_entries = await asyncio.to_thread(load_manifest_entries)
+        existing_entry = next((e for e in existing_entries if e.rel_path == resolved_path), None)
 
         yield sse("file", {
             "rel_path": resolved_path,
@@ -137,6 +150,13 @@ async def stream_reprocess_file(rel_path: str) -> AsyncIterator[str]:
             index_dir=idx_dir,
             build_vectors=True,
         )
+        if existing_entry and existing_entry.bibliography is not None:
+            await asyncio.to_thread(
+                update_manifest_entry,
+                resolved_path,
+                lambda e: setattr(e, "bibliography", existing_entry.bibliography),
+            )
+            entry.bibliography = existing_entry.bibliography
         manifest_entry = {
             "rel_path": entry.rel_path,
             "file_type": entry.file_type,
@@ -144,6 +164,7 @@ async def stream_reprocess_file(rel_path: str) -> AsyncIterator[str]:
             "abstract": entry.abstract,
             "page_count": entry.page_count,
             "size_bytes": entry.size_bytes,
+            "bibliography": entry.bibliography,
         }
 
         yield sse("complete", {"manifest_entry": manifest_entry})

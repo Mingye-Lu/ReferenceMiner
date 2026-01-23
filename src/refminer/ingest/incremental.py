@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from refminer.ingest.extract import extract_document
+from refminer.ingest.bibliography import extract_pdf_bibliography, merge_bibliography
 from refminer.ingest.manifest import ManifestEntry, detect_type, load_manifest, write_manifest
 from refminer.ingest.registry import (
     HashRegistry,
@@ -90,6 +91,9 @@ def ingest_single_file(
     entry.abstract = extracted.abstract
     entry.page_count = extracted.page_count
     entry.title = extracted.title
+    if file_type == "pdf":
+        extracted_bib = extract_pdf_bibliography(extracted.text_blocks, entry.title)
+        entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
 
     chunks: list[Chunk] = []
     if extracted.text_blocks:
@@ -108,9 +112,12 @@ def append_to_manifest(entry: ManifestEntry, root: Path | None = None, index_dir
     """Add a manifest entry to the existing manifest."""
     idx_dir = index_dir or get_index_dir(root)
     manifest_path = idx_dir / "manifest.json"
-    
+
     if manifest_path.exists():
         manifest = load_manifest(root, index_dir=idx_dir)
+        existing = next((e for e in manifest if e.rel_path == entry.rel_path), None)
+        if existing and existing.bibliography is not None:
+            entry.bibliography = merge_bibliography(existing.bibliography, entry.bibliography)
         # Remove any existing entry with same rel_path (for updates)
         manifest = [e for e in manifest if e.rel_path != entry.rel_path]
     else:

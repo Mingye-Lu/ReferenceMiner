@@ -40,6 +40,78 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+function mapBibliography(item: any): ManifestEntry["bibliography"] {
+  if (!item) return null
+  return {
+    docType: item.doc_type ?? item.docType ?? null,
+    language: item.language ?? item.lang ?? null,
+    title: item.title ?? null,
+    subtitle: item.subtitle ?? null,
+    authors: (item.authors ?? []).map((author: any) => ({
+      family: author.family ?? null,
+      given: author.given ?? null,
+      literal: author.literal ?? author.name ?? null,
+      sequence: author.sequence ?? null,
+    })),
+    organization: item.organization ?? null,
+    year: item.year ?? null,
+    date: item.date ?? null,
+    journal: item.journal ?? null,
+    volume: item.volume ?? null,
+    issue: item.issue ?? null,
+    pages: item.pages ?? null,
+    publisher: item.publisher ?? null,
+    place: item.place ?? null,
+    conference: item.conference ?? null,
+    institution: item.institution ?? null,
+    reportNumber: item.report_number ?? item.reportNumber ?? null,
+    standardNumber: item.standard_number ?? item.standardNumber ?? null,
+    patentNumber: item.patent_number ?? item.patentNumber ?? null,
+    url: item.url ?? null,
+    accessed: item.accessed ?? null,
+    doi: item.doi ?? null,
+    doiStatus: item.doi_status ?? item.doiStatus ?? null,
+    extraction: item.extraction ?? null,
+    verification: item.verification ?? null,
+  }
+}
+
+function serializeBibliography(input: ManifestEntry["bibliography"]): any {
+  if (!input) return null
+  return {
+    doc_type: input.docType ?? undefined,
+    language: input.language ?? undefined,
+    title: input.title ?? undefined,
+    subtitle: input.subtitle ?? undefined,
+    authors: (input.authors ?? []).map((author) => ({
+      family: author.family ?? undefined,
+      given: author.given ?? undefined,
+      literal: author.literal ?? undefined,
+      sequence: author.sequence ?? undefined,
+    })),
+    organization: input.organization ?? undefined,
+    year: input.year ?? undefined,
+    date: input.date ?? undefined,
+    journal: input.journal ?? undefined,
+    volume: input.volume ?? undefined,
+    issue: input.issue ?? undefined,
+    pages: input.pages ?? undefined,
+    publisher: input.publisher ?? undefined,
+    place: input.place ?? undefined,
+    conference: input.conference ?? undefined,
+    institution: input.institution ?? undefined,
+    report_number: input.reportNumber ?? undefined,
+    standard_number: input.standardNumber ?? undefined,
+    patent_number: input.patentNumber ?? undefined,
+    url: input.url ?? undefined,
+    accessed: input.accessed ?? undefined,
+    doi: input.doi ?? undefined,
+    doi_status: input.doiStatus ?? undefined,
+    extraction: input.extraction ?? undefined,
+    verification: input.verification ?? undefined,
+  }
+}
+
 function mapManifestEntry(item: any): ManifestEntry {
   return {
     relPath: item.rel_path ?? item.relPath ?? item.path ?? "",
@@ -49,6 +121,7 @@ function mapManifestEntry(item: any): ManifestEntry {
     pageCount: item.page_count ?? item.pageCount ?? null,
     sizeBytes: item.size_bytes ?? item.sizeBytes,
     sha256: item.sha256 ?? undefined,
+    bibliography: mapBibliography(item.bibliography),
   }
 }
 
@@ -565,6 +638,34 @@ export async function fetchFileHighlights(relPath: string): Promise<HighlightGro
       charEnd: box.char_end ?? box.charEnd ?? 0,
     })),
   }))
+}
+
+export async function fetchFileMetadata(relPath: string): Promise<ManifestEntry["bibliography"]> {
+  const data = await fetchJson<any>(`/api/files/${encodeURIComponent(relPath)}/metadata`)
+  return mapBibliography(data.bibliography)
+}
+
+export async function updateFileMetadata(
+  relPath: string,
+  bibliography: ManifestEntry["bibliography"]
+): Promise<ManifestEntry["bibliography"]> {
+  const data = await fetchJson<any>(`/api/files/${encodeURIComponent(relPath)}/metadata`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bibliography: serializeBibliography(bibliography) }),
+  })
+  return mapBibliography(data.bibliography)
+}
+
+export async function extractFileMetadata(
+  relPath: string,
+  force: boolean = false
+): Promise<ManifestEntry["bibliography"]> {
+  const url = `/api/files/${encodeURIComponent(relPath)}/metadata/extract${force ? "?force=true" : ""}`
+  const data = await fetchJson<any>(url, {
+    method: "POST",
+  })
+  return mapBibliography(data.bibliography)
 }
 
 

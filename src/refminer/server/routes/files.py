@@ -6,15 +6,20 @@ from dataclasses import asdict
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from pathlib import Path
+
 from refminer.ingest.incremental import remove_file_from_index
+from refminer.ingest.extract import extract_document
+from refminer.ingest.bibliography import extract_pdf_bibliography, merge_bibliography
 from refminer.ingest.registry import load_registry, check_duplicate
 from refminer.server.globals import project_manager, get_bank_paths
-from refminer.server.models import FileSelectionRequest, BatchDeleteRequest
+from refminer.server.models import FileSelectionRequest, BatchDeleteRequest, FileMetadataUpdateRequest
 from refminer.server.utils import (
     load_manifest_entries,
     load_chunk_highlights,
     resolve_rel_path,
     count_chunks,
+    update_manifest_entry,
 )
 from refminer.server.streaming.upload import stream_upload
 
@@ -175,3 +180,69 @@ async def get_file_highlights(rel_path: str):
     resolved_path = resolve_rel_path(rel_path)
     highlights = load_chunk_highlights(resolved_path)
     return highlights
+
+
+# --- File metadata endpoints (not project-scoped) ---
+
+@router.get("/api/files/{rel_path:path}/metadata")
+async def get_file_metadata(rel_path: str):
+    """Return stored metadata for a file."""
+    resolved_path = resolve_rel_path(rel_path)
+    entries = load_manifest_entries()
+    entry = next((e for e in entries if e.rel_path == resolved_path), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
+    return {"bibliography": entry.bibliography}
+
+
+@router.patch("/api/files/{rel_path:path}/metadata")
+async def update_file_metadata(rel_path: str, req: FileMetadataUpdateRequest):
+    """Update stored metadata for a file."""
+    resolved_path = resolve_rel_path(rel_path)
+    updated = update_manifest_entry(
+        resolved_path,
+        lambda entry: setattr(entry, "bibliography", req.bibliography),
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
+    return {"bibliography": updated.bibliography}
+
+
+@router.post("/api/files/{rel_path:path}/metadata/extract")
+async def extract_file_metadata(rel_path: str, force: bool = False):
+    """Extract metadata heuristically for a file.
+
+    Args:
+        rel_path: Relative path to the file.
+        force: If True, replace existing metadata. If False, merge (keep existing, fill gaps).
+    """
+    resolved_path = resolve_rel_path(rel_path)
+    entries = load_manifest_entries()
+    entry = next((e for e in entries if e.rel_path == resolved_path), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
+    if entry.file_type != "pdf":
+        raise HTTPException(status_code=400, detail="Metadata extraction is only supported for PDFs.")
+
+    ref_dir, _ = get_bank_paths()
+    file_path = ref_dir / resolved_path
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
+
+    extracted = extract_document(Path(file_path), entry.file_type)
+    extracted_bib = extract_pdf_bibliography(extracted.text_blocks, extracted.title)
+
+    if force:
+        # Replace existing metadata entirely with new extraction
+        final_bib = extracted_bib
+    else:
+        # Merge: keep existing values, fill gaps with extracted
+        final_bib = merge_bibliography(entry.bibliography, extracted_bib)
+
+    updated = update_manifest_entry(
+        resolved_path,
+        lambda target: setattr(target, "bibliography", final_bib),
+    )
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update metadata.")
+    return {"bibliography": updated.bibliography}
