@@ -420,6 +420,24 @@ uv run python referenceminer.py ingest --no-vectors  # Skip vector indexing
 
 ---
 
+## Version Management
+
+Set the version across all package files (Python + npm):
+
+```bash
+scripts\set_version.bat 1.0.0
+# or
+python scripts/set_version.py 1.0.0
+```
+
+This updates:
+- `src/refminer/version.py` (APP_VERSION)
+- `package.json`
+- `frontend/package.json`
+- `installer/package.json`
+
+---
+
 ## Example Queries
 
 - "Summarize the consensus and disagreements across these papers."

@@ -106,6 +106,12 @@ async def get_settings():
     }
 
 
+@router.get("/version")
+async def get_version():
+    """Get current application version."""
+    return {"version": get_local_version()}
+
+
 @router.post("/api-key")
 async def save_api_key(req: ApiKeyRequest):
     """Save the provider API key."""

@@ -100,19 +100,16 @@ function handleClose() {
         <button class="preview-meta" @click="showMetadataModal = true" :disabled="!file" title="Edit metadata">
           Metadata
         </button>
-        <button class="preview-toggle" @click="isFullscreen = !isFullscreen" :title="isFullscreen ? 'Exit full screen' : 'Full screen'">
+        <button class="preview-toggle" @click="isFullscreen = !isFullscreen"
+          :title="isFullscreen ? 'Exit full screen' : 'Full screen'">
           <Minimize2 v-if="isFullscreen" :size="16" />
           <Maximize2 v-else :size="16" />
         </button>
       </div>
     </template>
     <div class="preview-content">
-      <PdfPreview
-        v-if="isPdf"
-        :file-url="fileUrl"
-        :highlight-groups="activeHighlightGroups"
-        class="pdf-viewer-wrapper"
-      />
+      <PdfPreview v-if="isPdf" :file-url="fileUrl" :highlight-groups="activeHighlightGroups"
+        class="pdf-viewer-wrapper" />
       <img v-else-if="isImage" :src="fileUrl" class="preview-image" />
       <div v-else-if="isDocx" class="docx-preview-area">
         <div v-if="isLoading" class="loading">Loading document...</div>

@@ -483,7 +483,25 @@ const applyScale = (nextScale: number) => {
   fitMode.value = 'custom'
   scale.value = clamp(nextScale, 0.5, 3)
   zoomInput.value = `${Math.round(scale.value * 100)}`
-  renderPage()
+  if (viewMode.value === 'continuous') {
+    rerenderVisiblePages()
+  } else {
+    renderPage()
+  }
+}
+
+const rerenderVisiblePages = () => {
+  // Clear rendered scale attribute to force re-render
+  pageRefs.value.forEach((el) => {
+    const canvas = el?.querySelector('canvas')
+    if (canvas) {
+      canvas.removeAttribute('data-rendered-scale')
+    }
+  })
+  // Re-render currently visible pages
+  visiblePages.value.forEach(pageNum => {
+    renderSpecificPage(pageNum)
+  })
 }
 
 
@@ -505,7 +523,11 @@ const fitToWidth = async () => {
   fitMode.value = 'width'
   scale.value = clamp(availableWidth / viewport.width, 0.5, 3)
   zoomInput.value = `${Math.round(scale.value * 100)}`
-  renderPage()
+  if (viewMode.value === 'continuous') {
+    rerenderVisiblePages()
+  } else {
+    renderPage()
+  }
 }
 
 const goToZoom = () => {

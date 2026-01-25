@@ -69,14 +69,20 @@ function startBackend(port) {
   let command = null
   let args = []
   let cwd = baseDir
+  let dataDir = baseDir
 
   if (isPackaged) {
-    command = resolveBackendExecutable()
-    if (!command) {
+    const exePath = resolveBackendExecutable()
+    if (!exePath) {
       dialog.showErrorBox("Backend Error", "Bundled backend was not found.")
       return
     }
-    cwd = path.dirname(command)
+    cwd = path.dirname(exePath)
+    // Use user data directory for references and index (writable location)
+    dataDir = app.getPath("userData")
+    // Use cmd /k to keep terminal open for debugging
+    command = "cmd"
+    args = ["/k", exePath]
   } else {
     command = resolvePythonCommand()
     args = ["-m", "uvicorn", "refminer.server:app", "--app-dir", "src", "--port", String(port)]
@@ -84,12 +90,13 @@ function startBackend(port) {
 
   backendProcess = spawn(command, args, {
     cwd,
-    windowsHide: true,
-    stdio: "ignore",
+    windowsHide: false,
+    stdio: "inherit",
     env: {
       ...process.env,
       REFMINER_PORT: String(port),
       REFMINER_PARENT_PID: String(process.pid),
+      REFMINER_DATA_DIR: dataDir,
     },
   })
 
@@ -143,7 +150,7 @@ async function createWindow() {
     minHeight: 700,
     show: false,
     backgroundColor: "#0c0f14",
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     icon: path.join(__dirname, "..", "icon.png"),
     webPreferences: {
       contextIsolation: true,

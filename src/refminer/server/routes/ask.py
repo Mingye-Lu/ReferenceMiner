@@ -23,35 +23,10 @@ from refminer.server.utils import (
     clean_response_text,
     filter_evidence_by_citations,
     resolve_response_citations,
-    format_citation,
 )
 from refminer.server.streaming.agent import stream_agent
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["ask"])
-
-
-def _fallback_answer(analysis: dict, evidence: list) -> tuple[list[dict], str]:
-    """Generate a fallback answer when LLM is not available."""
-    citations = [format_citation(item.path, item.page, item.section) for item in evidence]
-    blocks = [
-        {
-            "heading": "Synthesis",
-            "body": analysis.get("synthesis", ""),
-            "citations": citations[:4],
-        },
-        {
-            "heading": "Cross-check",
-            "body": analysis.get("crosscheck", ""),
-            "citations": [],
-        },
-    ]
-    markdown = "\n\n".join(
-        [
-            "## Synthesis\n" + analysis.get("synthesis", ""),
-            "## Cross-check\n" + analysis.get("crosscheck", ""),
-        ]
-    )
-    return blocks, markdown
 
 
 @router.post("/ask")
@@ -92,7 +67,10 @@ async def ask(project_id: str, req: AskRequest):
         ]
         answer_markdown = blocks_to_markdown(answer_blocks)
     else:
-        answer_payload, answer_markdown = _fallback_answer(analysis, result.evidence)
+        return {
+            "error": "LLM_NOT_CONFIGURED",
+            "message": "LLM not available. Please configure an LLM provider in Settings.",
+        }
 
     return {
         "question": req.question,

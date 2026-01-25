@@ -207,12 +207,8 @@ watch(
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    :title="file ? `${getFileName(file.relPath)} Metadata` : 'Metadata'"
-    size="large"
-    @update:model-value="handleClose"
-  >
+  <BaseModal :model-value="modelValue" :title="file ? `${getFileName(file.relPath)} Metadata` : 'Metadata'" size="large"
+    @update:model-value="handleClose">
     <div class="metadata-modal">
       <div v-if="isLoading" class="metadata-loading">Loading metadata...</div>
       <div v-else-if="!file" class="metadata-empty">Select a file to edit metadata.</div>

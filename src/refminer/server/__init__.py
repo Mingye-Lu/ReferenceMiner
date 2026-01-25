@@ -1,6 +1,8 @@
 """ReferenceMiner API server - FastAPI application factory."""
 from __future__ import annotations
 
+import mimetypes
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -9,6 +11,10 @@ from fastapi.staticfiles import StaticFiles
 from refminer.utils.paths import get_references_dir
 from refminer.version import APP_VERSION
 from refminer.server.globals import BASE_DIR, FRONTEND_DIR, _is_bundled
+
+# Ensure correct MIME types for JavaScript modules
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("application/javascript", ".mjs")
 from refminer.server.routes import (
     projects_router,
     settings_router,

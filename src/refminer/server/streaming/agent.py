@@ -8,7 +8,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Iterator, Optional
 
-from refminer.analyze.workflow import analyze
 from refminer.llm.agent import (
     build_agent_messages,
     build_tool_result_message,
@@ -39,31 +38,6 @@ from refminer.server.utils import (
     chunks_path,
     manifest_path,
 )
-
-
-def _fallback_answer(analysis: dict, evidence: list) -> tuple[list[dict], str]:
-    """Generate fallback answer when LLM is unavailable."""
-    from refminer.server.utils import format_citation
-    citations = [format_citation(item.path, item.page, item.section) for item in evidence]
-    blocks = [
-        {
-            "heading": "Synthesis",
-            "body": analysis.get("synthesis", ""),
-            "citations": citations[:4],
-        },
-        {
-            "heading": "Cross-check",
-            "body": analysis.get("crosscheck", ""),
-            "citations": [],
-        },
-    ]
-    markdown = "\n\n".join(
-        [
-            "## Synthesis\n" + analysis.get("synthesis", ""),
-            "## Cross-check\n" + analysis.get("crosscheck", ""),
-        ]
-    )
-    return blocks, markdown
 
 
 def _stream_agent_decision(
@@ -138,11 +112,8 @@ def stream_agent(
     yield sse("step", {"step": "dispatch", "title": "Thinking", "timestamp": dispatch_ts})
     config = _load_config()
     if not config:
-        analysis = analyze(question, [])
-        _, answer_markdown = _fallback_answer(analysis, [])
-        if answer_markdown:
-            yield sse("answer_delta", {"delta": answer_markdown})
-        yield sse("done", {})
+        yield from emit_error_step("LLM_NOT_CONFIGURED", "LLM not available. Please configure an LLM provider in Settings.")
+        yield sse("error", {"code": "LLM_NOT_CONFIGURED", "message": "LLM not available. Please configure an LLM provider in Settings."})
         return
 
     client = ChatCompletionsClient(config)

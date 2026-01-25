@@ -39,7 +39,17 @@ def watch_parent(parent_pid: int) -> None:
 
 
 def get_base_dir() -> Path:
-    """Get the application base directory."""
+    """Get the application base directory for data storage.
+
+    Priority:
+    1. REFMINER_DATA_DIR environment variable (set by Electron for packaged builds)
+    2. Executable's directory (PyInstaller bundle fallback)
+    3. Script's directory (development mode)
+    """
+    data_dir = os.environ.get("REFMINER_DATA_DIR")
+    if data_dir:
+        return Path(data_dir)
+
     if getattr(sys, "frozen", False):
         # Running as PyInstaller bundle
         return Path(sys.executable).parent

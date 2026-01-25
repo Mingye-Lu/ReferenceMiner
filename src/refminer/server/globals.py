@@ -1,6 +1,7 @@
 """Global managers and path utilities for the server."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -12,7 +13,18 @@ from refminer.llm.client import set_settings_manager
 
 
 def _get_base_dir() -> Path:
-    """Get base directory, accounting for PyInstaller bundling."""
+    """Get base directory for data storage (references, index, etc.).
+
+    Priority:
+    1. REFMINER_DATA_DIR environment variable (set by Electron for packaged builds)
+    2. Executable's directory (PyInstaller bundle fallback)
+    3. Repository root (development mode)
+    """
+    # Check for explicit data directory (used by Electron in packaged mode)
+    data_dir = os.environ.get("REFMINER_DATA_DIR")
+    if data_dir:
+        return Path(data_dir)
+
     if getattr(sys, "frozen", False):
         # Running as PyInstaller bundle - use executable's directory
         return Path(sys.executable).parent
