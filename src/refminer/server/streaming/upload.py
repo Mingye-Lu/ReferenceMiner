@@ -115,8 +115,9 @@ def stream_upload(
             else:
                 entry = full_ingest_single_file(final_path, references_dir=references_dir, index_dir=index_dir, build_vectors=True)
         except Exception as e:
-            # Clean up on processing failure
-            if final_path.exists():
+            # Clean up on processing failure - but NEVER delete reused files
+            # Only delete files we just moved/created, not existing reference files
+            if not reuse_existing and final_path.exists():
                 final_path.unlink()
             yield sse("error", {"code": "EXTRACTION_ERROR", "message": str(e)})
             return

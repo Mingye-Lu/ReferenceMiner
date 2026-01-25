@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from refminer.ingest.extract import extract_document
-from refminer.ingest.bibliography import extract_pdf_bibliography, merge_bibliography
+from refminer.ingest.bibliography import extract_bibliography_from_pdf, merge_bibliography
 from refminer.ingest.manifest import ManifestEntry, detect_type, load_manifest, write_manifest
 from refminer.ingest.registry import (
     HashRegistry,
@@ -92,7 +92,7 @@ def ingest_single_file(
     entry.page_count = extracted.page_count
     entry.title = extracted.title
     if file_type == "pdf":
-        extracted_bib = extract_pdf_bibliography(extracted.text_blocks, entry.title)
+        extracted_bib = extract_bibliography_from_pdf(file_path, extracted.text_blocks, entry.title, file_path.name)
         entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
 
     chunks: list[Chunk] = []

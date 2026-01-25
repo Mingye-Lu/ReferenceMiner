@@ -9,7 +9,7 @@ from typing import AsyncIterator
 from refminer.ingest.incremental import full_ingest_single_file, remove_file_from_index
 from refminer.ingest.manifest import build_manifest, write_manifest
 from refminer.ingest.extract import extract_document
-from refminer.ingest.bibliography import extract_pdf_bibliography, merge_bibliography
+from refminer.ingest.bibliography import extract_bibliography_from_pdf, merge_bibliography
 from refminer.ingest.registry import HashRegistry, register_file, save_registry
 from refminer.index.bm25 import build_bm25, save_bm25
 from refminer.index.chunk import chunk_text
@@ -64,7 +64,7 @@ async def stream_reprocess() -> AsyncIterator[str]:
             entry.page_count = extracted.page_count
             entry.title = extracted.title
             if entry.file_type == "pdf":
-                extracted_bib = await asyncio.to_thread(extract_pdf_bibliography, extracted.text_blocks, entry.title)
+                extracted_bib = await asyncio.to_thread(extract_bibliography_from_pdf, path, extracted.text_blocks, entry.title, path.name)
                 entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
             if extracted.text_blocks:
                 chunks = await asyncio.to_thread(

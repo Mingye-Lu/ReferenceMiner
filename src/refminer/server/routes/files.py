@@ -10,7 +10,7 @@ from pathlib import Path
 
 from refminer.ingest.incremental import remove_file_from_index
 from refminer.ingest.extract import extract_document
-from refminer.ingest.bibliography import extract_pdf_bibliography, merge_bibliography
+from refminer.ingest.bibliography import extract_bibliography_from_pdf, merge_bibliography
 from refminer.ingest.registry import load_registry, check_duplicate
 from refminer.server.globals import project_manager, get_bank_paths
 from refminer.server.models import FileSelectionRequest, BatchDeleteRequest, FileMetadataUpdateRequest
@@ -230,7 +230,7 @@ async def extract_file_metadata(rel_path: str, force: bool = False):
         raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
 
     extracted = extract_document(Path(file_path), entry.file_type)
-    extracted_bib = extract_pdf_bibliography(extracted.text_blocks, extracted.title)
+    extracted_bib = extract_bibliography_from_pdf(file_path, extracted.text_blocks, extracted.title, file_path.name)
 
     if force:
         # Replace existing metadata entirely with new extraction
