@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, inject, computed, watch, onMounted, onUnmounted } from "vue"
+import { ref, inject, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
 import type { ChatMessage, EvidenceChunk, TimelineStep } from "../types"
-import { renderMarkdown } from "../utils/markdown"
+import { renderMarkdown, renderMermaidDiagrams } from "../utils/markdown"
 import { Loader2, CircleCheck } from "lucide-vue-next"
+
+const markdownBodyRef = ref<HTMLElement | null>(null)
 
 const props = defineProps<{ message: ChatMessage }>()
 const openEvidence = inject<(item: EvidenceChunk, related?: EvidenceChunk[]) => void>("openEvidence")!
@@ -180,14 +182,32 @@ function processMarkdown(text: string) {
 
 function handleBodyClick(event: MouseEvent) {
   const target = event.target as HTMLElement
-  const btn = target.closest('.citation-link') as HTMLElement
-  if (btn && btn.dataset.cid) {
-    const index = parseInt(btn.dataset.cid) - 1
+
+  // Handle citation link clicks
+  const citationBtn = target.closest('.citation-link') as HTMLElement
+  if (citationBtn && citationBtn.dataset.cid) {
+    const index = parseInt(citationBtn.dataset.cid) - 1
     if (props.message.sources && props.message.sources[index]) {
       const source = props.message.sources[index]
       const related = props.message.sources.filter(s => s.path === source.path)
       openEvidence(source, related)
     }
+    return
+  }
+
+  // Handle code copy button clicks
+  const copyBtn = target.closest('.code-copy-btn') as HTMLElement
+  if (copyBtn && copyBtn.dataset.code) {
+    const code = decodeURIComponent(copyBtn.dataset.code)
+    navigator.clipboard.writeText(code).then(() => {
+      copyBtn.classList.add('copied')
+      const label = copyBtn.querySelector('.copy-label')
+      if (label) label.textContent = 'Copied!'
+      setTimeout(() => {
+        copyBtn.classList.remove('copied')
+        if (label) label.textContent = 'Copy'
+      }, 2000)
+    })
   }
 }
 
@@ -240,6 +260,18 @@ watch(() => props.message.timeline?.length, (len, prev) => {
     autoExpandLatestStep()
   }
 })
+
+// Render mermaid diagrams when content changes (and streaming completes)
+watch(
+  () => [props.message.content, props.message.isStreaming],
+  async ([content, isStreaming]) => {
+    if (content && !isStreaming && markdownBodyRef.value) {
+      await nextTick()
+      renderMermaidDiagrams(markdownBodyRef.value)
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -333,7 +365,7 @@ watch(() => props.message.timeline?.length, (len, prev) => {
       </div>
 
       <!-- 3. MARKDOWN BODY -->
-      <div class="markdown-body" v-html="processMarkdown(message.content)" @click="handleBodyClick"></div>
+      <div ref="markdownBodyRef" class="markdown-body" v-html="processMarkdown(message.content)" @click="handleBodyClick"></div>
 
       <!-- 4. EVIDENCE STREAM (CARDS) -->
       <div v-if="!message.isStreaming && displaySources.length" class="evidence-stream-container">

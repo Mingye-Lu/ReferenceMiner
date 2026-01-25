@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 
 APP_NAME = "ReferenceMiner"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_REPO = os.getenv("REFMINER_REPO", "Mingye-Lu/ReferenceMiner")
 APP_REPO_URL = f"https://github.com/{APP_REPO}"
 

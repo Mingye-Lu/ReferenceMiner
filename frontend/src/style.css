@@ -605,27 +605,287 @@ input[type="checkbox"].custom-checkbox:checked::after {
   border-radius: 0 8px 8px 0;
 }
 
-.markdown-body code {
+/* --- Inline Code --- */
+.markdown-body .inline-code {
   background: var(--alpha-black-06);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.85em;
   color: var(--color-magenta-600);
+  word-break: break-word;
 }
 
-.markdown-body pre {
-  background: var(--color-neutral-105);
-  padding: 16px;
-  border-radius: 8px;
-  overflow-x: auto;
+/* --- Code Blocks with Syntax Highlighting --- */
+.markdown-body .code-block-wrapper {
+  position: relative;
   margin-bottom: 1.2em;
 }
 
-.markdown-body pre code {
-  background: transparent;
-  color: inherit;
+.markdown-body .code-block {
+  position: relative;
+  background: var(--color-neutral-900);
   padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 14px;
+  margin: 0;
+}
+
+.markdown-body .code-block::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 5px;
+  left: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-neutral-500);
+  opacity: 0.8;
+}
+
+/* Copy Button */
+.markdown-body .code-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--color-neutral-800);
+  border: 1px solid var(--color-neutral-700);
+  border-radius: 6px;
+  color: var(--color-neutral-400);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s, color 0.2s;
+  z-index: 2;
+}
+
+.markdown-body .code-block-wrapper:hover .code-copy-btn {
+  opacity: 1;
+}
+
+.markdown-body .code-copy-btn:hover {
+  background: var(--color-neutral-700);
+  color: var(--color-neutral-200);
+}
+
+.markdown-body .code-copy-btn.copied {
+  background: var(--color-success-600);
+  border-color: var(--color-success-600);
+  color: var(--color-white);
+}
+
+.markdown-body .code-copy-btn svg {
+  flex-shrink: 0;
+}
+
+.markdown-body .code-block code {
+  display: block;
+  padding: 16px;
+  padding-top: 32px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-neutral-100);
+  background: transparent;
+}
+
+.markdown-body .code-block code::-webkit-scrollbar {
+  height: 6px;
+}
+
+.markdown-body .code-block code::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-600);
+  border-radius: 3px;
+}
+
+/* Highlight.js Theme Overrides (Dark) */
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-built_in {
+  color: #569cd6;
+}
+
+.markdown-body .hljs-string,
+.markdown-body .hljs-title,
+.markdown-body .hljs-section,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-template-tag,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-type {
+  color: #ce9178;
+}
+
+.markdown-body .hljs-number,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet,
+.markdown-body .hljs-link {
+  color: #b5cea8;
+}
+
+.markdown-body .hljs-variable,
+.markdown-body .hljs-class .hljs-title,
+.markdown-body .hljs-title.class_ {
+  color: #4ec9b0;
+}
+
+.markdown-body .hljs-function .hljs-title,
+.markdown-body .hljs-title.function_ {
+  color: #dcdcaa;
+}
+
+.markdown-body .hljs-params {
+  color: #9cdcfe;
+}
+
+.markdown-body .hljs-meta {
+  color: #c586c0;
+}
+
+.markdown-body .hljs-deletion {
+  color: #f44747;
+}
+
+.markdown-body .hljs-addition {
+  color: #6a9955;
+}
+
+/* --- External Links --- */
+.markdown-body .external-link {
+  color: var(--accent-color);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.markdown-body .external-link:hover {
+  border-bottom-color: var(--accent-color);
+}
+
+.markdown-body .external-link .external-icon {
+  display: inline-block;
+  margin-left: 3px;
+  vertical-align: middle;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.markdown-body .external-link:hover .external-icon {
+  opacity: 1;
+}
+
+/* --- Images --- */
+.markdown-body .md-image {
+  margin: 1.5em 0;
+  text-align: center;
+}
+
+.markdown-body .md-image img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--alpha-black-08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.markdown-body .md-image img:hover {
+  transform: scale(1.01);
+  box-shadow: 0 6px 20px var(--alpha-black-12);
+}
+
+.markdown-body .md-image figcaption {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* --- Tables --- */
+.markdown-body .table-wrapper {
+  overflow-x: auto;
+  margin: 1.2em 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-family: var(--font-sans);
+}
+
+.markdown-body thead {
+  background: var(--color-neutral-100);
+}
+
+.markdown-body th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.markdown-body td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.markdown-body tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-body tbody tr:hover {
+  background: var(--color-neutral-70);
+}
+
+/* --- Mermaid Diagrams --- */
+.markdown-body .mermaid-container {
+  margin: 1.5em 0;
+  padding: 16px;
+  background: var(--color-white);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.markdown-body .mermaid-container.mermaid-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body .mermaid-container pre.mermaid {
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.markdown-body .mermaid-container pre.mermaid-error {
+  color: var(--color-error-500);
+  background: var(--color-error-50);
+  padding: 12px;
+  border-radius: 6px;
 }
 
 .markdown-body h1,
@@ -644,6 +904,48 @@ input[type="checkbox"].custom-checkbox:checked::after {
 .markdown-body strong,
 .markdown-body b {
   font-weight: 700;
+}
+
+/* --- Dark Theme Code Block Adjustments --- */
+[data-theme="dark"] .markdown-body .code-block {
+  background: var(--color-neutral-120);
+}
+
+[data-theme="dark"] .markdown-body .code-block::before {
+  color: var(--color-neutral-500);
+}
+
+[data-theme="dark"] .markdown-body .code-block code {
+  color: var(--color-neutral-900);
+}
+
+[data-theme="dark"] .markdown-body .code-copy-btn {
+  background: var(--color-neutral-200);
+  border-color: var(--color-neutral-300);
+  color: var(--color-neutral-600);
+}
+
+[data-theme="dark"] .markdown-body .code-copy-btn:hover {
+  background: var(--color-neutral-300);
+  color: var(--color-neutral-800);
+}
+
+[data-theme="dark"] .markdown-body .inline-code {
+  background: var(--alpha-white-10);
+  color: var(--color-magenta-400);
+}
+
+[data-theme="dark"] .markdown-body .mermaid-container {
+  background: var(--color-neutral-100);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .markdown-body thead {
+  background: var(--color-neutral-150);
+}
+
+[data-theme="dark"] .markdown-body tbody tr:hover {
+  background: var(--color-neutral-120);
 }
 
 /* --- Transitions --- */
