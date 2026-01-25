@@ -1,7 +1,7 @@
 {
   "name": "referenceminer-installer",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.1.0",
   "main": "main.cjs",
   "scripts": {
     "dev": "electron .",

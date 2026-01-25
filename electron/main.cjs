@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require("electron")
+const { app, BrowserWindow, dialog, Menu } = require("electron")
 const { autoUpdater } = require("electron-updater")
 const { spawn, exec } = require("child_process")
 const http = require("http")
@@ -81,9 +81,8 @@ function startBackend(port) {
     cwd = path.dirname(exePath)
     // Use user data directory for references and index (writable location)
     dataDir = app.getPath("userData")
-    // Use cmd /k to keep terminal open for debugging
-    command = "cmd"
-    args = ["/k", exePath]
+    command = exePath
+    args = []
   } else {
     command = resolvePythonCommand()
     args = ["-m", "uvicorn", "refminer.server:app", "--app-dir", "src", "--port", String(port)]
@@ -91,8 +90,8 @@ function startBackend(port) {
 
   backendProcess = spawn(command, args, {
     cwd,
-    windowsHide: false,
-    stdio: "inherit",
+    windowsHide: isPackaged,
+    stdio: isPackaged ? "ignore" : "inherit",
     env: {
       ...process.env,
       REFMINER_PORT: String(port),
@@ -144,6 +143,11 @@ async function createWindow() {
     dialog.showErrorBox("Backend Timeout", err.message || "Backend did not start in time.")
   }
 
+  // Hide menu bar in packaged app
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null)
+  }
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 900,
@@ -151,7 +155,7 @@ async function createWindow() {
     minHeight: 700,
     show: false,
     backgroundColor: "#0c0f14",
-    autoHideMenuBar: false,
+    autoHideMenuBar: true,
     icon: path.join(__dirname, "..", "icon.png"),
     webPreferences: {
       contextIsolation: true,

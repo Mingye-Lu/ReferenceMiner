@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.0
+
+### Added
+- Automatic update support via electron-updater for seamless app updates.
+- Heuristic PDF metadata extraction for improved document indexing.
+- Bibliography modal with enhanced citation display.
+- Common citation rules for standardized reference formatting.
+- Enhanced markdown rendering:
+  - Syntax highlighting for code blocks with language detection.
+  - Copy button for code blocks.
+  - Mermaid diagram support (flowcharts, sequence diagrams, etc.).
+  - External link detection with visual indicator and secure attributes.
+  - Image rendering with lazy loading and captions.
+  - Responsive table styling with horizontal scroll.
+
+### Fixed
+- Various bug fixes and stability improvements.
+
 ## 1.0.0
 
 - Local-first research assistant that only uses the `references/` bank with strict, citable answers.
