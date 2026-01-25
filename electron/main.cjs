@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog } = require("electron")
+const { autoUpdater } = require("electron-updater")
 const { spawn, exec } = require("child_process")
 const http = require("http")
 const os = require("os")
@@ -172,7 +173,14 @@ async function createWindow() {
   await mainWindow.loadURL(appUrl)
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  await createWindow()
+
+  // Check for updates (only in packaged mode)
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify()
+  }
+})
 
 app.on("window-all-closed", () => {
   stopBackend()
@@ -189,4 +197,30 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
+})
+
+// Auto-updater event handlers
+autoUpdater.on("update-available", (info) => {
+  dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Update Available",
+    message: `Version ${info.version} is available. It will be downloaded in the background.`
+  })
+})
+
+autoUpdater.on("update-downloaded", (info) => {
+  dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Update Ready",
+    message: "A new version has been downloaded. Restart to apply the update?",
+    buttons: ["Restart Now", "Later"]
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
+})
+
+autoUpdater.on("error", (err) => {
+  console.error("Update error:", err)
 })
