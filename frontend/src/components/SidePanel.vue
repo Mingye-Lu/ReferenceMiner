@@ -7,6 +7,7 @@ import FileUploader from "./FileUploader.vue"
 import BankFileSelectorModal from "./BankFileSelectorModal.vue"
 import ConfirmationModal from "./ConfirmationModal.vue"
 import AlertModal from "./AlertModal.vue"
+import WorksCitedModal from "./WorksCitedModal.vue"
 import { fetchBankManifest, fetchProjectFiles, selectProjectFiles, removeProjectFiles } from "../api/client"
 import { usePdfSettings } from "../composables/usePdfSettings"
 
@@ -51,6 +52,7 @@ const projectId = computed(() => currentProject.value?.id || "default")
 
 
 const showBankSelector = ref(false)
+const showWorksCited = ref(false)
 
 const showUnpinNoteModal = ref(false)
 const pendingUnpinNote = ref<EvidenceChunk | null>(null)
@@ -634,8 +636,16 @@ onUnmounted(() => {
         <!-- Files Section -->
         <div class="section-header-row" v-if="displayedFiles.length > 0">
           <div class="section-header">PROJECT FILES ({{ displayedFiles.length }})</div>
-          <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode"
-            :title="batchMode ? 'Exit Batch Mode' : 'Batch Selection'">
+          <div class="header-actions">
+            <button class="header-action-btn" @click="showWorksCited = true" title="Works Cited">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21c0 1 0 1 1 1z"/>
+                <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/>
+              </svg>
+            </button>
+            <button class="batch-toggle-btn" :class="{ active: batchMode }" @click="toggleBatchMode"
+              :title="batchMode ? 'Exit Batch Mode' : 'Batch Selection'">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="7"></rect>
@@ -644,6 +654,7 @@ onUnmounted(() => {
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
           </button>
+          </div>
         </div>
 
         <!-- Batch Action Toolbar (Below Header) -->
@@ -988,6 +999,9 @@ onUnmounted(() => {
     <BankFileSelectorModal v-model="showBankSelector" :project-id="projectId" :selected-files="projectFiles"
       @confirm="handleBankFilesSelected" />
 
+    <!-- Works Cited Modal -->
+    <WorksCitedModal v-model="showWorksCited" :files="displayedFiles" />
+
     <!-- Error Alert Modal -->
     <AlertModal v-model="showErrorModal" title="Delete Failed" :message="errorMessage" type="error"
       @close="closeErrorModal" />
@@ -1220,6 +1234,30 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-action-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.header-action-btn:hover {
+  background: var(--bg-selected);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
 }
 
 .add-from-bank-btn {
