@@ -1,14 +1,26 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { initTheme } from './utils/theme'
+import { onMounted, onBeforeUnmount } from "vue";
+import { initTheme } from "./utils/theme";
+import QueueFab from "./components/QueueFab.vue";
+// import { useQueue } from "./composables/useQueue";
 
 onMounted(() => {
-  initTheme()
-})
+  initTheme();
+  // document.addEventListener('click', handleDebugQueueEject)
+});
+
+onBeforeUnmount(() => {
+//   document.removeEventListener("click", handleDebugQueueEject);
+});
+
+// function handleDebugQueueEject(event: MouseEvent) {
+//   launchQueueEject(event.clientX, event.clientY);
+// }
 </script>
 
 <template>
   <router-view />
+  <QueueFab />
 </template>
 
 <style>

@@ -1,123 +1,242 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue"
-import BaseModal from "./BaseModal.vue"
-import CustomSelect from "./CustomSelect.vue"
-import type { ManifestEntry } from "../types"
-import { formatCitation, hasCitationData, type CitationStyle } from "../utils/citations"
-import { getFileName } from "../utils"
-import { X, FileText, Copy, Download, Check } from "lucide-vue-next"
+import { ref, computed, watch, inject, type Ref } from "vue";
+import BaseModal from "./BaseModal.vue";
+import ConfirmExtractMetadataModal from "./ConfirmExtractMetadataModal.vue";
+import CustomSelect from "./CustomSelect.vue";
+import type { ManifestEntry } from "../types";
+import {
+  formatCitation,
+  hasCitationData,
+  type CitationStyle,
+} from "../utils/citations";
+import { extractFileMetadata } from "../api/client";
+import { getFileName } from "../utils";
+import { X, FileText, Copy, Download, Check } from "lucide-vue-next";
 
 const props = defineProps<{
-  modelValue: boolean
-  files: ManifestEntry[]
-}>()
+  modelValue: boolean;
+  files: ManifestEntry[];
+}>();
 
 const emit = defineEmits<{
-  (e: "update:modelValue", value: boolean): void
-}>()
+  (e: "update:modelValue", value: boolean): void;
+}>();
 
-const citationStyle = ref<CitationStyle>('apa')
-const copiedId = ref<string | null>(null)
-const copiedAll = ref(false)
+const manifest = inject<Ref<ManifestEntry[]>>("manifest", ref([]));
+
+const citationStyle = ref<CitationStyle>("apa");
+const copiedId = ref<string | null>(null);
+const copiedAll = ref(false);
+const showMetadataConfirm = ref(false);
+const pendingAction = ref<"copy-all" | "download-txt" | "download-bib" | null>(
+  null,
+);
+const isExtractingMetadata = ref(false);
 
 // Filter files that have citation data
 const citableFiles = computed(() => {
-  return props.files.filter(f => hasCitationData(f.bibliography))
-})
+  return props.files.filter((f) => hasCitationData(f.bibliography));
+});
+
+const missingFiles = computed(() => {
+  return props.files.filter((f) => !hasCitationData(f.bibliography));
+});
+
+const missingPaths = computed(() =>
+  missingFiles.value.map((file) => file.relPath),
+);
 
 // Generate citations for all citable files
 const citations = computed(() => {
-  return citableFiles.value.map(file => ({
+  return citableFiles.value.map((file) => ({
     relPath: file.relPath,
     fileName: getFileName(file.relPath),
-    citation: formatCitation(file.bibliography!, citationStyle.value, file.relPath)
-  }))
-})
+    citation: formatCitation(
+      file.bibliography!,
+      citationStyle.value,
+      file.relPath,
+    ),
+  }));
+});
 
 const styleOptions = [
-  { value: 'apa', label: 'APA 7th' },
-  { value: 'mla', label: 'MLA 9th' },
-  { value: 'chicago', label: 'Chicago 17th' },
-  { value: 'gbt7714', label: 'GB/T 7714-2015' },
-  { value: 'bibtex', label: 'BibTeX' }
-]
+  { value: "apa", label: "APA 7th" },
+  { value: "mla", label: "MLA 9th" },
+  { value: "chicago", label: "Chicago 17th" },
+  { value: "gbt7714", label: "GB/T 7714-2015" },
+  { value: "bibtex", label: "BibTeX" },
+];
 
 function handleClose() {
-  emit("update:modelValue", false)
+  emit("update:modelValue", false);
 }
 
 async function copySingleCitation(citation: string, relPath: string) {
   try {
-    await navigator.clipboard.writeText(citation)
-    copiedId.value = relPath
+    await navigator.clipboard.writeText(citation);
+    copiedId.value = relPath;
     setTimeout(() => {
-      copiedId.value = null
-    }, 2000)
+      copiedId.value = null;
+    }, 2000);
   } catch (err) {
-    console.error("Failed to copy citation:", err)
+    console.error("Failed to copy citation:", err);
   }
 }
 
 async function copyAllCitations() {
   try {
-    const allCitations = citations.value.map(c => c.citation).join('\n\n')
-    await navigator.clipboard.writeText(allCitations)
-    copiedAll.value = true
+    const allCitations = citations.value.map((c) => c.citation).join("\n\n");
+    await navigator.clipboard.writeText(allCitations);
+    copiedAll.value = true;
     setTimeout(() => {
-      copiedAll.value = false
-    }, 2000)
+      copiedAll.value = false;
+    }, 2000);
   } catch (err) {
-    console.error("Failed to copy citations:", err)
+    console.error("Failed to copy citations:", err);
   }
 }
 
+function extractMissingMetadata() {
+  const paths = missingPaths.value;
+  if (paths.length === 0 || isExtractingMetadata.value) return;
+  isExtractingMetadata.value = true;
+  (async () => {
+    try {
+      const updateMap = new Map<string, ManifestEntry["bibliography"]>();
+      for (const path of paths) {
+        const updated = await extractFileMetadata(path);
+        updateMap.set(path, updated);
+      }
+      if (manifest.value.length > 0) {
+        manifest.value = manifest.value.map((entry) => {
+          const next = updateMap.get(entry.relPath);
+          return next ? { ...entry, bibliography: next } : entry;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to extract metadata:", err);
+    } finally {
+      isExtractingMetadata.value = false;
+    }
+  })();
+}
+
+async function requestCopyAll() {
+  if (missingFiles.value.length > 0 && !isExtractingMetadata.value) {
+    pendingAction.value = "copy-all";
+    showMetadataConfirm.value = true;
+    return;
+  }
+  await copyAllCitations();
+}
+
+async function requestDownloadTxt() {
+  if (missingFiles.value.length > 0 && !isExtractingMetadata.value) {
+    pendingAction.value = "download-txt";
+    showMetadataConfirm.value = true;
+    return;
+  }
+  downloadAsTxt();
+}
+
+async function requestDownloadBib() {
+  if (missingFiles.value.length > 0 && !isExtractingMetadata.value) {
+    pendingAction.value = "download-bib";
+    showMetadataConfirm.value = true;
+    return;
+  }
+  downloadAsBib();
+}
+
+async function handleExtractConfirm() {
+  showMetadataConfirm.value = false;
+  extractMissingMetadata();
+  const action = pendingAction.value;
+  pendingAction.value = null;
+  if (action === "copy-all") {
+    await copyAllCitations();
+  } else if (action === "download-txt") {
+    downloadAsTxt();
+  } else if (action === "download-bib") {
+    downloadAsBib();
+  }
+}
+
+async function handleExtractSkip() {
+  showMetadataConfirm.value = false;
+  const action = pendingAction.value;
+  pendingAction.value = null;
+  if (action === "copy-all") {
+    await copyAllCitations();
+  } else if (action === "download-txt") {
+    downloadAsTxt();
+  } else if (action === "download-bib") {
+    downloadAsBib();
+  }
+}
+
+function handleExtractCancel() {
+  showMetadataConfirm.value = false;
+  pendingAction.value = null;
+}
+
 function downloadAsTxt() {
-  const allCitations = citations.value.map(c => c.citation).join('\n\n')
-  const blob = new Blob([allCitations], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `works-cited-${citationStyle.value}.txt`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  const allCitations = citations.value.map((c) => c.citation).join("\n\n");
+  const blob = new Blob([allCitations], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `works-cited-${citationStyle.value}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function downloadAsBib() {
   // Generate BibTeX entries for all files
-  const bibEntries = citableFiles.value.map(file =>
-    formatCitation(file.bibliography!, 'bibtex', file.relPath)
-  ).join('\n\n')
-  const blob = new Blob([bibEntries], { type: 'application/x-bibtex;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'references.bib'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  const bibEntries = citableFiles.value
+    .map((file) => formatCitation(file.bibliography!, "bibtex", file.relPath))
+    .join("\n\n");
+  const blob = new Blob([bibEntries], {
+    type: "application/x-bibtex;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "references.bib";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // Reset copied states when modal closes
-watch(() => props.modelValue, (isOpen) => {
-  if (!isOpen) {
-    copiedId.value = null
-    copiedAll.value = false
-  }
-})
+watch(
+  () => props.modelValue,
+  (isOpen) => {
+    if (!isOpen) {
+      copiedId.value = null;
+      copiedAll.value = false;
+    }
+  },
+);
 
 // Format markdown-style italics to HTML
 function formatHtml(text: string): string {
   // Convert *text* to <em>text</em>
-  return text.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+  return text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 }
 </script>
 
 <template>
-  <BaseModal :model-value="modelValue" title="Works Cited" size="large" @update:model-value="handleClose"
-    :hide-header="true">
+  <BaseModal
+    :model-value="modelValue"
+    title="Works Cited"
+    size="large"
+    @update:model-value="handleClose"
+    :hide-header="true"
+  >
     <div class="custom-modal-layout">
       <!-- Header -->
       <div class="modal-header-custom">
@@ -134,16 +253,28 @@ function formatHtml(text: string): string {
           <CustomSelect v-model="citationStyle" :options="styleOptions" />
         </div>
         <div class="toolbar-actions">
-          <button class="toolbar-btn" @click="copyAllCitations" :disabled="citations.length === 0">
+          <button
+            class="toolbar-btn"
+            @click="requestCopyAll"
+            :disabled="citations.length === 0 && missingFiles.length === 0"
+          >
             <Check v-if="copiedAll" :size="14" class="check-icon" />
             <Copy v-else :size="14" />
-            {{ copiedAll ? 'Copied!' : 'Copy All' }}
+            {{ copiedAll ? "Copied!" : "Copy All" }}
           </button>
-          <button class="toolbar-btn" @click="downloadAsTxt" :disabled="citations.length === 0">
+          <button
+            class="toolbar-btn"
+            @click="requestDownloadTxt"
+            :disabled="citations.length === 0 && missingFiles.length === 0"
+          >
             <Download :size="14" />
             .txt
           </button>
-          <button class="toolbar-btn" @click="downloadAsBib" :disabled="citations.length === 0">
+          <button
+            class="toolbar-btn"
+            @click="requestDownloadBib"
+            :disabled="citations.length === 0 && missingFiles.length === 0"
+          >
             <Download :size="14" />
             .bib
           </button>
@@ -155,12 +286,21 @@ function formatHtml(text: string): string {
         <div v-if="citableFiles.length === 0" class="empty-state">
           <FileText :size="48" class="empty-icon" />
           <p>No citation metadata available</p>
-          <p class="empty-hint">Add documents with bibliographic information to generate citations.</p>
+          <p class="empty-hint">
+            Add documents with bibliographic information to generate citations.
+          </p>
         </div>
 
         <div v-else class="citations-list">
-          <div v-for="item in citations" :key="item.relPath" class="citation-card">
-            <div class="citation-text" :class="{ 'bibtex-format': citationStyle === 'bibtex' }">
+          <div
+            v-for="item in citations"
+            :key="item.relPath"
+            class="citation-card"
+          >
+            <div
+              class="citation-text"
+              :class="{ 'bibtex-format': citationStyle === 'bibtex' }"
+            >
               <template v-if="citationStyle === 'bibtex'">
                 <pre>{{ item.citation }}</pre>
               </template>
@@ -169,13 +309,18 @@ function formatHtml(text: string): string {
               </template>
             </div>
             <div class="citation-footer">
-              <button class="copy-btn" @click="copySingleCitation(item.citation, item.relPath)"
-                :class="{ copied: copiedId === item.relPath }">
+              <button
+                class="copy-btn"
+                @click="copySingleCitation(item.citation, item.relPath)"
+                :class="{ copied: copiedId === item.relPath }"
+              >
                 <Check v-if="copiedId === item.relPath" :size="12" />
                 <Copy v-else :size="12" />
-                {{ copiedId === item.relPath ? 'Copied' : 'Copy' }}
+                {{ copiedId === item.relPath ? "Copied" : "Copy" }}
               </button>
-              <span class="source-file" :title="item.relPath">{{ item.fileName }}</span>
+              <span class="source-file" :title="item.relPath">{{
+                item.fileName
+              }}</span>
             </div>
           </div>
         </div>
@@ -183,11 +328,24 @@ function formatHtml(text: string): string {
 
       <!-- Footer -->
       <div class="modal-footer-custom">
-        <span class="reference-count">{{ citableFiles.length }} reference{{ citableFiles.length !== 1 ? 's' : '' }}</span>
+        <span class="reference-count"
+          >{{ citableFiles.length }} reference{{
+            citableFiles.length !== 1 ? "s" : ""
+          }}</span
+        >
         <button class="btn-primary" @click="handleClose">Done</button>
       </div>
     </div>
   </BaseModal>
+
+  <ConfirmExtractMetadataModal
+    v-model="showMetadataConfirm"
+    action-label="export"
+    :missing-count="missingFiles.length"
+    @confirm="handleExtractConfirm"
+    @skip="handleExtractSkip"
+    @cancel="handleExtractCancel"
+  />
 </template>
 
 <style scoped>
@@ -348,7 +506,7 @@ function formatHtml(text: string): string {
 }
 
 .citation-text.bibtex-format {
-  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-family: "SF Mono", "Monaco", "Consolas", monospace;
   font-size: 12px;
   line-height: 1.5;
 }
