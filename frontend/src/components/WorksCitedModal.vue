@@ -38,6 +38,7 @@ const styleOptions = [
   { value: 'apa', label: 'APA 7th' },
   { value: 'mla', label: 'MLA 9th' },
   { value: 'chicago', label: 'Chicago 17th' },
+  { value: 'gbt7714', label: 'GB/T 7714-2015' },
   { value: 'bibtex', label: 'BibTeX' }
 ]
 

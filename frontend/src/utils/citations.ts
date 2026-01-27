@@ -1,6 +1,6 @@
 import type { Bibliography, BibliographyAuthor } from '../types'
 
-export type CitationStyle = 'apa' | 'mla' | 'chicago' | 'bibtex'
+export type CitationStyle = 'apa' | 'mla' | 'chicago' | 'gbt7714' | 'bibtex'
 
 /**
  * Format a single author name for APA style
@@ -314,6 +314,206 @@ export function formatCitationChicago(bib: Bibliography): string {
 }
 
 /**
+ * Check if a name appears to be Chinese (contains CJK characters)
+ */
+function isCJKName(name: string): boolean {
+  return /[\u4e00-\u9fff]/.test(name)
+}
+
+/**
+ * Format a single author name for GB/T 7714-2015 style
+ * Chinese: 姓名 (no comma)
+ * Western: FAMILY G N (family uppercase, given as initials)
+ */
+function formatAuthorGBT7714(author: BibliographyAuthor): string {
+  if (author.literal) {
+    // Check if Chinese name
+    if (isCJKName(author.literal)) {
+      return author.literal
+    }
+    // Western literal name - try to parse and format
+    return author.literal.toUpperCase()
+  }
+
+  const family = author.family || ''
+  const given = author.given || ''
+
+  if (!family && !given) return ''
+  if (!family) return given
+  if (!given) return family
+
+  // Check if Chinese name
+  if (isCJKName(family) || isCJKName(given)) {
+    return `${family}${given}`
+  }
+
+  // Western name: FAMILY G N (initials without periods per GB/T 7714)
+  const initials = given.split(/\s+/).map(n => n.charAt(0).toUpperCase()).join(' ')
+  return `${family.toUpperCase()} ${initials}`
+}
+
+/**
+ * Format authors list for GB/T 7714-2015 style
+ * Rules:
+ * - ≤3 authors: list all
+ * - >3 authors: first 3, then ",等" (Chinese) or ",et al" (Western)
+ * - Separate authors with comma
+ */
+function formatAuthorsGBT7714(authors: BibliographyAuthor[]): string {
+  if (!authors || authors.length === 0) return ''
+
+  // Determine if primarily Chinese authors
+  const hasChinese = authors.some(a => {
+    if (a.literal) return isCJKName(a.literal)
+    return isCJKName(a.family || '') || isCJKName(a.given || '')
+  })
+
+  if (authors.length <= 3) {
+    return authors.map(formatAuthorGBT7714).join(', ')
+  }
+
+  // More than 3 authors: first 3 + et al/等
+  const first3 = authors.slice(0, 3).map(formatAuthorGBT7714).join(', ')
+  return hasChinese ? `${first3}, 等` : `${first3}, et al`
+}
+
+/**
+ * Get document type marker for GB/T 7714-2015
+ * Returns [J], [M], [D], etc.
+ */
+function getGBT7714TypeMarker(docType?: string | null, isOnline?: boolean): string {
+  const typeMap: Record<string, string> = {
+    'J': 'J',   // 期刊
+    'M': 'M',   // 图书/专著
+    'C': 'C',   // 会议录
+    'G': 'G',   // 汇编
+    'N': 'N',   // 报纸
+    'D': 'D',   // 学位论文
+    'R': 'R',   // 报告
+    'S': 'S',   // 标准
+    'P': 'P',   // 专利
+    'DB': 'DB', // 数据库
+    'CP': 'CP', // 计算机程序
+    'EB': 'EB', // 电子公告
+    'A': 'A',   // 档案
+    'CM': 'CM', // 舆图
+    'DS': 'DS', // 数据集
+  }
+
+  const type = typeMap[docType || ''] || 'Z'
+  // Add /OL suffix for online resources if URL/DOI present
+  return isOnline ? `${type}/OL` : type
+}
+
+/**
+ * Format citation in GB/T 7714-2015 style (顺序编码制)
+ *
+ * Journal article [J]: 作者. 题名[J]. 刊名, 年, 卷(期): 页码.
+ * Book [M]: 作者. 书名[M]. 版本项. 出版地: 出版者, 年: 页码.
+ * Dissertation [D]: 作者. 题名[D]. 地点: 学校, 年.
+ * Report [R]: 作者. 题名[R]. 出版地: 出版者, 年.
+ * Online [/OL]: 添加 [引用日期]. URL. DOI.
+ */
+export function formatCitationGBT7714(bib: Bibliography): string {
+  const parts: string[] = []
+  const isOnline = !!(bib.url || bib.doi)
+  const typeMarker = getGBT7714TypeMarker(bib.docType, isOnline)
+
+  // Authors
+  const authors = formatAuthorsGBT7714(bib.authors || [])
+  if (authors) {
+    parts.push(authors)
+  }
+
+  // Title with type marker
+  const title = bib.title || ''
+  const subtitle = bib.subtitle ? `: ${bib.subtitle}` : ''
+  const fullTitle = title + subtitle
+
+  if (fullTitle) {
+    parts.push(`${fullTitle}[${typeMarker}]`)
+  } else {
+    // If no title, still need the type marker
+    parts.push(`[${typeMarker}]`)
+  }
+
+  // Join author and title with period
+  let citation = parts.join('. ')
+  if (citation && !citation.endsWith('.')) {
+    citation += '. '
+  } else if (citation) {
+    citation += ' '
+  }
+
+  const isJournal = bib.docType === 'J' || bib.journal
+  const isDissertation = bib.docType === 'D'
+
+  if (isJournal && bib.journal) {
+    // Journal format: 刊名, 年, 卷(期): 页码
+    let journalPart = bib.journal
+    if (bib.year) {
+      journalPart += `, ${bib.year}`
+    }
+    if (bib.volume) {
+      journalPart += `, ${bib.volume}`
+    }
+    if (bib.issue) {
+      journalPart += `(${bib.issue})`
+    }
+    if (bib.pages) {
+      journalPart += `: ${bib.pages}`
+    }
+    citation += journalPart
+  } else if (isDissertation) {
+    // Dissertation format: 地点: 学校, 年
+    if (bib.place && bib.publisher) {
+      citation += `${bib.place}: ${bib.publisher}`
+    } else if (bib.publisher) {
+      citation += bib.publisher
+    }
+    if (bib.year) {
+      citation += `, ${bib.year}`
+    }
+  } else {
+    // Book/other format: 出版地: 出版者, 年: 页码
+    if (bib.place && bib.publisher) {
+      citation += `${bib.place}: ${bib.publisher}`
+    } else if (bib.publisher) {
+      citation += bib.publisher
+    }
+    if (bib.year) {
+      citation += `, ${bib.year}`
+    }
+    if (bib.pages) {
+      citation += `: ${bib.pages}`
+    }
+  }
+
+  // Online resources: add access date and URL
+  if (isOnline) {
+    // Access date - use current date if not specified
+    const today = new Date()
+    const accessDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    citation += `[${accessDate}]`
+
+    if (bib.url) {
+      citation += `. ${bib.url}`
+    }
+    if (bib.doi && !bib.url?.includes(bib.doi)) {
+      citation += `. DOI:${bib.doi}`
+    }
+  }
+
+  // Ensure ends with period
+  citation = citation.trim()
+  if (citation && !citation.endsWith('.')) {
+    citation += '.'
+  }
+
+  return citation
+}
+
+/**
  * Generate a BibTeX key from author and year
  */
 function generateBibTeXKey(bib: Bibliography, relPath: string): string {
@@ -463,6 +663,8 @@ export function formatCitation(bib: Bibliography, style: CitationStyle, relPath?
       return formatCitationMLA(bib)
     case 'chicago':
       return formatCitationChicago(bib)
+    case 'gbt7714':
+      return formatCitationGBT7714(bib)
     case 'bibtex':
       return formatBibTeX(bib, relPath || 'unknown')
     default:
