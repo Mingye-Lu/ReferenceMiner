@@ -694,7 +694,15 @@ export async function checkDuplicate(
 }
 
 export function getFileUrl(_projectId: string, relPath: string): string {
-  return `${API_BASE}/files/${encodeURIComponent(relPath)}`;
+  // Encode each segment to handle special characters while preserving directory structure
+  const encodedPath = relPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+
+  // In development, bypass Vite proxy for files to avoid timeouts/limits with large files
+  if (import.meta.env.DEV) {
+    return `http://localhost:8000/files/${encodedPath}`;
+  }
+
+  return `${API_BASE}/files/${encodedPath}`;
 }
 
 export async function fetchFileHighlights(

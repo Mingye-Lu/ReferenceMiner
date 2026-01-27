@@ -65,6 +65,7 @@ async function loadDocx() {
     return
   }
 
+
   isLoading.value = true
   try {
     const resp = await fetch(fileUrl.value)
@@ -262,6 +263,22 @@ function handleClose() {
   align-self: center;
   margin-top: auto;
   margin-bottom: auto;
+}
+
+.download-link {
+  color: var(--accent-bright);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: 1px solid var(--accent-bright);
+  border-radius: 8px;
+  display: inline-block;
+  transition: all 0.2s;
+}
+
+.download-link:hover {
+  background: var(--accent-bright);
+  color: var(--color-white);
 }
 
 .docx-preview-area {

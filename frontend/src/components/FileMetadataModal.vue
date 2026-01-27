@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
 import BaseModal from "./BaseModal.vue"
+import CustomSelect from "./CustomSelect.vue"
 import type { ManifestEntry, BibliographyAuthor } from "../types"
 import { extractFileMetadata, fetchFileMetadata, updateFileMetadata } from "../api/client"
 import { getFileName } from "../utils"
@@ -213,131 +214,130 @@ watch(
       <div v-if="isLoading" class="metadata-loading">Loading metadata...</div>
       <div v-else-if="!file" class="metadata-empty">Select a file to edit metadata.</div>
       <div v-else class="metadata-form">
-        <div class="metadata-row">
-          <label>Document Type</label>
-          <select v-model="draft!.docType">
-            <option value="">Select type</option>
-            <option v-for="opt in docTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
+        <div class="form-row">
+          <label class="form-label">Document Type</label>
+          <CustomSelect :model-value="draft!.docType ?? ''" :options="docTypeOptions"
+            @update:model-value="(value: string) => draft!.docType = value" placeholder="Select type" />
         </div>
-        <div class="metadata-row">
-          <label>Language</label>
-          <select v-model="draft!.language">
-            <option value="">Select language</option>
-            <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
+        <div class="form-row">
+          <label class="form-label">Language</label>
+          <CustomSelect :model-value="draft!.language ?? ''" :options="languageOptions"
+            @update:model-value="(value: string) => draft!.language = value" placeholder="Select language" />
         </div>
-        <div class="metadata-row">
-          <label>Title</label>
-          <input v-model="draft!.title" type="text" placeholder="Paper title" />
+        <div class="form-row">
+          <label class="form-label">Title</label>
+          <input v-model="draft!.title" type="text" placeholder="Paper title" class="form-input" />
         </div>
-        <div class="metadata-row">
-          <label>Subtitle</label>
-          <input v-model="draft!.subtitle" type="text" placeholder="Subtitle (optional)" />
+        <div class="form-row">
+          <label class="form-label">Subtitle</label>
+          <input v-model="draft!.subtitle" type="text" placeholder="Subtitle (optional)" class="form-input" />
         </div>
-        <div class="metadata-row">
-          <label>Organization</label>
-          <input v-model="draft!.organization" type="text" placeholder="Institution or group author" />
+        <div class="form-row">
+          <label class="form-label">Organization</label>
+          <input v-model="draft!.organization" type="text" placeholder="Institution or group author"
+            class="form-input" />
         </div>
 
-        <div class="metadata-row">
-          <label>Authors</label>
+        <div class="form-row">
+          <label class="form-label">Authors</label>
           <div class="authors-list">
             <div v-for="(author, index) in draft!.authors" :key="index" class="author-row">
-              <input v-model="author.family" type="text" placeholder="Family name" />
-              <input v-model="author.given" type="text" placeholder="Given name" />
-              <input v-model="author.literal" type="text" placeholder="Full name (optional)" />
-              <button class="btn-remove" @click="removeAuthor(index)">Remove</button>
+              <input v-model="author.family" type="text" placeholder="Family name" class="form-input" />
+              <input v-model="author.given" type="text" placeholder="Given name" class="form-input" />
+              <input v-model="author.literal" type="text" placeholder="Full name (optional)" class="form-input" />
+              <button class="btn-danger" @click="removeAuthor(index)">Remove</button>
             </div>
             <button class="btn-secondary" @click="addAuthor">Add author</button>
           </div>
         </div>
 
-        <div class="metadata-grid">
-          <div class="metadata-row">
-            <label>Year</label>
-            <input v-model.number="draft!.year" type="number" placeholder="2024" />
+        <div class="form-grid">
+          <div class="form-row">
+            <label class="form-label">Year</label>
+            <input v-model.number="draft!.year" type="number" placeholder="2024" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Date</label>
-            <input v-model="draft!.date" type="text" placeholder="YYYY-MM-DD" />
+          <div class="form-row">
+            <label class="form-label">Date</label>
+            <input v-model="draft!.date" type="text" placeholder="YYYY-MM-DD" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Journal</label>
-            <input v-model="draft!.journal" type="text" placeholder="Journal name" />
+          <div class="form-row">
+            <label class="form-label">Journal</label>
+            <input v-model="draft!.journal" type="text" placeholder="Journal name" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Volume</label>
-            <input v-model="draft!.volume" type="text" placeholder="Volume" />
+          <div class="form-row">
+            <label class="form-label">Volume</label>
+            <input v-model="draft!.volume" type="text" placeholder="Volume" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Issue</label>
-            <input v-model="draft!.issue" type="text" placeholder="Issue" />
+          <div class="form-row">
+            <label class="form-label">Issue</label>
+            <input v-model="draft!.issue" type="text" placeholder="Issue" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Pages</label>
-            <input v-model="draft!.pages" type="text" placeholder="123-130" />
+          <div class="form-row">
+            <label class="form-label">Pages</label>
+            <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Publisher</label>
-            <input v-model="draft!.publisher" type="text" placeholder="Publisher" />
+          <div class="form-row">
+            <label class="form-label">Publisher</label>
+            <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Place</label>
-            <input v-model="draft!.place" type="text" placeholder="City" />
+          <div class="form-row">
+            <label class="form-label">Place</label>
+            <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Conference</label>
-            <input v-model="draft!.conference" type="text" placeholder="Conference name" />
+          <div class="form-row">
+            <label class="form-label">Conference</label>
+            <input v-model="draft!.conference" type="text" placeholder="Conference name" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Institution</label>
-            <input v-model="draft!.institution" type="text" placeholder="University or institute" />
+          <div class="form-row">
+            <label class="form-label">Institution</label>
+            <input v-model="draft!.institution" type="text" placeholder="University or institute" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Report Number</label>
-            <input v-model="draft!.reportNumber" type="text" placeholder="Report number" />
+          <div class="form-row">
+            <label class="form-label">Report Number</label>
+            <input v-model="draft!.reportNumber" type="text" placeholder="Report number" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Standard Number</label>
-            <input v-model="draft!.standardNumber" type="text" placeholder="Standard number" />
+          <div class="form-row">
+            <label class="form-label">Standard Number</label>
+            <input v-model="draft!.standardNumber" type="text" placeholder="Standard number" class="form-input" />
           </div>
-          <div class="metadata-row">
-            <label>Patent Number</label>
-            <input v-model="draft!.patentNumber" type="text" placeholder="Patent number" />
+          <div class="form-row">
+            <label class="form-label">Patent Number</label>
+            <input v-model="draft!.patentNumber" type="text" placeholder="Patent number" class="form-input" />
           </div>
         </div>
 
-        <div class="metadata-row">
-          <label>URL</label>
-          <input v-model="draft!.url" type="text" placeholder="https://..." />
+        <div class="form-row">
+          <label class="form-label">URL</label>
+          <input v-model="draft!.url" type="text" placeholder="https://..." class="form-input" />
         </div>
-        <div class="metadata-row">
-          <label>Accessed</label>
-          <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" />
+        <div class="form-row">
+          <label class="form-label">Accessed</label>
+          <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" class="form-input" />
         </div>
-        <div class="metadata-row">
-          <label>DOI</label>
-          <input v-model="draft!.doi" type="text" placeholder="10.xxxx/xxxxx" />
+        <div class="form-row">
+          <label class="form-label">DOI</label>
+          <input v-model="draft!.doi" type="text" placeholder="10.xxxx/xxxxx" class="form-input" />
         </div>
-        <div class="metadata-row">
-          <label>DOI Status</label>
-          <input v-model="draft!.doiStatus" type="text" placeholder="missing/verified" />
+        <div class="form-row">
+          <label class="form-label">DOI Status</label>
+          <input v-model="draft!.doiStatus" type="text" placeholder="missing/verified" class="form-input" />
         </div>
 
         <div v-if="errorMessage" class="metadata-error">{{ errorMessage }}</div>
 
-        <div class="metadata-actions">
-          <button class="btn-secondary" @click="handleClose">Cancel</button>
-          <button class="btn-secondary" :disabled="isExtracting" @click="handleExtract">
-            {{ isExtracting ? "Extracting..." : "Extract Metadata" }}
-          </button>
-          <button class="btn-primary" :disabled="isSaving" @click="handleSave">
-            {{ isSaving ? "Saving..." : "Save Metadata" }}
-          </button>
-        </div>
       </div>
     </div>
+
+    <template #footer>
+      <button class="btn-secondary" @click="handleClose">Cancel</button>
+      <button class="btn-secondary" :disabled="isExtracting" @click="handleExtract">
+        {{ isExtracting ? "Extracting..." : "Extract Metadata" }}
+      </button>
+      <button class="btn-primary" :disabled="isSaving" @click="handleSave">
+        {{ isSaving ? "Saving..." : "Save Metadata" }}
+      </button>
+    </template>
+
   </BaseModal>
 </template>
 
@@ -362,34 +362,7 @@ watch(
   gap: 14px;
 }
 
-.metadata-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.metadata-row label {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.metadata-row input,
-.metadata-row select {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.metadata-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
+/* Component-specific styles */
 .authors-list {
   display: flex;
   flex-direction: column;
@@ -403,40 +376,11 @@ watch(
   align-items: center;
 }
 
-.btn-secondary,
-.btn-primary,
-.btn-remove {
-  border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  background: var(--color-neutral-120);
-  color: var(--text-primary);
-}
-
-.btn-primary {
-  background: var(--accent-color);
-  color: white;
-}
-
-.btn-remove {
-  background: transparent;
-  color: var(--color-danger-500);
-}
-
 .metadata-error {
-  color: var(--color-danger-500);
+  color: var(--color-danger-600);
   font-size: 12px;
-}
-
-.metadata-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding-top: 8px;
+  padding: 8px 12px;
+  background: var(--color-danger-50);
+  border-radius: 6px;
 }
 </style>
