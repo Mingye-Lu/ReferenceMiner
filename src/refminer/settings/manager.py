@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 PROVIDERS = {"deepseek", "openai", "gemini", "anthropic", "custom"}
+CITATION_COPY_FORMATS = ("apa", "mla", "chicago", "gbt7714", "numeric")
 
 DEFAULT_BASE_URLS = {
     "deepseek": "https://api.deepseek.com",
@@ -250,4 +251,16 @@ class SettingsManager:
             self._settings["provider_keys"] = keys
         if provider == "deepseek" and "deepseek_api_key" in self._settings:
             del self._settings["deepseek_api_key"]
+        self._save()
+
+    def get_citation_copy_format(self) -> str:
+        """Get the preferred citation format for copying AI responses."""
+        fmt = self._settings.get("citation_copy_format")
+        return fmt if fmt in CITATION_COPY_FORMATS else "apa"
+
+    def set_citation_copy_format(self, fmt: str) -> None:
+        """Save the preferred citation format for copying AI responses."""
+        if fmt not in CITATION_COPY_FORMATS:
+            raise ValueError("Unsupported citation format")
+        self._settings["citation_copy_format"] = fmt
         self._save()

@@ -209,12 +209,15 @@ export interface ProjectCreate {
 }
 
 // Settings types
+export type CitationCopyFormat = 'apa' | 'mla' | 'chicago' | 'gbt7714' | 'numeric'
+
 export interface Settings {
   activeProvider: string
   providerKeys: Record<string, { hasKey: boolean; maskedKey: string | null }>
   providerSettings: Record<string, { baseUrl: string; model: string }>
   baseUrl: string
   model: string
+  citationCopyFormat: CitationCopyFormat
 }
 
 export interface BalanceInfo {

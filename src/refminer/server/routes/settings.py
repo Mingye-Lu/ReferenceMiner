@@ -12,6 +12,7 @@ from refminer.server.globals import settings_manager, get_bank_paths
 from refminer.server.models import (
     ApiKeyRequest,
     ApiKeyValidateRequest,
+    CitationFormatRequest,
     LlmSettingsRequest,
     ModelsListRequest,
 )
@@ -103,6 +104,7 @@ async def get_settings():
         "masked_api_key": settings_manager.get_masked_api_key(provider),
         "base_url": settings_manager.get_base_url(provider),
         "model": settings_manager.get_model(provider),
+        "citation_copy_format": settings_manager.get_citation_copy_format(),
     }
 
 
@@ -231,6 +233,17 @@ async def save_llm_settings(req: LlmSettingsRequest):
     settings_manager.set_base_url(normalized_url, provider)
     settings_manager.set_model(model, provider)
     return {"success": True, "base_url": normalized_url, "model": model, "active_provider": provider}
+
+
+@router.post("/citation-format")
+async def save_citation_format(req: CitationFormatRequest):
+    """Save the preferred citation format for copying AI responses."""
+    fmt = req.format.strip().lower()
+    valid_formats = ("apa", "mla", "chicago", "gbt7714", "numeric")
+    if fmt not in valid_formats:
+        raise HTTPException(status_code=400, detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}")
+    settings_manager.set_citation_copy_format(fmt)
+    return {"success": True, "citation_copy_format": fmt}
 
 
 @router.post("/reset")

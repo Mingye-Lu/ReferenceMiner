@@ -16,9 +16,10 @@ import {
   fetchChatSession,
   createChatSession,
   updateChatSession,
-  deleteChatSession
+  deleteChatSession,
+  getSettings
 } from "../api/client"
-import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project, BoundingBox, HighlightGroup } from "../types"
+import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project, BoundingBox, HighlightGroup, CitationCopyFormat } from "../types"
 import { useRouter } from "vue-router"
 import { Home, Search, PanelRight } from "lucide-vue-next"
 
@@ -49,6 +50,8 @@ const projectFiles = ref<Set<string>>(new Set())
 // Selected Files: files selected for AI context
 const selectedFiles = ref<Set<string>>(new Set())
 const selectedNotes = ref<Set<string>>(new Set())
+// Citation format for copy functionality
+const citationFormat = ref<CitationCopyFormat>("apa")
 
 // Search State
 const isSearchOpen = ref(false)
@@ -311,6 +314,7 @@ provide("togglePin", togglePin)
 provide("isPinned", isPinned)
 provide("pinnedEvidenceMap", pinnedEvidenceMap)
 provide("manifest", manifest)
+provide("citationFormat", citationFormat)
 provide("projectFiles", projectFiles)
 provide("selectedFiles", selectedFiles)
 provide("selectedNotes", selectedNotes)
@@ -365,11 +369,20 @@ onMounted(async () => {
     selectedFiles.value = new Set()
   } catch (e) { console.error(e) }
 
+  // Load citation format setting
+  try {
+    const settings = await getSettings()
+    citationFormat.value = settings.citationCopyFormat || "apa"
+  } catch (e) { console.error("Failed to load citation format:", e) }
+
+  // Listen for setting changes from ProjectHub
+  window.addEventListener("settingChanged", handleSettingChange as EventListener)
   window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener("settingChanged", handleSettingChange as EventListener)
   // Save any pending changes before unmounting
   if (savePending.value && currentChatId.value) {
     if (saveDebounceTimer.value) {
@@ -378,6 +391,13 @@ onUnmounted(async () => {
     await saveCurrentSession()
   }
 })
+
+function handleSettingChange(event: Event) {
+  const detail = (event as CustomEvent).detail
+  if (detail?.key === "citationCopyFormat") {
+    citationFormat.value = detail.value as CitationCopyFormat
+  }
+}
 
 // Save active chat ID to localStorage for persistence across page reloads
 watch(() => currentChatId.value, (val) => {

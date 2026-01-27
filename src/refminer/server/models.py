@@ -79,3 +79,7 @@ class BatchDeleteRequest(BaseModel):
 
 class FileMetadataUpdateRequest(BaseModel):
     bibliography: Optional[dict] = None
+
+
+class CitationFormatRequest(BaseModel):
+    format: str

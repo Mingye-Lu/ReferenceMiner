@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, inject, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
-import type { ChatMessage, EvidenceChunk, TimelineStep } from "../types"
+import { ref, inject, computed, watch, onMounted, onUnmounted, nextTick, type Ref } from "vue"
+import type { ChatMessage, EvidenceChunk, TimelineStep, ManifestEntry, CitationCopyFormat } from "../types"
 import { renderMarkdown, renderMermaidDiagrams } from "../utils/markdown"
-import { Loader2, CircleCheck } from "lucide-vue-next"
+import { formatInTextCitation, type InTextCitationStyle } from "../utils/citations"
+import { Loader2, CircleCheck, Copy, Check } from "lucide-vue-next"
 
 const markdownBodyRef = ref<HTMLElement | null>(null)
 
@@ -10,6 +11,10 @@ const props = defineProps<{ message: ChatMessage }>()
 const openEvidence = inject<(item: EvidenceChunk, related?: EvidenceChunk[]) => void>("openEvidence")!
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")
 const isPinned = inject<(id: string) => boolean>("isPinned")!
+const manifest = inject<Ref<ManifestEntry[]>>("manifest", ref([]))
+const citationFormat = inject<Ref<CitationCopyFormat>>("citationFormat", ref("apa"))
+
+const showCopied = ref(false)
 
 const isTimelineExpanded = ref(true)
 const expandedSteps = ref<Set<number>>(new Set())
@@ -224,6 +229,63 @@ watch(
   },
   { immediate: true }
 )
+
+// Build a lookup map from path to bibliography
+const bibLookup = computed(() => {
+  const map = new Map<string, ManifestEntry['bibliography']>()
+  for (const entry of manifest.value || []) {
+    if (entry.relPath && entry.bibliography) {
+      map.set(entry.relPath, entry.bibliography)
+    }
+  }
+  return map
+})
+
+// Copy message with formatted citations
+async function copyWithCitations() {
+  const content = props.message.content
+  const sources = props.message.sources || []
+  const style = citationFormat.value as InTextCitationStyle
+
+  // Replace [Cx] and [Cx, Cy, ...] patterns with formatted citations
+  const formatted = content.replace(
+    /\[C(\d+)(?:\s*,\s*C(\d+))*\]/g,
+    (match) => {
+      // Extract all citation numbers from the match
+      const nums = match.match(/\d+/g)
+      if (!nums) return match
+
+      const citations = nums.map(numStr => {
+        const idx = parseInt(numStr) - 1
+        const source = sources[idx]
+        if (!source) return `[${numStr}]`
+
+        const bib = bibLookup.value.get(source.path)
+        return formatInTextCitation(bib, style, parseInt(numStr), source.page)
+      })
+
+      // Join multiple citations with semicolon for APA/Chicago, comma for others
+      if (style === 'apa' || style === 'chicago') {
+        // For parenthetical styles, combine inside single parentheses
+        if (citations.length > 1) {
+          const inner = citations.map(c => c.replace(/^\(|\)$/g, '')).join('; ')
+          return `(${inner})`
+        }
+      }
+      return citations.join(', ')
+    }
+  )
+
+  try {
+    await navigator.clipboard.writeText(formatted)
+    showCopied.value = true
+    setTimeout(() => {
+      showCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
 </script>
 
 <template>
@@ -282,8 +344,21 @@ watch(
         <span v-for="kw in message.keywords" :key="kw" class="keyword-tag">{{ kw }}</span>
       </div>
 
-      <!-- 3. MARKDOWN BODY -->
-      <div ref="markdownBodyRef" class="markdown-body" v-html="processMarkdown(message.content)" @click="handleBodyClick"></div>
+      <!-- 3. MARKDOWN BODY WITH COPY BUTTON -->
+      <div class="markdown-body-wrapper">
+        <!-- Copy Button - sticky to follow scroll -->
+        <button
+          v-if="message.content && !message.isStreaming"
+          class="ai-copy-btn"
+          :class="{ copied: showCopied }"
+          @click="copyWithCitations"
+          title="Copy with formatted citations"
+        >
+          <Copy v-if="!showCopied" :size="14" />
+          <Check v-else :size="14" />
+        </button>
+        <div ref="markdownBodyRef" class="markdown-body" v-html="processMarkdown(message.content)" @click="handleBodyClick"></div>
+      </div>
 
       <!-- 4. EVIDENCE STREAM (CARDS) -->
       <div v-if="!message.isStreaming && displaySources.length" class="evidence-stream-container">
@@ -637,5 +712,51 @@ watch(
 
 .card-pin.active {
   color: var(--accent-color);
+}
+
+/* Markdown Body Wrapper - for copy button positioning */
+.markdown-body-wrapper {
+  position: relative;
+}
+
+/* AI Copy Button */
+.ai-copy-btn {
+  float: right;
+  position: sticky;
+  top: 72px; /* Account for top nav height */
+  margin-left: 12px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 10;
+}
+
+.markdown-body-wrapper:hover .ai-copy-btn,
+.ai-copy-btn:focus {
+  opacity: 1;
+}
+
+.ai-copy-btn:hover {
+  background: var(--color-neutral-100);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.ai-copy-btn.copied {
+  opacity: 1;
+  background: var(--color-success-50);
+  border-color: var(--color-success-200);
+  color: var(--color-success-600);
 }
 </style>

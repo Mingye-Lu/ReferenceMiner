@@ -841,6 +841,21 @@ export async function getSettings(): Promise<Settings> {
     providerSettings,
     baseUrl: data.base_url ?? defaults.baseUrl,
     model: data.model ?? defaults.model,
+    citationCopyFormat: data.citation_copy_format ?? "apa",
+  };
+}
+
+export async function saveCitationCopyFormat(
+  format: string,
+): Promise<{ success: boolean; citationCopyFormat: string }> {
+  const data = await fetchJson<any>("/api/settings/citation-format", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ format }),
+  });
+  return {
+    success: data.success ?? false,
+    citationCopyFormat: data.citation_copy_format ?? format,
   };
 }
 

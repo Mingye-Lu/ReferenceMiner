@@ -1,6 +1,7 @@
 import type { Bibliography, BibliographyAuthor } from '../types'
 
 export type CitationStyle = 'apa' | 'mla' | 'chicago' | 'gbt7714' | 'bibtex'
+export type InTextCitationStyle = 'apa' | 'mla' | 'chicago' | 'gbt7714' | 'numeric'
 
 /**
  * Format a single author name for APA style
@@ -679,4 +680,155 @@ export function hasCitationData(bib?: Bibliography | null): boolean {
   if (!bib) return false
   // At minimum need a title or authors
   return !!(bib.title || (bib.authors && bib.authors.length > 0))
+}
+
+// =============================================================================
+// In-Text Citation Formatters (for copy functionality)
+// =============================================================================
+
+/**
+ * Get the first author's last name for in-text citations
+ */
+function getFirstAuthorLastName(authors?: BibliographyAuthor[]): string | null {
+  if (!authors || authors.length === 0) return null
+  const first = authors[0]
+  if (first.literal) return first.literal
+  return first.family || first.given || null
+}
+
+/**
+ * Format in-text citation for APA style
+ * Format: (Author, Year) or (Author, Year, p. Page)
+ * Examples: (Smith, 2023), (Smith, 2023, p. 15), (Smith & Jones, 2023)
+ */
+function formatInTextAPA(bib: Bibliography, page?: number | null): string {
+  const authors = bib.authors || []
+  let authorPart = ''
+
+  if (authors.length === 0) {
+    // Fallback to title if no authors
+    authorPart = bib.title ? `"${bib.title.slice(0, 30)}${bib.title.length > 30 ? '...' : ''}"` : 'Unknown'
+  } else if (authors.length === 1) {
+    authorPart = getFirstAuthorLastName(authors) || 'Unknown'
+  } else if (authors.length === 2) {
+    const first = getFirstAuthorLastName([authors[0]]) || 'Unknown'
+    const second = getFirstAuthorLastName([authors[1]]) || 'Unknown'
+    authorPart = `${first} & ${second}`
+  } else {
+    authorPart = `${getFirstAuthorLastName(authors) || 'Unknown'} et al.`
+  }
+
+  const parts = [authorPart]
+  if (bib.year) parts.push(String(bib.year))
+  if (page) parts.push(`p. ${page}`)
+
+  return `(${parts.join(', ')})`
+}
+
+/**
+ * Format in-text citation for MLA style
+ * Format: (Author Page)
+ * Examples: (Smith 15), (Smith and Jones 15)
+ */
+function formatInTextMLA(bib: Bibliography, page?: number | null): string {
+  const authors = bib.authors || []
+  let authorPart = ''
+
+  if (authors.length === 0) {
+    authorPart = bib.title ? `"${bib.title.slice(0, 30)}${bib.title.length > 30 ? '...' : ''}"` : 'Unknown'
+  } else if (authors.length === 1) {
+    authorPart = getFirstAuthorLastName(authors) || 'Unknown'
+  } else if (authors.length === 2) {
+    const first = getFirstAuthorLastName([authors[0]]) || 'Unknown'
+    const second = getFirstAuthorLastName([authors[1]]) || 'Unknown'
+    authorPart = `${first} and ${second}`
+  } else {
+    authorPart = `${getFirstAuthorLastName(authors) || 'Unknown'} et al.`
+  }
+
+  if (page) {
+    return `(${authorPart} ${page})`
+  }
+  return `(${authorPart})`
+}
+
+/**
+ * Format in-text citation for Chicago style
+ * Format: (Author Year, Page)
+ * Examples: (Smith 2023, 15), (Smith and Jones 2023, 15)
+ */
+function formatInTextChicago(bib: Bibliography, page?: number | null): string {
+  const authors = bib.authors || []
+  let authorPart = ''
+
+  if (authors.length === 0) {
+    authorPart = bib.title ? `"${bib.title.slice(0, 30)}${bib.title.length > 30 ? '...' : ''}"` : 'Unknown'
+  } else if (authors.length === 1) {
+    authorPart = getFirstAuthorLastName(authors) || 'Unknown'
+  } else if (authors.length === 2) {
+    const first = getFirstAuthorLastName([authors[0]]) || 'Unknown'
+    const second = getFirstAuthorLastName([authors[1]]) || 'Unknown'
+    authorPart = `${first} and ${second}`
+  } else {
+    authorPart = `${getFirstAuthorLastName(authors) || 'Unknown'} et al.`
+  }
+
+  let citation = authorPart
+  if (bib.year) citation += ` ${bib.year}`
+  if (page) citation += `, ${page}`
+
+  return `(${citation})`
+}
+
+/**
+ * Format in-text citation for GB/T 7714 style (numeric)
+ * Format: [序号]
+ * Example: [1]
+ */
+function formatInTextGBT7714(index: number): string {
+  return `[${index}]`
+}
+
+/**
+ * Format in-text citation for Numeric style
+ * Format: [n]
+ * Example: [1]
+ */
+function formatInTextNumeric(index: number): string {
+  return `[${index}]`
+}
+
+/**
+ * Format an in-text citation based on the specified style
+ * @param bib - The bibliography data for the source
+ * @param style - The citation style to use
+ * @param index - The 1-based index of the citation (for numeric styles)
+ * @param page - Optional page number
+ */
+export function formatInTextCitation(
+  bib: Bibliography | null | undefined,
+  style: InTextCitationStyle,
+  index: number,
+  page?: number | null
+): string {
+  // For numeric styles or missing bibliography, use the index
+  if (style === 'numeric' || style === 'gbt7714') {
+    return style === 'gbt7714' ? formatInTextGBT7714(index) : formatInTextNumeric(index)
+  }
+
+  // If no bibliography data, fall back to numeric
+  if (!bib || !hasCitationData(bib)) {
+    return `[${index}]`
+  }
+
+  switch (style) {
+    case 'apa':
+      return formatInTextAPA(bib, page)
+    case 'mla':
+      return formatInTextMLA(bib, page)
+    case 'chicago':
+      return formatInTextChicago(bib, page)
+    default:
+      return formatInTextAPA(bib, page)
+  }
 }

@@ -19,6 +19,7 @@ import {
   reprocessReferenceFileStream,
   fetchVersion,
   fetchUpdateCheck,
+  saveCitationCopyFormat,
 } from "../api/client";
 import type {
   Project,
@@ -29,6 +30,7 @@ import type {
   UploadStatus,
   UploadPhase,
   UpdateCheck,
+  CitationCopyFormat,
 } from "../types";
 import ProjectCard from "./ProjectCard.vue";
 import FileUploader from "./FileUploader.vue";
@@ -106,6 +108,8 @@ const currentVersion = ref<string>("");
 const filesPerPage = ref(7);
 const notesPerPage = ref(4);
 const chatsPerPage = ref(0); // 0 = unlimited
+const citationCopyFormat = ref<CitationCopyFormat>("apa");
+const isSavingCitation = ref(false);
 
 const { settings: pdfSettings, setViewMode } = usePdfSettings();
 const viewMode = computed(() => pdfSettings.value.viewMode);
@@ -210,6 +214,14 @@ const themeOptions = [
 const pdfViewOptions = [
   { value: "single", label: "Single Page" },
   { value: "continuous", label: "Continuous Scroll" },
+];
+
+const citationFormatOptions = [
+  { value: "apa", label: "APA (Author, Year)" },
+  { value: "mla", label: "MLA (Author Page)" },
+  { value: "chicago", label: "Chicago (Author Year, Page)" },
+  { value: "gbt7714", label: "GB/T 7714 [n]" },
+  { value: "numeric", label: "Numeric [1]" },
 ];
 
 async function loadProjects() {
@@ -662,6 +674,7 @@ async function handleSaveLlmSettings() {
         providerSettings: {},
         baseUrl: result.baseUrl,
         model: result.model,
+        citationCopyFormat: "apa",
       };
     } else {
       settings.value.activeProvider = result.activeProvider;
@@ -809,6 +822,24 @@ function saveDisplaySetting(
   );
 }
 
+async function handleCitationFormatChange(format: string) {
+  citationCopyFormat.value = format as CitationCopyFormat;
+  isSavingCitation.value = true;
+  try {
+    await saveCitationCopyFormat(format);
+    // Notify other components
+    window.dispatchEvent(
+      new CustomEvent("settingChanged", {
+        detail: { key: "citationCopyFormat", value: format },
+      }),
+    );
+  } catch (e) {
+    console.error("Failed to save citation format:", e);
+  } finally {
+    isSavingCitation.value = false;
+  }
+}
+
 onMounted(async () => {
   // Load display settings
   const storedFiles = localStorage.getItem("filesPerPage");
@@ -839,6 +870,7 @@ onMounted(async () => {
     ]);
     settings.value = settingsData;
     currentVersion.value = version;
+    citationCopyFormat.value = settingsData.citationCopyFormat || "apa";
     syncLlmInputs(settingsData);
   } catch (e) {
     console.error("Failed to load settings:", e);
@@ -1138,6 +1170,41 @@ onUnmounted(() => {
                     <CustomSelect :model-value="viewMode" :options="pdfViewOptions" @update:model-value="
                       (value) => setViewMode(value as 'single' | 'continuous')
                     " />
+                  </div>
+                </div>
+              </section>
+
+              <!-- Citation Format Card -->
+              <section class="settings-card">
+                <div class="section-header">
+                  <div class="section-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21" />
+                      <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 class="section-title">Citation Format</h4>
+                    <p class="section-description">
+                      Format for copying AI responses
+                    </p>
+                  </div>
+                </div>
+                <div class="section-content">
+                  <div class="pref-setting-row">
+                    <div class="pref-setting-info">
+                      <label class="form-label">In-Text Citation Style</label>
+                      <p class="form-hint">
+                        Replaces [C1] markers when copying responses
+                      </p>
+                    </div>
+                    <CustomSelect
+                      :model-value="citationCopyFormat"
+                      :options="citationFormatOptions"
+                      :disabled="isSavingCitation"
+                      @update:model-value="handleCitationFormatChange"
+                    />
                   </div>
                 </div>
               </section>
