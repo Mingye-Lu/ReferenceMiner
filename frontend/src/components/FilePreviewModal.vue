@@ -29,6 +29,11 @@ const allChunkGroups = ref<HighlightGroup[] | null>(null)
 const isFullscreen = ref(true)
 const showMetadataModal = ref(false)
 
+// Cache for DOCX content to prevent re-rendering flicker
+// LRU cache with max 5 files to prevent memory bloat
+const MAX_DOCX_CACHE_SIZE = 5
+const docxContentCache = new Map<string, string>()
+
 const fileUrl = computed(() => {
   if (!props.file) return ""
   return getFileUrl(projectId.value, props.file.relPath)
@@ -44,7 +49,22 @@ const activeHighlightGroups = computed(() => {
 })
 
 async function loadDocx() {
-  if (!isDocx.value || !fileUrl.value) return
+  if (!isDocx.value || !fileUrl.value || !props.file) return
+
+  const filePath = props.file.relPath
+
+  // Check if content is already cached
+  if (docxContentCache.has(filePath)) {
+    if (docxContainer.value) {
+      const cachedContent = docxContentCache.get(filePath)!
+      // Move to end (most recently used) by deleting and re-adding
+      docxContentCache.delete(filePath)
+      docxContentCache.set(filePath, cachedContent)
+      docxContainer.value.innerHTML = cachedContent
+    }
+    return
+  }
+
   isLoading.value = true
   try {
     const resp = await fetch(fileUrl.value)
@@ -56,6 +76,17 @@ async function loadDocx() {
         className: "docx-wrapper",
         inWrapper: true
       })
+
+      // LRU cache management: remove oldest entry if cache is full
+      if (docxContentCache.size >= MAX_DOCX_CACHE_SIZE) {
+        const firstKey = docxContentCache.keys().next().value
+        if (firstKey) {
+          docxContentCache.delete(firstKey)
+        }
+      }
+
+      // Cache the rendered content
+      docxContentCache.set(filePath, docxContainer.value.innerHTML)
     }
   } catch (e) {
     console.error("DOCX preview failed", e)
@@ -77,13 +108,36 @@ async function loadHighlights() {
   }
 }
 
-watch(() => props.file, () => {
-  allChunkGroups.value = null
-  if (isDocx.value) {
-    nextTick(() => loadDocx())
+// Watch for file changes - only reload when file path actually changes
+watch(() => props.file, (newFile, oldFile) => {
+  // Only reload if the file path changed (different file selected)
+  if (newFile?.relPath !== oldFile?.relPath) {
+    allChunkGroups.value = null
+    if (isDocx.value) {
+      nextTick(() => loadDocx())
+    }
+    loadHighlights()
   }
-  loadHighlights()
 }, { immediate: true })
+
+// Watch for modal open state - ensure content is loaded when modal opens
+watch(() => props.modelValue, (isOpen) => {
+  if (isOpen && props.file) {
+    // For DOCX: load from cache or fetch if needed
+    if (isDocx.value) {
+      nextTick(() => {
+        if (docxContainer.value) {
+          // Always try to load (will use cache if available)
+          loadDocx()
+        }
+      })
+    }
+    // For PDF: reload highlights if not loaded
+    if (isPdf.value && allChunkGroups.value === null) {
+      loadHighlights()
+    }
+  }
+})
 
 function handleClose() {
   emit('update:modelValue', false)
@@ -108,9 +162,9 @@ function handleClose() {
       </div>
     </template>
     <div class="preview-content">
-      <PdfPreview v-if="isPdf" :file-url="fileUrl" :highlight-groups="activeHighlightGroups"
-        class="pdf-viewer-wrapper" />
-      <img v-else-if="isImage" :src="fileUrl" class="preview-image" />
+      <PdfPreview v-if="isPdf" :key="`pdf-${file?.relPath}`" :file-url="fileUrl"
+        :highlight-groups="activeHighlightGroups" class="pdf-viewer-wrapper" />
+      <img v-else-if="isImage" :key="`img-${file?.relPath}`" :src="fileUrl" class="preview-image" />
       <div v-else-if="isDocx" class="docx-preview-area">
         <div v-if="isLoading" class="loading">Loading document...</div>
         <div ref="docxContainer" class="docx-container"></div>

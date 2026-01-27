@@ -34,6 +34,7 @@ clean-css.py
 tool/
 *.log
 references.zip
+.google-cookie
 
 CLAUDE.md
 .*/
