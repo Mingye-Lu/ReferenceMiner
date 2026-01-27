@@ -10,7 +10,6 @@ const props = defineProps<{ message: ChatMessage }>()
 const openEvidence = inject<(item: EvidenceChunk, related?: EvidenceChunk[]) => void>("openEvidence")!
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")
 const isPinned = inject<(id: string) => boolean>("isPinned")!
-const setHighlightedPaths = inject<(paths: string[]) => void>("setHighlightedPaths")!
 
 const isTimelineExpanded = ref(true)
 const expandedSteps = ref<Set<number>>(new Set())
@@ -113,53 +112,6 @@ const displaySources = computed(() => {
   }
   return result
 })
-
-// Capsule Auto-Hide Logic
-const isCapsuleVisible = ref(false)
-let hideTimer: any = null
-
-function handleMouseMove() {
-  isCapsuleVisible.value = true
-  clearTimeout(hideTimer)
-  // Hide after inactivity? User said "when mouse moving ... automatically show". 
-  // "Usually automatically hide" -> Hide when mouse stops or leaves?
-  // "Put on top of it" -> hover capsule keeps it open.
-  // Let's set a debounce to hide if mouse stops moving? Or just keep showing while inside message?
-  // "In message... absolute coord moving... automatically show".
-  // Simple interpretation: Show when mouse is inside message.
-  // "Automatically hide usually" -> Hide when mouse leaves message?
-  // BUT user explicitly said "absolute coord moving or hover on it".
-  // Maybe they mean: if mouse is static inside message (reading), it should hide?
-  // Let's try: Show on move, hide after 2s of inactivity (unless hovering capsule).
-
-  hideTimer = setTimeout(() => {
-    if (!isCapsuleHovered.value) {
-      isCapsuleVisible.value = false
-    }
-  }, 2000)
-}
-
-const isCapsuleHovered = ref(false)
-function onCapsuleEnter() {
-  isCapsuleHovered.value = true
-  isCapsuleVisible.value = true
-  clearTimeout(hideTimer)
-}
-function onCapsuleLeave() {
-  isCapsuleHovered.value = false
-  // Start hide timer
-  hideTimer = setTimeout(() => {
-    isCapsuleVisible.value = false
-  }, 1000)
-}
-
-function handleMessageLeave() {
-  // Hide immediately or with short delay when leaving entire message area
-  clearTimeout(hideTimer)
-  if (!isCapsuleHovered.value) {
-    isCapsuleVisible.value = false
-  }
-}
 
 function processMarkdown(text: string) {
   const normalized = (text ?? "").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -275,7 +227,7 @@ watch(
 </script>
 
 <template>
-  <div class="message-row" :class="message.role" @mousemove="handleMouseMove" @mouseleave="handleMessageLeave">
+  <div class="message-row" :class="message.role">
     <div v-if="message.role === 'user'" class="user-bubble">{{ message.content }}</div>
 
     <div v-else class="ai-container">
@@ -323,40 +275,6 @@ watch(
             </div>
           </div>
         </transition>
-      </div>
-
-      <!-- 1. STICKY SOURCE HEADER (Moved below Timeline) -->
-      <div v-if="displaySources.length" class="sticky-header-wrapper" :class="{ visible: isCapsuleVisible }">
-        <div class="source-capsule" @mouseenter="onCapsuleEnter" @mouseleave="onCapsuleLeave">
-          <div class="capsule-icon-area">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              style="color:var(--accent-color)">
-              <path
-                d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
-          </div>
-          <span class="label">Based on {{ displaySources.length }} sources</span>
-
-          <transition name="fade">
-            <div v-if="isCapsuleHovered" class="source-popover">
-              <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="popover-item"
-                @click="handleEvidenceClick(source)" @mouseenter="setHighlightedPaths([source.path])"
-                @mouseleave="setHighlightedPaths([])">
-                <div class="popover-line">
-                  <div class="popover-pin-icon" :class="{ visible: isPinned(source.chunkId) }">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                      fill="currentColor" stroke="none" style="color:var(--accent-color)">
-                      <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
-                    </svg>
-                  </div>
-                  <div class="popover-title"><strong>{{ idx + 1 }}.</strong> {{ source.path.split('/').pop() }}</div>
-                </div>
-                <div class="popover-meta" v-if="source.page">p.{{ source.page }}</div>
-              </div>
-            </div>
-          </transition>
-        </div>
       </div>
 
       <!-- KEYWORDS (SCOPE) -->
@@ -431,134 +349,6 @@ watch(
   width: 100%;
   max-width: 100%;
   position: relative;
-}
-
-/* --- Sticky Header --- */
-.sticky-header-wrapper {
-  position: sticky;
-  top: 0;
-  right: 0;
-  /* sticky doesn't use right for positioning usually, but flex handles it */
-  z-index: 10;
-  height: 0;
-  overflow: visible;
-  display: flex;
-  justify-content: flex-end;
-  padding-right: 16px;
-  /* Offset from right edge */
-
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-.sticky-header-wrapper.visible {
-  opacity: 1;
-  pointer-events: none;
-  /* Wrapper itself shouldn't block, children will */
-}
-
-.source-capsule {
-  pointer-events: auto;
-  /* Re-enable pointer events for the button */
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--color-white);
-  border: 1px solid var(--accent-color);
-  color: var(--accent-color);
-  padding: 6px 12px;
-  border-radius: 99px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: 0 4px 12px var(--alpha-black-08);
-  transition: all 0.2s;
-  position: relative;
-  height: 30px;
-  min-width: 140px;
-}
-
-.source-capsule:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px var(--alpha-black-12);
-}
-
-.capsule-icon-area {
-  width: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.source-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  left: auto;
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 8px 24px var(--alpha-black-15);
-  border-radius: 12px;
-  width: 280px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding: 8px;
-  z-index: 100;
-}
-
-.popover-item {
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  border-bottom: 1px solid transparent;
-}
-
-.popover-item:hover {
-  background: var(--bg-sidebar);
-}
-
-.popover-title {
-  font-size: 13px;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.popover-meta {
-  font-size: 11px;
-  color: var(--text-secondary);
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-  margin-left: 24px;
-}
-
-.popover-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.popover-pin {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  margin-right: 4px;
-}
-
-.popover-pin-icon {
-  width: 16px;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.popover-pin-icon.visible {
-  opacity: 1;
 }
 
 /* --- Thinking Accordion --- */
