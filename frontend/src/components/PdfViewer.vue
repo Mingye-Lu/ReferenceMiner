@@ -87,6 +87,9 @@ let dragStartY = 0
 let scrollStartX = 0
 let scrollStartY = 0
 
+// Hold-to-zoom state
+const isZoomMode = ref(false)
+
 const loadPdf = async () => {
   try {
     if (!props.fileUrl) return
@@ -593,6 +596,7 @@ watch(
 
 
 // Drag-to-pan functionality (H key for Hand tool - standard in PDF viewers)
+// Hold-to-zoom functionality (Z key for zoom mode)
 // Arrow keys for page navigation
 const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null
@@ -603,6 +607,11 @@ const handleKeyDown = (e: KeyboardEvent) => {
   // H key for pan mode
   if (e.key === 'h' && !isDragMode.value && pageContainerRef.value) {
     isDragMode.value = true
+  }
+
+  // Z key for zoom mode
+  if (e.key === 'z' && !isZoomMode.value && pageContainerRef.value) {
+    isZoomMode.value = true
   }
 
   // Arrow keys for page navigation
@@ -657,6 +666,9 @@ const handleKeyUp = (e: KeyboardEvent) => {
     isDragMode.value = false
     isDragging.value = false
   }
+  if (e.key === 'z') {
+    isZoomMode.value = false
+  }
 }
 
 const handleMouseDown = (e: MouseEvent) => {
@@ -682,11 +694,61 @@ const handleMouseUp = () => {
   isDragging.value = false
 }
 
+const handleWheel = (e: WheelEvent) => {
+  if (!isZoomMode.value || !pageContainerRef.value) return
+
+  e.preventDefault()
+
+  const container = pageContainerRef.value
+  const rect = container.getBoundingClientRect()
+
+  // Get mouse position relative to container
+  const mouseX = e.clientX - rect.left
+  const mouseY = e.clientY - rect.top
+
+  // Get current scroll position
+  const scrollLeft = container.scrollLeft
+  const scrollTop = container.scrollTop
+
+  // Calculate zoom factor (scroll up = zoom in, scroll down = zoom out)
+  const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+  const oldScale = scale.value
+  const newScale = clamp(oldScale * zoomFactor, 0.5, 3)
+
+  if (newScale === oldScale) return
+
+  // Calculate the point relative to the viewport (in document coordinates)
+  const pointX = mouseX + scrollLeft
+  const pointY = mouseY + scrollTop
+
+  // Apply new scale
+  scale.value = newScale
+  zoomInput.value = `${Math.round(scale.value * 100)}`
+  fitMode.value = 'custom'
+
+  // Re-render pages
+  if (viewMode.value === 'continuous') {
+    rerenderVisiblePages()
+  } else {
+    renderPage()
+  }
+
+  // After rendering, adjust scroll to keep the mouse point centered
+  nextTick(() => {
+    const newScrollLeft = pointX * (newScale / oldScale) - mouseX
+    const newScrollTop = pointY * (newScale / oldScale) - mouseY
+
+    container.scrollLeft = newScrollLeft
+    container.scrollTop = newScrollTop
+  })
+}
+
 onMounted(() => {
   loadPdf()
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('mouseup', handleMouseUp)
+  window.addEventListener('wheel', handleWheel, { passive: false })
   if ('ResizeObserver' in window) {
     resizeObserver = new ResizeObserver(() => {
       if (resizeRaf) cancelAnimationFrame(resizeRaf)
@@ -716,6 +778,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('mouseup', handleMouseUp)
+  window.removeEventListener('wheel', handleWheel)
   if (resizeObserver && pageContainerRef.value) {
     resizeObserver.unobserve(pageContainerRef.value)
   }
@@ -791,6 +854,11 @@ onUnmounted(() => {
             <kbd>H</kbd>
             <span v-if="isDragMode">Pan mode</span>
             <span v-else>Hold to pan</span>
+          </div>
+          <div class="keyboard-hint" :class="{ active: isZoomMode }">
+            <kbd>Z</kbd>
+            <span v-if="isZoomMode">Zoom mode</span>
+            <span v-else>Hold to zoom</span>
           </div>
         </div>
 
