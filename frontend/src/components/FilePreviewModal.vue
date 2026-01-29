@@ -248,6 +248,7 @@ function handleClose() {
 }
 
 .pdf-viewer-wrapper {
+  padding: 12px;
   width: 100%;
   flex: 1;
   border: none;

@@ -194,6 +194,67 @@ const renderPage = async () => {
   }
 }
 
+/*
+const renderSpecificPage_Legacy = async (pageNumber: number) => {
+  return
+
+
+
+
+  try {
+    const page = await pdfDoc.getPage(pageNumber)
+    // If viewMode is continuous, we might want to check visibility again before rendering?
+    // But since we call this from observer or direct call, it's fine.
+
+    const viewport = page.getViewport({ scale: scale.value })
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    canvas.height = viewport.height
+    canvas.width = viewport.width
+    canvas.setAttribute('data-rendered-scale', `${scale.value}`)
+
+    // Explicitly set style dimensions to match viewport
+    canvas.style.width = `${viewport.width}px`
+    canvas.style.height = `${viewport.height}px`
+
+    // Update overlay size
+    overlay.style.width = `${viewport.width}px`
+    overlay.style.height = `${viewport.height}px`
+
+    // Update wrapper min-height to match actual height
+    if (pageWrapper) {
+      pageWrapper.style.minHeight = `${viewport.height}px`
+    }
+
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport,
+    }
+
+    // Cancel previous render on this page
+    if (renderTasks.has(pageNumber)) {
+      renderTasks.get(pageNumber)?.cancel()
+    }
+
+    const task = page.render(renderContext)
+    renderTasks.set(pageNumber, task)
+
+    await task.promise
+    renderTasks.delete(pageNumber)
+
+    // Render highlights
+    renderHighlights(viewport, pageNumber, overlay)
+
+  } catch (err: any) {
+    if (err?.name !== 'RenderingCancelledException') {
+      console.error(`Error rendering page ${pageNumber}:`, err)
+    }
+  }
+}
+*/
+
 const syncOverlay = (viewport: any) => {
   if (!overlayRef.value || !canvasRef.value) return
 
@@ -254,7 +315,8 @@ const renderSpecificPage = async (pageNum: number) => {
 
     canvas.setAttribute('data-rendered-scale', String(scale.value))
 
-    // Render highlights for this page
+    // Pass overlay element specifically for this page
+    renderHighlights(viewport, pageNum, overlay)
     renderHighlightsForPage(viewport, pageNum, overlay)
 
   } catch (err: any) {
@@ -388,11 +450,12 @@ onBeforeUnmount(() => {
   renderTasks.forEach(task => task.cancel())
 })
 
-const renderHighlights = (viewport: any, pageNumber: number) => {
-  if (!overlayRef.value) return
+const renderHighlights = (viewport: any, pageNumber: number, overlayEl?: HTMLElement) => {
+  const overlay = overlayEl || overlayRef.value
+  if (!overlay) return
 
   // Clear existing highlights
-  overlayRef.value.innerHTML = ''
+  overlay.innerHTML = ''
 
   if (!highlightEnabled.value || !hasHighlights.value) {
     return
@@ -436,7 +499,7 @@ const renderHighlights = (viewport: any, pageNumber: number) => {
       highlightDiv.style.border = `1px solid ${border}`
       highlightDiv.style.pointerEvents = 'none'
 
-      overlayRef.value.appendChild(highlightDiv)
+      overlay.appendChild(highlightDiv)
     }
   }
 
@@ -624,9 +687,8 @@ const scrollToPage = (pageNum: number) => {
     renderPage()
   } else {
     // Continuous: just scroll to it
-    currentPage.value = pageNum
     const el = pageRefs.value[pageNum - 1]
-    el?.scrollIntoView({ block: 'start' })
+    el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }
 }
 
