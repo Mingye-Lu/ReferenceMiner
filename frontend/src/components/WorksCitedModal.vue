@@ -636,9 +636,9 @@ function formatHtml(text: string): string {
 }
 
 [data-theme="dark"] .copy-btn.copied {
-  background: rgba(46, 125, 50, 0.2);
-  border-color: rgba(46, 125, 50, 0.4);
-  color: #81c784;
+  background: rgba(var(--color-success-700-rgb), 0.2);
+  border-color: rgba(var(--color-success-700-rgb), 0.4);
+  color: var(--color-success-300);
 }
 
 [data-theme="dark"] .empty-icon {

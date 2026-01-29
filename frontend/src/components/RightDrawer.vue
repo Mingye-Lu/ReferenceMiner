@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, watch, nextTick, computed, type Ref } from "vue"
+import { ref, inject, watch, nextTick, computed, onMounted, onUnmounted, type Ref } from "vue"
 import type { EvidenceChunk, ManifestEntry, HighlightGroup } from "../types"
 import PdfPreview from "./PdfPreview.vue"
 import { getFileUrl } from "../api/client"
@@ -13,6 +13,61 @@ const props = defineProps<{
 }>()
 
 defineEmits<{ (event: 'close'): void }>()
+
+// Resizable drawer logic
+const MIN_WIDTH = 400
+const MAX_WIDTH = 1200
+const DEFAULT_WIDTH = 500
+
+const drawerWidth = ref(DEFAULT_WIDTH)
+const isResizing = ref(false)
+
+function loadSavedWidth() {
+  const saved = localStorage.getItem('drawerWidth')
+  if (saved) {
+    const width = parseInt(saved, 10)
+    if (width >= MIN_WIDTH && width <= MAX_WIDTH) {
+      drawerWidth.value = width
+    }
+  }
+}
+
+function saveWidth() {
+  localStorage.setItem('drawerWidth', drawerWidth.value.toString())
+}
+
+function startResize(e: MouseEvent) {
+  e.preventDefault()
+  isResizing.value = true
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onResize(e: MouseEvent) {
+  if (!isResizing.value) return
+  const newWidth = window.innerWidth - e.clientX - 8 // 8px is the right margin
+  drawerWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth))
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  saveWidth()
+}
+
+onMounted(() => {
+  loadSavedWidth()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 
 const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")!
 const isPinned = inject<(id: string) => boolean>("isPinned")!
@@ -152,7 +207,11 @@ function handlePin() {
 </script>
 
 <template>
-  <div class="drawer-panel">
+  <div class="drawer-panel" :style="{ width: drawerWidth + 'px' }" :class="{ resizing: isResizing }">
+    <!-- Resize Handle -->
+    <div class="resize-handle" @mousedown="startResize">
+      <div class="resize-line"></div>
+    </div>
     <div class="drawer-header">
       <div class="drawer-tabs">
         <div class="tab-btn" :class="{ active: currentTab === 'reader' }" @click="currentTab = 'reader'">
@@ -273,6 +332,39 @@ function handlePin() {
 </template>
 
 <style scoped>
+/* Resize Handle */
+.resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle:hover .resize-line,
+.drawer-panel.resizing .resize-line {
+  opacity: 1;
+  background: var(--accent-color);
+}
+
+.resize-line {
+  width: 3px;
+  height: 40px;
+  background: var(--color-neutral-300);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.drawer-panel.resizing {
+  transition: none !important;
+}
+
 .drawer-header {
   display: flex;
   justify-content: space-between;
@@ -359,24 +451,28 @@ function handlePin() {
 
 .drawer-content {
   padding: 20px;
-  overflow-y: auto;
+  overflow: hidden;
   flex: 1;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .reader-container {
   position: relative;
-  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .reader-preview {
   width: 100%;
-  height: calc(100vh - 200px);
+  flex: 1;
+  min-height: 300px;
   border: 1px solid var(--border-card);
   border-radius: 10px;
   overflow: hidden;
   background: var(--color-neutral-100);
-  margin-bottom: 16px;
 }
 
 .reader-pdf {

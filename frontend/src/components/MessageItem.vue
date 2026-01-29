@@ -823,20 +823,6 @@ async function handleCopyWithoutExtraction() {
   overflow-x: auto;
   padding-top: 2px;
   padding-bottom: 8px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-neutral-150) transparent;
-}
-
-.stream-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-[data-theme="dark"] .stream-scroll::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-150) !important;
-}
-
-[data-theme="dark"] .stream-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-200) !important;
 }
 
 .stream-card {

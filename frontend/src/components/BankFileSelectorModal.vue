@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, onMounted, onUnmounted, watch } from "vue"
 import BaseModal from "./BaseModal.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
+import CustomSelect from "./CustomSelect.vue"
 import { fetchBankManifest, fetchFileStats } from "../api/client"
-import type { ManifestEntry } from "../types"
+import type { ManifestEntry, BibliographyAuthor } from "../types"
 import { getFileName } from "../utils"
 import { Search, X, FileText, Loader2 } from "lucide-vue-next"
 
@@ -27,14 +28,120 @@ const localSelected = ref<Set<string>>(new Set())
 const showPreview = ref(false)
 const previewFile = ref<ManifestEntry | null>(null)
 
+// Phase 2: Filter state
+const filters = ref({
+  fileTypes: new Set<string>(),
+  years: new Set<string>(),
+  language: null as string | null,
+  inProject: null as boolean | null
+})
+const sortBy = ref<'usage' | 'name' | 'year' | 'added'>('usage')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+
+const sortOptions = [
+  { value: 'usage', label: 'Usage' },
+  { value: 'name', label: 'Name' },
+  { value: 'year', label: 'Year' },
+  { value: 'added', label: 'Date Added' }
+]
+
+// Phase 5: Keyboard navigation state
+const focusedIndex = ref(-1)
+
+// Phase 1: Helper functions for metadata display
+function formatAuthors(authors: BibliographyAuthor[] | string | undefined): string {
+  if (!authors) return ''
+  if (typeof authors === 'string') return authors
+  const names = authors.map(a => {
+    if (a.literal) return a.literal
+    if (a.family && a.given) return `${a.given} ${a.family}`
+    return a.family || a.given || ''
+  }).filter(Boolean)
+  if (names.length === 0) return ''
+  if (names.length <= 2) return names.join(' & ')
+  return `${names[0]} et al.`
+}
+
+function truncate(str: string | undefined | null, len: number): string {
+  if (!str || str.length <= len) return str || ''
+  return str.slice(0, len) + '...'
+}
+
+// Phase 2: Computed available filters
+const availableTypes = computed(() => {
+  const types = new Set(bankFiles.value.map(f => f.fileType))
+  return Array.from(types).sort()
+})
+
+const availableYears = computed(() => {
+  const years = new Set<string>()
+  bankFiles.value.forEach(f => {
+    if (f.bibliography?.year) years.add(f.bibliography.year.toString())
+  })
+  return Array.from(years).sort().reverse().slice(0, 5)
+})
+
+const hasActiveFilters = computed(() => {
+  return filters.value.fileTypes.size > 0 ||
+    filters.value.years.size > 0 ||
+    filters.value.language !== null ||
+    filters.value.inProject !== null
+})
+
+function toggleFilter(filterKey: 'fileTypes' | 'years', value: string) {
+  const filterSet = filters.value[filterKey]
+  if (filterSet.has(value)) {
+    filterSet.delete(value)
+  } else {
+    filterSet.add(value)
+  }
+  filters.value[filterKey] = new Set(filterSet)
+}
+
+function clearAllFilters() {
+  filters.value.fileTypes.clear()
+  filters.value.years.clear()
+  filters.value.language = null
+  filters.value.inProject = null
+  filters.value = { ...filters.value }
+}
+
 const filteredFiles = computed(() => {
   let files = bankFiles.value
 
+  // Text search (title, authors, filename)
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase()
+    files = files.filter(f => {
+      const name = getFileName(f.relPath).toLowerCase()
+      const title = (f.bibliography?.title || '').toLowerCase()
+      const authors = formatAuthors(f.bibliography?.authors).toLowerCase()
+      return name.includes(query) || title.includes(query) || authors.includes(query)
+    })
+  }
+
+  // File type filter
+  if (filters.value.fileTypes.size > 0) {
+    files = files.filter(f => filters.value.fileTypes.has(f.fileType))
+  }
+
+  // Year filter
+  if (filters.value.years.size > 0) {
+    files = files.filter(f => {
+      const year = f.bibliography?.year?.toString()
+      return year && filters.value.years.has(year)
+    })
+  }
+
+  // Language filter
+  if (filters.value.language) {
+    files = files.filter(f => f.bibliography?.language === filters.value.language)
+  }
+
+  // In-project filter
+  if (filters.value.inProject !== null) {
     files = files.filter(f =>
-      getFileName(f.relPath).toLowerCase().includes(query) ||
-      f.fileType.toLowerCase().includes(query)
+      filters.value.inProject ? props.selectedFiles.has(f.relPath) : !props.selectedFiles.has(f.relPath)
     )
   }
 
@@ -43,18 +150,38 @@ const filteredFiles = computed(() => {
 
 function sortFiles(files: ManifestEntry[]): ManifestEntry[] {
   return [...files].sort((a, b) => {
-    const usageA = fileStats.value[a.relPath]?.usage_count || 0
-    const usageB = fileStats.value[b.relPath]?.usage_count || 0
-    if (usageA !== usageB) return usageB - usageA
+    const multiplier = sortOrder.value === 'asc' ? 1 : -1
 
-    const timeA = fileStats.value[a.relPath]?.last_used || 0
-    const timeB = fileStats.value[b.relPath]?.last_used || 0
-    if (timeA !== timeB) return timeB - timeA
+    switch (sortBy.value) {
+      case 'usage': {
+        const usageA = fileStats.value[a.relPath]?.usage_count || 0
+        const usageB = fileStats.value[b.relPath]?.usage_count || 0
+        if (usageA !== usageB) return (usageB - usageA) * multiplier
 
+        const timeA = fileStats.value[a.relPath]?.last_used || 0
+        const timeB = fileStats.value[b.relPath]?.last_used || 0
+        if (timeA !== timeB) return (timeB - timeA) * multiplier
+        break
+      }
+      case 'name':
+        return getFileName(a.relPath).localeCompare(getFileName(b.relPath)) * multiplier
+      case 'year': {
+        const yearA = a.bibliography?.year || 0
+        const yearB = b.bibliography?.year || 0
+        if (yearA !== yearB) return (yearB - yearA) * multiplier
+        break
+      }
+      case 'added': {
+        const timeA = fileStats.value[a.relPath]?.last_used || 0
+        const timeB = fileStats.value[b.relPath]?.last_used || 0
+        return (timeB - timeA) * multiplier
+      }
+    }
+
+    // Default fallback: sort by file type then name
     if (a.fileType !== b.fileType) {
       return a.fileType.localeCompare(b.fileType)
     }
-
     return getFileName(a.relPath).localeCompare(getFileName(b.relPath))
   })
 }
@@ -80,6 +207,74 @@ function selectAll() {
     localSelected.value = new Set(filteredFiles.value.map(f => f.relPath))
   }
 }
+
+function clearSelection() {
+  localSelected.value = new Set()
+}
+
+// Phase 5: Keyboard navigation
+function handleKeydown(e: KeyboardEvent) {
+  // Only handle when modal is open
+  if (!props.modelValue) return
+
+  // Don't handle if focused on an input
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+    // Allow slash to focus search even from inputs (except when already in search)
+    if (e.key === '/' && !target.classList.contains('search-input')) {
+      e.preventDefault()
+      document.querySelector<HTMLInputElement>('.search-input')?.focus()
+    }
+    return
+  }
+
+  const files = filteredFiles.value
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      focusedIndex.value = Math.min(focusedIndex.value + 1, files.length - 1)
+      scrollToFocused()
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      focusedIndex.value = Math.max(focusedIndex.value - 1, 0)
+      scrollToFocused()
+      break
+    case ' ':
+      e.preventDefault()
+      if (focusedIndex.value >= 0 && focusedIndex.value < files.length) {
+        toggleSelection(files[focusedIndex.value].relPath)
+      }
+      break
+    case 'Enter':
+      e.preventDefault()
+      if (focusedIndex.value >= 0 && focusedIndex.value < files.length) {
+        previewFile.value = files[focusedIndex.value]
+        showPreview.value = true
+      }
+      break
+    case '/':
+      e.preventDefault()
+      document.querySelector<HTMLInputElement>('.search-input')?.focus()
+      break
+    case 'Escape':
+      if (showPreview.value) {
+        showPreview.value = false
+      }
+      break
+  }
+}
+
+function scrollToFocused() {
+  const el = document.querySelector(`[data-index="${focusedIndex.value}"]`)
+  el?.scrollIntoView({ block: 'nearest' })
+}
+
+// Reset focused index when filtered files change
+watch(filteredFiles, () => {
+  focusedIndex.value = -1
+})
 
 function handlePreview(file: ManifestEntry, e: Event) {
   e.stopPropagation()
@@ -121,7 +316,14 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
@@ -140,13 +342,71 @@ onMounted(loadData)
       <div class="search-section">
         <div class="search-input-wrapper">
           <Search :size="16" class="search-icon" />
-          <input v-model="searchQuery" type="text" placeholder="Search files by name or type..." class="search-input" />
+          <input v-model="searchQuery" type="text" placeholder="Search by title, author, or filename..." class="search-input" />
         </div>
-        <div class="selection-info">
-          <span>{{ localSelected.size }} selected</span>
-          <button class="link-btn" @click="selectAll">
-            {{ localSelected.size === filteredFiles.length ? 'Deselect All' : 'Select All' }}
+
+        <!-- Filter Chips -->
+        <div class="filter-chips" v-if="bankFiles.length > 0">
+          <!-- File Type Chips -->
+          <button
+            v-for="type in availableTypes"
+            :key="type"
+            class="filter-chip"
+            :class="{ active: filters.fileTypes.has(type) }"
+            @click="toggleFilter('fileTypes', type)"
+          >
+            {{ type.toUpperCase() }}
           </button>
+
+          <!-- Year Chips -->
+          <button
+            v-for="year in availableYears"
+            :key="year"
+            class="filter-chip"
+            :class="{ active: filters.years.has(year) }"
+            @click="toggleFilter('years', year)"
+          >
+            {{ year }}
+          </button>
+
+          <!-- Language Toggle -->
+          <button
+            class="filter-chip"
+            :class="{ active: filters.language === 'zh' }"
+            @click="filters.language = filters.language === 'zh' ? null : 'zh'"
+          >
+            中文
+          </button>
+
+          <!-- In-Project Toggle -->
+          <button
+            class="filter-chip"
+            :class="{ active: filters.inProject === true }"
+            @click="filters.inProject = filters.inProject === true ? null : true"
+          >
+            In Project
+          </button>
+
+          <!-- Clear All Filters -->
+          <button
+            v-if="hasActiveFilters"
+            class="filter-chip clear-filters"
+            @click="clearAllFilters"
+          >
+            <X :size="12" />
+            Clear
+          </button>
+        </div>
+
+        <!-- Sort Controls & Selection Info -->
+        <div class="controls-row">
+          <div class="sort-controls">
+            <span>Sort:</span>
+            <CustomSelect v-model="sortBy" :options="sortOptions" class="sort-select" />
+          </div>
+          <div class="selection-info">
+            <span>{{ filteredFiles.length }} files</span>
+          </div>
         </div>
       </div>
 
@@ -164,21 +424,34 @@ onMounted(loadData)
         </div>
 
         <div v-else class="file-grid">
-          <div v-for="file in filteredFiles" :key="file.relPath" class="file-card"
-            :class="{ selected: localSelected.has(file.relPath) }" @click="toggleSelection(file.relPath)">
-            <div class="file-checkbox">
-              <input type="checkbox" :checked="localSelected.has(file.relPath)" readonly />
-            </div>
+          <div
+            v-for="(file, index) in filteredFiles"
+            :key="file.relPath"
+            :data-index="index"
+            class="file-card"
+            :class="{
+              selected: localSelected.has(file.relPath),
+              focused: focusedIndex === index
+            }"
+            @click="toggleSelection(file.relPath)"
+          >
             <div class="file-icon">
               <FileText :size="20" />
             </div>
             <div class="file-info">
               <div class="file-name" :title="displayName(file.relPath)">{{ displayName(file.relPath) }}</div>
+              <div class="file-title" v-if="file.bibliography?.title" :title="file.bibliography.title">
+                {{ truncate(file.bibliography.title, 50) }}
+              </div>
+              <div class="file-authors" v-if="file.bibliography?.authors || file.bibliography?.year">
+                {{ formatAuthors(file.bibliography?.authors) }}
+                <span v-if="formatAuthors(file.bibliography?.authors) && file.bibliography?.year"> · </span>
+                {{ file.bibliography?.year }}
+              </div>
               <div class="file-meta">
                 {{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
                 <span v-if="fileStats[file.relPath]?.usage_count" class="usage-badge">
-                  {{ fileStats[file.relPath].usage_count }} project{{ fileStats[file.relPath].usage_count > 1 ? 's' : ''
-                  }}
+                  {{ fileStats[file.relPath].usage_count }} project{{ fileStats[file.relPath].usage_count > 1 ? 's' : '' }}
                 </span>
               </div>
             </div>
@@ -188,6 +461,21 @@ onMounted(loadData)
           </div>
         </div>
       </div>
+
+      <!-- Quick Actions Toolbar (Phase 4) -->
+      <Transition name="slide-up">
+        <div v-if="localSelected.size > 0" class="quick-actions-bar">
+          <span class="selection-count">{{ localSelected.size }} selected</span>
+          <div class="action-buttons">
+            <button @click="selectAll" class="action-btn">
+              {{ localSelected.size === filteredFiles.length ? 'Deselect All' : 'Select All Visible' }}
+            </button>
+            <button @click="clearSelection" class="action-btn">
+              Clear
+            </button>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Footer -->
       <div class="modal-footer-custom">
@@ -281,28 +569,95 @@ onMounted(loadData)
   box-shadow: 0 0 0 3px var(--accent-soft, var(--color-accent-50));
 }
 
-.selection-info {
+/* Filter Chips */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.filter-chip {
+  padding: 4px 10px;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-chip:hover {
+  background: var(--color-neutral-150);
+  border-color: var(--border-card-hover, var(--border-color));
+}
+
+.filter-chip.active {
+  background: var(--accent-soft, var(--color-accent-50));
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.filter-chip.clear-filters {
+  background: var(--color-danger-50);
+  border-color: var(--color-danger-200);
+  color: var(--color-danger-600);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-chip.clear-filters:hover {
+  background: var(--color-danger-100);
+}
+
+/* Controls Row */
+.controls-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 12px;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--text-secondary);
 }
 
-.link-btn {
-  background: transparent;
-  border: none;
-  color: var(--accent-color);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.2s;
+/* Compact sort dropdown */
+.sort-select {
+  min-width: 110px;
 }
 
-.link-btn:hover {
-  background: var(--accent-soft, var(--color-accent-50));
+.sort-select :deep(.custom-select-trigger) {
+  padding: 5px 10px;
+  min-width: 110px;
+  border-radius: 6px;
+}
+
+.sort-select :deep(.custom-select-label) {
+  font-size: 12px;
+}
+
+.sort-select :deep(.custom-options) {
+  min-width: 110px;
+}
+
+.sort-select :deep(.custom-option) {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.selection-info {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .modal-body-custom {
@@ -350,7 +705,7 @@ onMounted(loadData)
 
 .file-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 12px;
   background: var(--color-neutral-60);
@@ -358,6 +713,7 @@ onMounted(loadData)
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
 }
 
 .file-card:hover {
@@ -371,15 +727,10 @@ onMounted(loadData)
   border-color: var(--accent-color);
 }
 
-.file-checkbox {
-  flex-shrink: 0;
-}
-
-.file-checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  accent-color: var(--accent-color);
+/* Phase 5: Keyboard focus indicator */
+.file-card.focused {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .file-icon {
@@ -406,7 +757,27 @@ onMounted(loadData)
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+/* Phase 1: Enhanced metadata display */
+.file-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.file-authors {
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-meta {
@@ -416,6 +787,7 @@ onMounted(loadData)
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 4px;
 }
 
 .usage-badge {
@@ -528,5 +900,108 @@ onMounted(loadData)
 .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Phase 4: Quick Actions Toolbar */
+.quick-actions-bar {
+  padding: 12px 24px;
+  background: var(--color-neutral-100);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 -4px 12px var(--alpha-black-08);
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.selection-count {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  padding: 6px 12px;
+  background: var(--color-neutral-200);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: var(--color-neutral-250);
+  border-color: var(--border-card-hover);
+}
+
+[data-theme="dark"] .quick-actions-bar {
+  background: var(--color-neutral-150);
+  border-top-color: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .action-btn {
+  background: var(--color-neutral-200);
+  border-color: var(--color-neutral-300);
+}
+
+[data-theme="dark"] .action-btn:hover {
+  background: var(--color-neutral-250);
+  border-color: var(--color-neutral-350);
+}
+
+/* Slide-up transition for quick actions bar */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .search-input {
+  background: var(--color-neutral-150);
+  border-color: var(--color-neutral-200);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .search-input::placeholder {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .filter-chip {
+  background: var(--color-neutral-150);
+  border-color: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .filter-chip:hover {
+  background: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .filter-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+[data-theme="dark"] .filter-chip.clear-filters {
+  background: var(--color-danger-50);
+  border-color: var(--color-danger-200);
+  color: var(--color-danger-400);
+}
+
+[data-theme="dark"] .filter-chip.clear-filters:hover {
+  background: var(--color-danger-100);
 }
 </style>

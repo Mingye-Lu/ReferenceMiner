@@ -49,16 +49,22 @@ let pageObserver: IntersectionObserver | null = null
 // Map of page number -> render task mainly for continuous mode cancellation
 const renderTasks = new Map<number, pdfjsLib.RenderTask>()
 
-const highlightPalette = [
-  '#F59E0B',
-  '#10B981',
-  '#3B82F6',
-  '#EF4444',
-  '#8B5CF6',
-  '#14B8A6',
-  '#E11D48',
-  '#6366F1',
-]
+// Read highlight palette from CSS variables for consistency with design system
+const getHighlightPalette = () => {
+  const style = getComputedStyle(document.documentElement)
+  return [
+    style.getPropertyValue('--color-highlight-amber').trim() || '#F59E0B',
+    style.getPropertyValue('--color-highlight-emerald').trim() || '#10B981',
+    style.getPropertyValue('--color-highlight-blue').trim() || '#3B82F6',
+    style.getPropertyValue('--color-highlight-red').trim() || '#EF4444',
+    style.getPropertyValue('--color-highlight-violet').trim() || '#8B5CF6',
+    style.getPropertyValue('--color-highlight-teal').trim() || '#14B8A6',
+    style.getPropertyValue('--color-highlight-rose').trim() || '#E11D48',
+    style.getPropertyValue('--color-highlight-indigo').trim() || '#6366F1',
+  ]
+}
+
+const highlightPalette = computed(() => getHighlightPalette())
 
 const hasHighlights = computed(() => {
   return (props.highlightGroups?.length ?? 0) > 0
@@ -447,15 +453,16 @@ const renderHighlights = (viewport: any, pageNumber: number) => {
 
 const colorForGroup = (group: HighlightGroup, index: number) => {
   if (group.color) return group.color
+  const palette = highlightPalette.value
   const id = group.id || ''
   if (id) {
     let hash = 0
     for (let i = 0; i < id.length; i++) {
       hash = (hash * 31 + id.charCodeAt(i)) >>> 0
     }
-    return highlightPalette[hash % highlightPalette.length]
+    return palette[hash % palette.length]
   }
-  return highlightPalette[index % highlightPalette.length]
+  return palette[index % palette.length]
 }
 
 const toAlpha = (color: string, alpha: number) => {
@@ -905,6 +912,7 @@ onUnmounted(() => {
   flex-direction: column;
   background: var(--bg-panel);
   overflow: hidden;
+  min-height: 0;
 }
 
 .pdf-loading,
@@ -1244,6 +1252,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 .pdf-page-container {
@@ -1252,6 +1261,7 @@ onUnmounted(() => {
   padding: 12px;
   background: var(--bg-app);
   position: relative;
+  min-height: 0;
 }
 
 /* PDF progress bar */

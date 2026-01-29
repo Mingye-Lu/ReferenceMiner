@@ -623,9 +623,8 @@ onUnmounted(() => {
         <button class="add-files-btn" @click="openBankSelector">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
+            <path d="M20 17a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.9a2 2 0 0 1-1.69-.9l-.81-1.2a2 2 0 0 0-1.67-.9H8a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2Z"/>
+            <path d="M2 8v11a2 2 0 0 0 2 2h14"/>
           </svg>
           Manage Project Files
         </button>
@@ -657,21 +656,20 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Batch Action Toolbar (Below Header) -->
-        <div v-if="batchMode && displayedFiles.length > 0" class="batch-toolbar">
-          <button class="batch-tool-btn" @click="selectAllForBatch">
-            {{ batchSelected.size === displayedFiles.length ? 'Deselect All' : 'Select All' }}
-          </button>
-          <div style="flex:1"></div>
-          <button class="batch-tool-btn delete" @click="requestBatchDelete" :disabled="batchSelected.size === 0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-            Remove ({{ batchSelected.size }})
-          </button>
-        </div>
+        <!-- Batch Action Toolbar (Slim Inline) -->
+        <Transition name="batch-toolbar">
+          <div v-if="batchMode && displayedFiles.length > 0" class="batch-toolbar">
+            <span class="batch-selection-count">{{ batchSelected.size }} selected</span>
+            <div class="batch-actions">
+              <button class="batch-action-pill" @click="selectAllForBatch">
+                {{ batchSelected.size === displayedFiles.length ? 'Deselect' : 'All' }}
+              </button>
+              <button class="batch-action-pill danger" @click="requestBatchDelete" :disabled="batchSelected.size === 0">
+                Remove
+              </button>
+            </div>
+          </div>
+        </Transition>
 
         <div v-if="displayedFiles.length === 0" class="empty-msg">No files selected. Click "Manage Project Files" to add
           files.</div>
@@ -682,13 +680,6 @@ onUnmounted(() => {
           selected: batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath),
           'batch-mode': batchMode && batchSelected.has(file.relPath)
         }">
-
-          <!-- Checkbox: Show AI selection in normal mode, Batch selection in batch mode -->
-          <div class="checkbox-wrapper"
-            @click.stop="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
-            <input type="checkbox" class="custom-checkbox"
-              :checked="batchMode ? batchSelected.has(file.relPath) : selectedFiles.has(file.relPath)" readonly />
-          </div>
 
           <div class="file-info" @click="batchMode ? toggleBatchSelect(file.relPath) : toggleFile(file.relPath)">
             <div class="file-name" :title="file.relPath">{{ file.relPath }}</div>
@@ -745,12 +736,6 @@ onUnmounted(() => {
 
         <div v-for="note in paginatedNotes" :key="note.chunkId" class="file-item"
           :class="{ selected: selectedNotes.has(note.chunkId) }">
-
-          <!-- Checkbox for AI selection -->
-          <div @click.stop="toggleNote(note.chunkId)" style="display:flex; align-items:center;"
-            title="Select for AI context">
-            <input type="checkbox" class="custom-checkbox" :checked="selectedNotes.has(note.chunkId)" readonly />
-          </div>
 
           <!-- Note info - click to toggle selection -->
           <div class="file-info" @click="toggleNote(note.chunkId)">
@@ -1621,57 +1606,92 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Batch Toolbar Styles */
+/* Batch Toolbar Styles - Slim Inline */
 .batch-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 16px 12px 16px;
-  /* Below header */
-  padding: 8px;
-  background: var(--color-neutral-150);
-  border-radius: 8px;
-  border: 1px dashed var(--color-accent-200);
+  justify-content: space-between;
+  padding: 2px 0 8px 0;
+  margin: -8px 0 10px 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.batch-tool-btn {
-  font-size: 11px;
+.batch-selection-count {
+  font-size: 12px;
   font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border-card);
-  background: white;
-  color: var(--color-neutral-700);
-  cursor: pointer;
-  transition: all 0.2s;
+  color: var(--text-secondary);
 }
 
-.batch-tool-btn:hover {
-  background: var(--color-neutral-85);
-  border-color: var(--border-card-hover);
-  color: var(--color-neutral-800);
-}
-
-.batch-tool-btn.delete {
-  background: var(--color-danger-25);
-  color: var(--color-danger-700);
-  border-color: var(--color-danger-150);
+.batch-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-.batch-tool-btn.delete:hover {
-  background: var(--color-danger-75);
-  border-color: var(--color-danger-200);
+.batch-action-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-neutral-150);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.batch-tool-btn.delete:disabled {
-  opacity: 0.5;
+.batch-action-pill:hover {
+  background: var(--color-neutral-200);
+  color: var(--text-primary);
+}
+
+.batch-action-pill.danger {
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
+}
+
+.batch-action-pill.danger:hover {
+  background: var(--color-danger-100);
+}
+
+.batch-action-pill.danger:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
-  background: var(--color-neutral-130);
-  color: var(--color-neutral-450);
-  border-color: transparent;
+  background: var(--color-neutral-100);
+  color: var(--text-tertiary);
+}
+
+/* Batch toolbar slide animation */
+.batch-toolbar-enter-active {
+  transition: all 0.2s ease-out;
+}
+
+.batch-toolbar-leave-active {
+  transition: all 0.15s ease-in;
+}
+
+.batch-toolbar-enter-from,
+.batch-toolbar-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* Dark mode */
+[data-theme="dark"] .batch-action-pill {
+  background: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .batch-action-pill:hover {
+  background: var(--color-neutral-250);
+}
+
+[data-theme="dark"] .batch-action-pill.danger {
+  background: var(--color-danger-50);
+  color: var(--color-danger-400);
+}
+
+[data-theme="dark"] .batch-action-pill.danger:hover {
+  background: var(--color-danger-100);
 }
 
 .batch-toggle-btn {

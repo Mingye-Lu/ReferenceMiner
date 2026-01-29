@@ -199,21 +199,21 @@ onBeforeUnmount(() => {
   background: var(--accent-soft);
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling - smaller width for dropdown */
 .custom-options::-webkit-scrollbar {
   width: 6px;
 }
 
 .custom-options::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
 }
 
 .custom-options::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-250);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 .custom-options::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-300);
+  background: var(--scrollbar-thumb-hover);
 }
 </style>

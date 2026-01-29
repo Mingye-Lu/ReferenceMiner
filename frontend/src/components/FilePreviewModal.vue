@@ -235,19 +235,23 @@ function handleClose() {
 }
 
 .preview-content {
-  height: 100%;
+  flex: 1;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: stretch;
   background: var(--color-neutral-85);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .pdf-viewer-wrapper {
   width: 100%;
   flex: 1;
   border: none;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .preview-image {
@@ -283,15 +287,15 @@ function handleClose() {
 
 .docx-preview-area {
   width: 100%;
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
   background: var(--color-neutral-240);
   position: relative;
-  flex: 1;
+  min-height: 0;
 }
 
 .docx-container {
-  background: white;
+  background: var(--bg-panel);
   box-shadow: 0 2px 10px var(--alpha-black-10);
   min-height: 100%;
 }
@@ -312,7 +316,10 @@ function handleClose() {
 }
 
 :deep(.modal-body) {
-  padding: 0;
-  overflow: hidden;
+  padding: 0 !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 </style>

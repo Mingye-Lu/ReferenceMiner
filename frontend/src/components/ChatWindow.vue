@@ -380,7 +380,11 @@ onMounted(() => {
   overflow-x: auto;
   padding-bottom: 2px;
   flex: 1;
-  scrollbar-width: none;
+  scrollbar-width: none; /* Firefox */
+}
+
+.context-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 .file-chip {

@@ -125,7 +125,18 @@
   --alpha-highlight-40: rgba(255, 235, 59, 0.4);
   --alpha-highlight-50: rgba(255, 235, 59, 0.5);
 
+  /* Highlight Palette for PDF annotations */
+  --color-highlight-amber: #F59E0B;
+  --color-highlight-emerald: #10B981;
+  --color-highlight-blue: #3B82F6;
+  --color-highlight-red: #EF4444;
+  --color-highlight-violet: #8B5CF6;
+  --color-highlight-teal: #14B8A6;
+  --color-highlight-rose: #E11D48;
+  --color-highlight-indigo: #6366F1;
+
   --accent-color-rgb: 44, 59, 103;
+  --color-success-700-rgb: 46, 125, 50;
 
   --mark-bg: var(--color-gold-300);
   --mark-text: #0f2a1d;
@@ -186,6 +197,11 @@
   --color-red-200: #ffaaaa;
   --color-red-600: #ff1f1f;
   --color-red-700: #d32f2f;
+
+  /* Scrollbar Colors */
+  --scrollbar-thumb: var(--color-neutral-350);
+  --scrollbar-thumb-hover: var(--color-neutral-400);
+  --scrollbar-track: transparent;
 }
 
 [data-theme="dark"] {
@@ -284,6 +300,11 @@
   --color-red-200: rgba(239, 83, 80, 0.3);
   --color-red-600: #ef5350;
   --color-red-700: #e53935;
+
+  /* Scrollbar Colors for Dark Mode */
+  --scrollbar-thumb: var(--color-neutral-200);
+  --scrollbar-thumb-hover: var(--color-neutral-250);
+  --scrollbar-track: transparent;
 }
 
 /* Global Scrollbar Styles */
@@ -293,29 +314,23 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-400);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-500);
+  background: var(--scrollbar-thumb-hover);
 }
 
-[data-theme="dark"] ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-150);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-200);
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 * {
@@ -434,9 +449,9 @@ body {
   top: 8px;
   right: 8px;
   bottom: 8px;
-  width: 40%;
+  /* Width controlled by component */
   min-width: 400px;
-  max-width: 800px;
+  max-width: 1200px;
   background: var(--bg-drawer);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-drawer);
@@ -702,9 +717,17 @@ input[type="checkbox"].custom-checkbox:checked::after {
   height: 6px;
 }
 
+.markdown-body .code-block code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .markdown-body .code-block code::-webkit-scrollbar-thumb {
   background: var(--color-neutral-600);
   border-radius: 3px;
+}
+
+.markdown-body .code-block code::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-500);
 }
 
 /* Highlight.js Theme Overrides (Dark) */
