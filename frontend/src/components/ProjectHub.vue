@@ -5,7 +5,7 @@ import {
   fetchProjects,
   createProject,
   fetchBankManifest,
-  deleteFile,
+  deleteFileStream,
   deleteProject,
   selectProjectFiles,
   getSettings,
@@ -26,9 +26,6 @@ import type {
   ManifestEntry,
   BalanceInfo,
   Settings as AppSettings,
-  UploadQueueItem,
-  UploadStatus,
-  UploadPhase,
   UpdateCheck,
   CitationCopyFormat,
 } from "../types";
@@ -157,8 +154,7 @@ const selectedProvider = ref("custom");
 const modelOptions = ref<{ value: string; label: string }[]>([]);
 const isLoadingModels = ref(false);
 const isReprocessing = ref(false);
-const { setQueueItems, clearReprocessQueue, upsertReprocessQueueItem } =
-  useQueue();
+const { launchQueueEject } = useQueue();
 
 const currentProviderKey = computed(() => {
   const provider = selectedProvider.value;
@@ -328,13 +324,17 @@ async function confirmDelete() {
   try {
     deleting.value = true;
     const relPath = fileToDelete.value.relPath;
-    bankFiles.value = bankFiles.value.filter(
-      (file) => file.relPath !== relPath,
-    );
-    if (previewFile.value?.relPath === relPath) {
-      previewFile.value = null;
-    }
-    await deleteFile("default", relPath);
+    await deleteFileStream(relPath, {
+      onComplete: async () => {
+        await loadBankFiles();
+        if (previewFile.value?.relPath === relPath) {
+          previewFile.value = null;
+        }
+      },
+      onError: (_code: string, message: string) => {
+        console.error("Failed to delete file:", message);
+      },
+    });
     showDeleteModal.value = false;
     fileToDelete.value = null;
   } catch (err) {
@@ -378,24 +378,15 @@ function cancelDeleteProject() {
   projectToDelete.value = null;
 }
 
-function handleQueueUpdated(items: UploadQueueItem[]) {
-  setQueueItems(items);
-}
-
-async function handleReprocessConfirm() {
+async function handleReprocessConfirm(event?: MouseEvent) {
+  if (event?.currentTarget instanceof HTMLElement) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    launchQueueEject(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }
   if (isReprocessing.value) return;
   try {
     isReprocessing.value = true;
-    clearReprocessQueue();
     await reprocessReferenceBankStream({
-      onFile: (payload) => {
-        if (!payload.relPath) return;
-        upsertReprocessQueueItem(
-          payload.relPath,
-          payload.status as UploadStatus,
-          payload.phase as UploadPhase | undefined,
-        );
-      },
       onComplete: async () => {
         await loadBankFiles();
       },
@@ -411,27 +402,20 @@ async function handleReprocessConfirm() {
   }
 }
 
-async function handleReprocessFile(file: ManifestEntry) {
+async function handleReprocessFile(file: ManifestEntry, event?: MouseEvent) {
+  if (event?.currentTarget instanceof HTMLElement) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    launchQueueEject(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }
   if (isReprocessing.value) return;
   try {
     isReprocessing.value = true;
-    upsertReprocessQueueItem(file.relPath, "processing", "extracting");
     await reprocessReferenceFileStream(file.relPath, {
-      onFile: (payload) => {
-        if (!payload.relPath) return;
-        upsertReprocessQueueItem(
-          payload.relPath,
-          payload.status as UploadStatus,
-          payload.phase as UploadPhase | undefined,
-        );
-      },
       onComplete: async () => {
-        upsertReprocessQueueItem(file.relPath, "complete", undefined);
         await loadBankFiles();
       },
       onError: (_code, message) => {
         console.error("Failed to reprocess file:", message);
-        upsertReprocessQueueItem(file.relPath, "error", undefined);
       },
     });
   } catch (err) {
@@ -895,7 +879,7 @@ onUnmounted(() => {});
             <button
               class="bank-action-btn"
               :disabled="isReprocessing || bankLoading"
-              @click="showReprocessConfirm = true"
+                @click="handleReprocessConfirm($event); showReprocessConfirm = true"
             >
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
               <span>{{
@@ -908,7 +892,6 @@ onUnmounted(() => {});
         <FileUploader
           upload-mode="bank"
           @upload-complete="handleUploadComplete"
-          @queue-updated="handleQueueUpdated"
         />
 
         <div v-if="bankLoading" class="loading-state">
@@ -957,7 +940,7 @@ onUnmounted(() => {});
               <button
                 class="btn-icon tooltip"
                 data-tooltip="Reprocess file"
-                @click="handleReprocessFile(file)"
+                @click="handleReprocessFile(file, $event)"
               >
                 <Upload :size="16" />
               </button>

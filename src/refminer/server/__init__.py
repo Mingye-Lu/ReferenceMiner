@@ -1,9 +1,18 @@
 """ReferenceMiner API server - FastAPI application factory."""
+
 from __future__ import annotations
 
+import logging
 import mimetypes
 
 from fastapi import FastAPI, HTTPException
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +31,7 @@ from refminer.server.routes import (
     files_router,
     ask_router,
     bank_router,
+    queue_router,
 )
 
 
@@ -30,7 +40,9 @@ def create_app() -> FastAPI:
     app = FastAPI(title="ReferenceMiner API", version=APP_VERSION)
 
     # CORS: Allow localhost dev server in dev mode, or same-origin in bundled mode
-    cors_origins = ["*"] if _is_bundled() else ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins = (
+        ["*"] if _is_bundled() else ["http://localhost:5173", "http://127.0.0.1:5173"]
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
@@ -41,7 +53,9 @@ def create_app() -> FastAPI:
 
     # Mount the references directory to serve files
     # Files will be at /files/{rel_path}
-    app.mount("/files", StaticFiles(directory=str(get_references_dir(BASE_DIR))), name="files")
+    app.mount(
+        "/files", StaticFiles(directory=str(get_references_dir(BASE_DIR))), name="files"
+    )
 
     # Include API routers
     app.include_router(projects_router)
@@ -50,10 +64,15 @@ def create_app() -> FastAPI:
     app.include_router(files_router)
     app.include_router(ask_router)
     app.include_router(bank_router)
+    app.include_router(queue_router)
 
     # Mount frontend assets if available
     if FRONTEND_DIR.exists() and (FRONTEND_DIR / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="frontend_assets")
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(FRONTEND_DIR / "assets")),
+            name="frontend_assets",
+        )
 
     # SPA serving routes
     @app.get("/")

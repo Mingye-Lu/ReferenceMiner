@@ -34,7 +34,9 @@ class ChatManager:
             print(f"Error loading chats for {project_id}: {e}")
             return {}
 
-    def _save_project_chats(self, project_id: str, sessions: dict[str, ChatSession]) -> None:
+    def _save_project_chats(
+        self, project_id: str, sessions: dict[str, ChatSession]
+    ) -> None:
         """Save all chat sessions for a project."""
         filepath = self._get_project_file(project_id)
         data = {
@@ -51,14 +53,16 @@ class ChatManager:
         result = []
         for s in sessions.values():
             # Create a copy without messages for the list view
-            result.append(ChatSession(
-                id=s.id,
-                title=s.title,
-                lastActive=s.lastActive,
-                messageCount=s.messageCount,
-                preview=s.preview,
-                messages=[],  # Don't include messages in list
-            ))
+            result.append(
+                ChatSession(
+                    id=s.id,
+                    title=s.title,
+                    lastActive=s.lastActive,
+                    messageCount=s.messageCount,
+                    preview=s.preview,
+                    messages=[],  # Don't include messages in list
+                )
+            )
         return sorted(result, key=lambda x: x.lastActive, reverse=True)
 
     def get_session(self, project_id: str, session_id: str) -> Optional[ChatSession]:
@@ -84,9 +88,13 @@ class ChatManager:
         self._save_project_chats(project_id, sessions)
         return session
 
-    def update_session(self, project_id: str, session_id: str,
-                       title: Optional[str] = None,
-                       messages: Optional[list[dict]] = None) -> Optional[ChatSession]:
+    def update_session(
+        self,
+        project_id: str,
+        session_id: str,
+        title: Optional[str] = None,
+        messages: Optional[list[dict]] = None,
+    ) -> Optional[ChatSession]:
         """Update a chat session."""
         sessions = self._load_project_chats(project_id)
         session = sessions.get(session_id)
@@ -116,7 +124,9 @@ class ChatManager:
         self._save_project_chats(project_id, sessions)
         return True
 
-    def add_message(self, project_id: str, session_id: str, message: dict) -> Optional[ChatSession]:
+    def add_message(
+        self, project_id: str, session_id: str, message: dict
+    ) -> Optional[ChatSession]:
         """Add a single message to a session."""
         sessions = self._load_project_chats(project_id)
         session = sessions.get(session_id)
@@ -132,8 +142,9 @@ class ChatManager:
         self._save_project_chats(project_id, sessions)
         return session
 
-    def update_message(self, project_id: str, session_id: str, message_id: str,
-                       updates: dict) -> Optional[ChatSession]:
+    def update_message(
+        self, project_id: str, session_id: str, message_id: str, updates: dict
+    ) -> Optional[ChatSession]:
         """Update a specific message in a session."""
         sessions = self._load_project_chats(project_id)
         session = sessions.get(session_id)
@@ -150,9 +161,11 @@ class ChatManager:
                     msg.completedAt = updates["completedAt"]
                 if "timeline" in updates:
                     from .models import TimelineStep
+
                     msg.timeline = [TimelineStep(**t) for t in updates["timeline"]]
                 if "sources" in updates:
                     from .models import EvidenceSource
+
                     msg.sources = [EvidenceSource(**s) for s in updates["sources"]]
                 if "keywords" in updates:
                     msg.keywords = updates["keywords"]

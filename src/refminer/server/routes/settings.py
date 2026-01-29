@@ -1,4 +1,5 @@
 """Settings management endpoints."""
+
 from __future__ import annotations
 
 import time
@@ -75,7 +76,11 @@ def _fetch_models(base_url: str, api_key: str) -> list[str]:
                 data = response.json()
             models = data.get("data") if isinstance(data, dict) else None
             if isinstance(models, list):
-                return [str(item.get("id")) for item in models if isinstance(item, dict) and item.get("id")]
+                return [
+                    str(item.get("id"))
+                    for item in models
+                    if isinstance(item, dict) and item.get("id")
+                ]
             last_error = "Unexpected models payload"
         except httpx.HTTPStatusError as e:
             last_error = f"HTTP {e.response.status_code}: {e.response.text}"
@@ -139,7 +144,11 @@ async def delete_api_key(provider: Optional[str] = None):
     if provider not in PROVIDERS:
         raise HTTPException(status_code=400, detail="Unsupported provider")
     settings_manager.clear_api_key(provider)
-    return {"success": True, "has_api_key": settings_manager.has_api_key(provider), "provider": provider}
+    return {
+        "success": True,
+        "has_api_key": settings_manager.has_api_key(provider),
+        "provider": provider,
+    }
 
 
 @router.post("/validate")
@@ -161,9 +170,17 @@ async def validate_api_key(req: ApiKeyValidateRequest):
                 raise HTTPException(status_code=400, detail="No API key configured")
             api_key = config.api_key
     if not base_url:
-        base_url = settings_manager.get_base_url(provider) if provider else (config.base_url if config else "https://api.openai.com/v1")
+        base_url = (
+            settings_manager.get_base_url(provider)
+            if provider
+            else (config.base_url if config else "https://api.openai.com/v1")
+        )
     if not model:
-        model = settings_manager.get_model(provider) if provider else (config.model if config else "")
+        model = (
+            settings_manager.get_model(provider)
+            if provider
+            else (config.model if config else "")
+        )
 
     candidates = _candidate_model_urls(base_url)
 
@@ -206,7 +223,11 @@ async def list_models(req: ModelsListRequest):
                 raise HTTPException(status_code=400, detail="No API key configured")
             api_key = config.api_key
     if not base_url:
-        base_url = settings_manager.get_base_url(provider) if provider else (config.base_url if config else "https://api.openai.com/v1")
+        base_url = (
+            settings_manager.get_base_url(provider)
+            if provider
+            else (config.base_url if config else "https://api.openai.com/v1")
+        )
 
     models = _fetch_models(base_url, api_key)
     return {"models": models, "provider": provider}
@@ -224,7 +245,9 @@ async def save_llm_settings(req: LlmSettingsRequest):
         raise HTTPException(status_code=400, detail="Base URL cannot be empty")
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise HTTPException(status_code=400, detail="Base URL must be a valid http(s) URL")
+        raise HTTPException(
+            status_code=400, detail="Base URL must be a valid http(s) URL"
+        )
     if not model:
         raise HTTPException(status_code=400, detail="Model cannot be empty")
 
@@ -232,7 +255,12 @@ async def save_llm_settings(req: LlmSettingsRequest):
     settings_manager.set_provider(provider)
     settings_manager.set_base_url(normalized_url, provider)
     settings_manager.set_model(model, provider)
-    return {"success": True, "base_url": normalized_url, "model": model, "active_provider": provider}
+    return {
+        "success": True,
+        "base_url": normalized_url,
+        "model": model,
+        "active_provider": provider,
+    }
 
 
 @router.post("/citation-format")
@@ -241,7 +269,10 @@ async def save_citation_format(req: CitationFormatRequest):
     fmt = req.format.strip().lower()
     valid_formats = ("apa", "mla", "chicago", "gbt7714", "numeric")
     if fmt not in valid_formats:
-        raise HTTPException(status_code=400, detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}",
+        )
     settings_manager.set_citation_copy_format(fmt)
     return {"success": True, "citation_copy_format": fmt}
 

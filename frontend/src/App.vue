@@ -2,15 +2,18 @@
 import { onMounted, onBeforeUnmount } from "vue";
 import { initTheme } from "./utils/theme";
 import QueueFab from "./components/QueueFab.vue";
-// import { useQueue } from "./composables/useQueue";
+import { useQueue } from "./composables/useQueue";
+
+const { refreshQueue, startQueueStream, stopQueueStream } = useQueue();
 
 onMounted(() => {
   initTheme();
-  // document.addEventListener('click', handleDebugQueueEject)
+  void refreshQueue({ includeCompleted: true });
+  startQueueStream();
 });
 
 onBeforeUnmount(() => {
-//   document.removeEventListener("click", handleDebugQueueEject);
+  stopQueueStream();
 });
 
 // function handleDebugQueueEject(event: MouseEvent) {

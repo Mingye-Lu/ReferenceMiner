@@ -41,7 +41,12 @@ def build_vectors(
     embeddings = np.asarray(embeddings, dtype="float32")
     index = faiss.IndexFlatIP(embeddings.shape[1])
     index.add(embeddings)
-    return VectorIndex(embeddings=embeddings, chunk_ids=chunk_ids, model_name=model_name, faiss_index=index)
+    return VectorIndex(
+        embeddings=embeddings,
+        chunk_ids=chunk_ids,
+        model_name=model_name,
+        faiss_index=index,
+    )
 
 
 def save_vectors(index: VectorIndex, path: Path) -> None:
@@ -57,7 +62,12 @@ def load_vectors(path: Path) -> VectorIndex:
     meta = np.load(path.with_suffix(".meta.npz"), allow_pickle=True)
     chunk_ids = list(meta["chunk_ids"])
     model_name = str(meta["model_name"])
-    return VectorIndex(embeddings=np.empty((0, 0)), chunk_ids=chunk_ids, model_name=model_name, faiss_index=index)
+    return VectorIndex(
+        embeddings=np.empty((0, 0)),
+        chunk_ids=chunk_ids,
+        model_name=model_name,
+        faiss_index=index,
+    )
 
 
 def search(index: VectorIndex, query: str, k: int = 5) -> list[tuple[str, float]]:

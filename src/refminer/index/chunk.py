@@ -110,7 +110,9 @@ def chunk_text(
                         adjusted_bbox = bbox.copy()
                         # Adjust to position in overlapped chunk (starts at 0)
                         offset = len(prev.text) - overlap
-                        adjusted_bbox["char_start"] = max(0, bbox["char_start"] - offset)
+                        adjusted_bbox["char_start"] = max(
+                            0, bbox["char_start"] - offset
+                        )
                         adjusted_bbox["char_end"] = bbox["char_end"] - offset
                         overlap_bbox.append(adjusted_bbox)
 

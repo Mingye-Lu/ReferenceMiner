@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ListOrdered } from 'lucide-vue-next'
-import type { UploadStatus } from '../types'
+import type { QueueStatus } from '../types'
 import { useQueue } from '../composables/useQueue'
 
-const { queueItems, queueCount, ejectBursts, clearQueueEject } = useQueue()
+const { queueItems, queueCount, ejectBursts, clearQueueEject, launchQueueEject } = useQueue()
 
 const isQueueOpen = ref(false)
 const queueRef = ref<HTMLElement | null>(null)
@@ -12,6 +12,8 @@ const queueButtonRef = ref<HTMLButtonElement | null>(null)
 const targetPoint = ref({ x: 0, y: 0 })
 const pulseActive = ref(false)
 const activeBursts = ref<{ id: string; x: number; y: number; scale: number; opacity: number }[]>([])
+const hasInitializedQueue = ref(false)
+const seenJobIds = new Set<string>()
 const burstMeta = new Map<
   string,
   {
@@ -28,7 +30,7 @@ const burstMeta = new Map<
 >()
 let rafId: number | null = null
 
-function formatQueueStatus(status: UploadStatus): string {
+function formatQueueStatus(status: QueueStatus): string {
   switch (status) {
     case 'pending':
       return 'Pending'
@@ -42,6 +44,8 @@ function formatQueueStatus(status: UploadStatus): string {
       return 'Error'
     case 'duplicate':
       return 'Duplicate'
+    case 'cancelled':
+      return 'Cancelled'
     default:
       return status
   }
@@ -183,6 +187,24 @@ watch(ejectBursts, async (items) => {
   }
 })
 
+watch(queueItems, (items) => {
+  if (!hasInitializedQueue.value) {
+    items.forEach((item) => seenJobIds.add(item.id))
+    hasInitializedQueue.value = true
+    return
+  }
+  if (!queueButtonRef.value) return
+  const rect = queueButtonRef.value.getBoundingClientRect()
+  const startX = rect.left + rect.width / 2 + (Math.random() * 120 - 60)
+  const startY = rect.top + rect.height / 2 + 90 + Math.random() * 60
+
+  for (const item of items) {
+    if (seenJobIds.has(item.id)) continue
+    launchQueueEject(startX, startY)
+    seenJobIds.add(item.id)
+  }
+})
+
 </script>
 
 <template>
@@ -199,15 +221,15 @@ watch(ejectBursts, async (items) => {
         </div>
         <div v-else class="queue-list">
           <div v-for="item in queueItems" :key="item.id" class="queue-item">
-            <div class="queue-name" :title="item.name">
-              {{ item.name }}
+            <div class="queue-name" :title="item.name ?? ''">
+              {{ item.name ?? 'Untitled job' }}
             </div>
             <div class="queue-meta">
               <span class="queue-status" :class="item.status">{{ formatQueueStatus(item.status) }}</span>
               <span v-if="item.phase" class="queue-phase">{{ formatQueuePhase(item.phase) }}</span>
-              <span v-if="item.progress >= 0" class="queue-progress-text">{{ item.progress }}%</span>
+              <span v-if="item.progress !== null && item.progress !== undefined" class="queue-progress-text">{{ item.progress }}%</span>
             </div>
-            <div v-if="item.progress >= 0" class="queue-progress">
+            <div v-if="item.progress !== null && item.progress !== undefined" class="queue-progress">
               <div class="queue-progress-fill" :style="{ width: `${item.progress}%` }"></div>
             </div>
             <div v-if="item.status === 'error' && item.error" class="queue-error">
@@ -299,7 +321,7 @@ watch(ejectBursts, async (items) => {
 
 .queue-panel {
   width: 280px;
-  max-height: 360px;
+  max-height: 216px;
   overflow-y: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border-color);

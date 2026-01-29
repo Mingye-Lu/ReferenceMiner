@@ -8,7 +8,6 @@ from typing import Any, Iterable
 from refminer.utils.hashing import sha256_file
 from refminer.utils.paths import get_index_dir, get_references_dir
 
-
 SUPPORTED_EXTENSIONS = {
     ".pdf": "pdf",
     ".docx": "docx",
@@ -48,7 +47,9 @@ def detect_type(path: Path) -> str | None:
     return SUPPORTED_EXTENSIONS.get(path.suffix.lower())
 
 
-def build_manifest(root: Path | None = None, references_dir: Path | None = None) -> list[ManifestEntry]:
+def build_manifest(
+    root: Path | None = None, references_dir: Path | None = None
+) -> list[ManifestEntry]:
     ref_dir = references_dir or get_references_dir(root)
     entries: list[ManifestEntry] = []
     for path in iter_reference_files(ref_dir):
@@ -69,16 +70,24 @@ def build_manifest(root: Path | None = None, references_dir: Path | None = None)
     return entries
 
 
-def write_manifest(entries: list[ManifestEntry], root: Path | None = None, index_dir: Path | None = None) -> Path:
+def write_manifest(
+    entries: list[ManifestEntry],
+    root: Path | None = None,
+    index_dir: Path | None = None,
+) -> Path:
     idx_dir = index_dir or get_index_dir(root)
     idx_dir.mkdir(parents=True, exist_ok=True)
     output_path = idx_dir / "manifest.json"
     payload = [asdict(entry) for entry in entries]
-    output_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8"
+    )
     return output_path
 
 
-def load_manifest(root: Path | None = None, index_dir: Path | None = None) -> list[ManifestEntry]:
+def load_manifest(
+    root: Path | None = None, index_dir: Path | None = None
+) -> list[ManifestEntry]:
     idx_dir = index_dir or get_index_dir(root)
     manifest_path = idx_dir / "manifest.json"
     if not manifest_path.exists():

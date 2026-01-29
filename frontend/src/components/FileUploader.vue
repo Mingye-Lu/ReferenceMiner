@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from "vue"
+import { ref } from "vue"
 import BaseModal from "./BaseModal.vue"
 import { uploadFileStream, uploadFileToBankStream } from "../api/client"
-import type { UploadItem, ManifestEntry, UploadProgress, UploadQueueItem } from "../types"
+import type { UploadItem, ManifestEntry, UploadProgress } from "../types"
+import { useQueue } from "../composables/useQueue"
 
 const props = withDefaults(defineProps<{
   projectId?: string
@@ -13,7 +14,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: "upload-complete", entry: ManifestEntry): void
-  (e: "queue-updated", items: UploadQueueItem[]): void
 }>()
 
 const isDragOver = ref(false)
@@ -23,30 +23,18 @@ const folderInput = ref<HTMLInputElement | null>(null)
 const isOpen = ref(false)
 const activeUploads = ref(0)
 const MAX_CONCURRENT_UPLOADS = 3
+const lastTriggerPoint = ref<{ x: number; y: number } | null>(null)
+const { launchQueueEject } = useQueue()
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg", ".csv", ".xlsx"]
 
-function emitQueueUpdate() {
-  const payload = uploads.value.map((item) => ({
-    id: item.id,
-    name: item.file.name,
-    status: item.status,
-    progress: item.progress,
-    phase: item.phase,
-    error: item.error,
-    duplicatePath: item.duplicatePath,
-  }))
-  emit("queue-updated", payload)
-}
-
-watch(uploads, emitQueueUpdate, { deep: true, immediate: true })
 
 function isSupported(file: File): boolean {
   const ext = "." + file.name.split(".").pop()?.toLowerCase()
   return SUPPORTED_EXTENSIONS.includes(ext)
 }
 
-function addFiles(files: FileList | File[]) {
+function addFiles(files: FileList | File[], origin?: { x: number; y: number } | null) {
   for (const file of files) {
     if (!isSupported(file)) {
       uploads.value.push({
@@ -66,6 +54,9 @@ function addFiles(files: FileList | File[]) {
       progress: 0,
     }
     uploads.value.push(item)
+    if (origin) {
+      launchQueueEject(origin.x, origin.y)
+    }
   }
 
   // Start processing uploads with concurrency control
@@ -170,14 +161,14 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
 function handleDrop(event: DragEvent) {
   isDragOver.value = false
   if (event.dataTransfer?.files) {
-    addFiles(event.dataTransfer.files)
+    addFiles(event.dataTransfer.files, { x: event.clientX, y: event.clientY })
   }
 }
 
 function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement
   if (target.files) {
-    addFiles(target.files)
+    addFiles(target.files, lastTriggerPoint.value)
     target.value = "" // Reset for re-selection
   }
 }
@@ -185,17 +176,30 @@ function handleFileSelect(event: Event) {
 function handleFolderSelect(event: Event) {
   const target = event.target as HTMLInputElement
   if (target.files) {
-    addFiles(target.files)
+    addFiles(target.files, lastTriggerPoint.value)
     target.value = ""
   }
 }
 
-function replaceFile(item: UploadItem) {
+function replaceFile(item: UploadItem, event?: MouseEvent) {
   const idx = uploads.value.findIndex(u => u.id === item.id)
   if (idx !== -1) {
     uploads.value[idx].status = "pending"
     uploads.value[idx].duplicatePath = undefined
+    if (event?.currentTarget instanceof HTMLElement) {
+      const rect = event.currentTarget.getBoundingClientRect()
+      launchQueueEject(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    }
     processUpload(uploads.value[idx], true)
+  }
+}
+
+function setTriggerPoint(event: MouseEvent) {
+  if (!(event.currentTarget instanceof HTMLElement)) return
+  const rect = event.currentTarget.getBoundingClientRect()
+  lastTriggerPoint.value = {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
   }
 }
 
@@ -244,8 +248,8 @@ function getStatusLabel(status: string): string {
           <input type="file" webkitdirectory directory @change="handleFolderSelect" ref="folderInput"
             class="hidden-input" />
           <div class="upload-actions">
-            <button class="btn-secondary" @click="fileInput?.click()">Select Files</button>
-            <button class="btn-secondary" @click="folderInput?.click()">Select Folder</button>
+            <button class="btn-secondary" @click="setTriggerPoint($event); fileInput?.click()">Select Files</button>
+            <button class="btn-secondary" @click="setTriggerPoint($event); folderInput?.click()">Select Folder</button>
           </div>
         </template>
 
@@ -270,7 +274,7 @@ function getStatusLabel(status: string): string {
 
               <div v-if="item.status === 'duplicate'" class="duplicate-info">
                 <span class="duplicate-text">Same as: {{ item.duplicatePath }}</span>
-                <button class="btn-small" @click="replaceFile(item)">Replace</button>
+                <button class="btn-small" @click="replaceFile(item, $event)">Replace</button>
                 <button class="btn-small btn-ghost" @click="removeItem(item)">Skip</button>
               </div>
 
@@ -282,8 +286,8 @@ function getStatusLabel(status: string): string {
           </div>
 
           <div class="upload-actions">
-            <button class="btn-secondary" @click="fileInput?.click()">Add More</button>
-            <button class="btn-secondary" @click="folderInput?.click()">Add Folder</button>
+            <button class="btn-secondary" @click="setTriggerPoint($event); fileInput?.click()">Add More</button>
+            <button class="btn-secondary" @click="setTriggerPoint($event); folderInput?.click()">Add Folder</button>
             <button v-if="uploads.some(u => u.status === 'complete' || u.status === 'error')" class="btn-secondary"
               @click="clearCompleted">Clear Done</button>
           </div>

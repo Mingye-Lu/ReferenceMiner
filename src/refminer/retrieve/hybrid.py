@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Iterable
 
 
-def reciprocal_rank_fusion(rankings: Iterable[list[tuple[str, float]]], k: int = 60) -> list[tuple[str, float]]:
+def reciprocal_rank_fusion(
+    rankings: Iterable[list[tuple[str, float]]], k: int = 60
+) -> list[tuple[str, float]]:
     scores: dict[str, float] = {}
     for ranking in rankings:
         for rank, (chunk_id, _) in enumerate(ranking):

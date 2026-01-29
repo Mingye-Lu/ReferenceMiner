@@ -24,27 +24,28 @@ def load_chunks(index_dir: Path) -> dict[str, dict]:
             except json.JSONDecodeError:
                 # Skip corrupted lines - log but don't crash
                 import logging
+
                 logging.warning(f"Skipping corrupted line {line_num} in chunks.jsonl")
                 continue
     return chunks
 
 
 def retrieve(
-    query: str, 
-    root: Optional[Path] = None, 
+    query: str,
+    root: Optional[Path] = None,
     index_dir: Optional[Path] = None,
-    k: int = 5, 
-    filter_files: Optional[list[str]] = None
+    k: int = 5,
+    filter_files: Optional[list[str]] = None,
 ) -> list[EvidenceChunk]:
     idx_dir = index_dir or get_index_dir(root)
     chunks = load_chunks(idx_dir)
-    
+
     bm25_path = idx_dir / "bm25.pkl"
     if not bm25_path.exists():
         return []
-        
+
     bm25_index = load_bm25(bm25_path)
-    
+
     # Retrieve more candidates if filtering is active to ensure we have enough results
     search_k = k * 5 if filter_files else k
     bm25_hits = bm25_search(bm25_index, query, k=search_k)
@@ -63,19 +64,19 @@ def retrieve(
 
     fused = reciprocal_rank_fusion(rankings)
     evidence: list[EvidenceChunk] = []
-    
+
     for chunk_id, score in fused:
         if len(evidence) >= k:
             break
-            
+
         item = chunks.get(chunk_id)
         if not item:
             continue
-            
+
         # Apply strict filtering
         if filter_files and item["path"] not in filter_files:
             continue
-            
+
         evidence.append(
             EvidenceChunk(
                 chunk_id=chunk_id,

@@ -13,14 +13,14 @@ from refminer.utils.paths import get_index_dir, get_references_dir
 
 
 def ingest_all(
-    root: Path | None = None, 
+    root: Path | None = None,
     references_dir: Path | None = None,
     index_dir: Path | None = None,
-    build_vectors_index: bool = True
+    build_vectors_index: bool = True,
 ) -> dict:
     manifest_entries = build_manifest(root, references_dir=references_dir)
     manifest_path = write_manifest(manifest_entries, root, index_dir=index_dir)
-    
+
     idx_dir = index_dir or get_index_dir(root)
     ref_dir = references_dir or get_references_dir(root)
 
@@ -52,20 +52,24 @@ def ingest_all(
                 chunks_payload.append(asdict(chunk))
 
     idx_dir.mkdir(parents=True, exist_ok=True)
-    
+
     chunks_path = idx_dir / "chunks.jsonl"
     with chunks_path.open("w", encoding="utf-8") as handle:
         for item in chunks_payload:
             handle.write(json.dumps(item, ensure_ascii=True) + "\n")
 
-    bm25_index = build_bm25([(item["chunk_id"], item["text"]) for item in chunks_payload])
+    bm25_index = build_bm25(
+        [(item["chunk_id"], item["text"]) for item in chunks_payload]
+    )
     save_bm25(bm25_index, idx_dir / "bm25.pkl")
 
     vectors_path = idx_dir / "vectors.faiss"
     vectors_built = False
     if build_vectors_index and chunks_payload:
         try:
-            vector_index = build_vectors([(item["chunk_id"], item["text"]) for item in chunks_payload])
+            vector_index = build_vectors(
+                [(item["chunk_id"], item["text"]) for item in chunks_payload]
+            )
             save_vectors(vector_index, vectors_path)
             vectors_built = True
         except RuntimeError:

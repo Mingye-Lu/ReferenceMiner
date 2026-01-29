@@ -8,8 +8,16 @@ from pathlib import Path
 from typing import Optional
 
 from refminer.ingest.extract import extract_document
-from refminer.ingest.bibliography import extract_bibliography_from_pdf, merge_bibliography
-from refminer.ingest.manifest import ManifestEntry, detect_type, load_manifest, write_manifest
+from refminer.ingest.bibliography import (
+    extract_bibliography_from_pdf,
+    merge_bibliography,
+)
+from refminer.ingest.manifest import (
+    ManifestEntry,
+    detect_type,
+    load_manifest,
+    write_manifest,
+)
 from refminer.ingest.registry import (
     HashRegistry,
     load_registry,
@@ -92,7 +100,9 @@ def ingest_single_file(
     entry.page_count = extracted.page_count
     entry.title = extracted.title
     if file_type == "pdf":
-        extracted_bib = extract_bibliography_from_pdf(file_path, extracted.text_blocks, entry.title, file_path.name)
+        extracted_bib = extract_bibliography_from_pdf(
+            file_path, extracted.text_blocks, entry.title, file_path.name
+        )
         entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
 
     chunks: list[Chunk] = []
@@ -108,7 +118,9 @@ def ingest_single_file(
     return entry, chunks
 
 
-def append_to_manifest(entry: ManifestEntry, root: Path | None = None, index_dir: Path | None = None) -> None:
+def append_to_manifest(
+    entry: ManifestEntry, root: Path | None = None, index_dir: Path | None = None
+) -> None:
     """Add a manifest entry to the existing manifest."""
     idx_dir = index_dir or get_index_dir(root)
     manifest_path = idx_dir / "manifest.json"
@@ -117,7 +129,9 @@ def append_to_manifest(entry: ManifestEntry, root: Path | None = None, index_dir
         manifest = load_manifest(root, index_dir=idx_dir)
         existing = next((e for e in manifest if e.rel_path == entry.rel_path), None)
         if existing and existing.bibliography is not None:
-            entry.bibliography = merge_bibliography(existing.bibliography, entry.bibliography)
+            entry.bibliography = merge_bibliography(
+                existing.bibliography, entry.bibliography
+            )
         # Remove any existing entry with same rel_path (for updates)
         manifest = [e for e in manifest if e.rel_path != entry.rel_path]
     else:
@@ -127,7 +141,9 @@ def append_to_manifest(entry: ManifestEntry, root: Path | None = None, index_dir
     write_manifest(manifest, root, index_dir=idx_dir)
 
 
-def remove_from_manifest(rel_path: str, root: Path | None = None, index_dir: Path | None = None) -> bool:
+def remove_from_manifest(
+    rel_path: str, root: Path | None = None, index_dir: Path | None = None
+) -> bool:
     """Remove a manifest entry by rel_path. Returns True if found and removed."""
     idx_dir = index_dir or get_index_dir(root)
     manifest_path = idx_dir / "manifest.json"
@@ -145,7 +161,9 @@ def remove_from_manifest(rel_path: str, root: Path | None = None, index_dir: Pat
     return False
 
 
-def append_chunks(chunks: list[Chunk], root: Path | None = None, index_dir: Path | None = None) -> None:
+def append_chunks(
+    chunks: list[Chunk], root: Path | None = None, index_dir: Path | None = None
+) -> None:
     """Append chunks to chunks.jsonl with file locking to prevent corruption."""
     idx_dir = index_dir or get_index_dir(root)
     idx_dir.mkdir(parents=True, exist_ok=True)
@@ -163,7 +181,9 @@ def append_chunks(chunks: list[Chunk], root: Path | None = None, index_dir: Path
             handle.flush()
 
 
-def load_all_chunks(root: Path | None = None, index_dir: Path | None = None) -> list[tuple[str, str]]:
+def load_all_chunks(
+    root: Path | None = None, index_dir: Path | None = None
+) -> list[tuple[str, str]]:
     """Load all chunks from chunks.jsonl as (chunk_id, text) tuples."""
     idx_dir = index_dir or get_index_dir(root)
     chunks_path = idx_dir / "chunks.jsonl"
@@ -183,7 +203,9 @@ def load_all_chunks(root: Path | None = None, index_dir: Path | None = None) -> 
     return chunks
 
 
-def rebuild_bm25_from_chunks(root: Path | None = None, index_dir: Path | None = None) -> Optional[BM25Index]:
+def rebuild_bm25_from_chunks(
+    root: Path | None = None, index_dir: Path | None = None
+) -> Optional[BM25Index]:
     """Rebuild BM25 index from existing chunks.jsonl."""
     idx_dir = index_dir or get_index_dir(root)
     chunks = load_all_chunks(root, index_dir=idx_dir)
@@ -205,7 +227,12 @@ def add_vectors_incremental(
         return False
 
     try:
-        from refminer.index.vectors import _load_dependencies, load_vectors, save_vectors, VectorIndex
+        from refminer.index.vectors import (
+            _load_dependencies,
+            load_vectors,
+            save_vectors,
+            VectorIndex,
+        )
     except RuntimeError:
         return False
 
@@ -220,6 +247,7 @@ def add_vectors_incremental(
     if not vectors_path.exists():
         # No existing index - build from scratch with just new chunks
         from refminer.index.vectors import build_vectors
+
         try:
             vector_index = build_vectors(new_chunks)
             save_vectors(vector_index, vectors_path)
@@ -233,7 +261,9 @@ def add_vectors_incremental(
     # Encode new chunks
     model = SentenceTransformer(vector_index.model_name)
     texts = [text for _, text in new_chunks]
-    new_embeddings = model.encode(texts, show_progress_bar=False, normalize_embeddings=True)
+    new_embeddings = model.encode(
+        texts, show_progress_bar=False, normalize_embeddings=True
+    )
     new_embeddings = new_embeddings.astype("float32")
 
     # Add to FAISS index
@@ -246,13 +276,19 @@ def add_vectors_incremental(
     # Save updated index
     faiss.write_index(vector_index.faiss_index, str(vectors_path))
     import numpy as np
+
     meta_path = vectors_path.with_suffix(".meta.npz")
     np.savez(meta_path, chunk_ids=all_ids, model_name=vector_index.model_name)
 
     return True
 
 
-def remove_file_from_index(rel_path: str, root: Path | None = None, index_dir: Path | None = None, references_dir: Path | None = None) -> int:
+def remove_file_from_index(
+    rel_path: str,
+    root: Path | None = None,
+    index_dir: Path | None = None,
+    references_dir: Path | None = None,
+) -> int:
     """Remove all chunks for a file and rebuild indexes. Returns chunk count removed."""
     idx_dir = index_dir or get_index_dir(root)
     chunks_path = idx_dir / "chunks.jsonl"
@@ -268,7 +304,9 @@ def remove_file_from_index(rel_path: str, root: Path | None = None, index_dir: P
     if chunks_path.exists():
         with _file_lock(lock_path):
             temp_path = idx_dir / "chunks.jsonl.tmp"
-            with chunks_path.open("r", encoding="utf-8") as src, temp_path.open("w", encoding="utf-8") as dst:
+            with chunks_path.open("r", encoding="utf-8") as src, temp_path.open(
+                "w", encoding="utf-8"
+            ) as dst:
                 for line in src:
                     try:
                         item = json.loads(line)

@@ -13,9 +13,7 @@ def format_citation(chunk: EvidenceChunk) -> str:
 
 def render_answer(analysis: dict) -> str:
     evidence: Iterable[EvidenceChunk] = analysis.get("evidence", [])
-    citations = "\n".join(
-        f"- {format_citation(item)}" for item in evidence
-    )
+    citations = "\n".join(f"- {format_citation(item)}" for item in evidence)
     return "\n".join(
         [
             analysis.get("synthesis", ""),

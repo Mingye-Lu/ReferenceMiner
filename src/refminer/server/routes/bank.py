@@ -1,4 +1,5 @@
 """Global reference bank endpoints."""
+
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -32,10 +33,7 @@ async def get_file_stats():
     for project in projects:
         for file_path in project.selected_files:
             if file_path not in stats:
-                stats[file_path] = {
-                    "usage_count": 0,
-                    "last_used": 0.0
-                }
+                stats[file_path] = {"usage_count": 0, "last_used": 0.0}
 
             stats[file_path]["usage_count"] += 1
             # Update last_used to the most recent project's last_active
@@ -47,8 +45,7 @@ async def get_file_stats():
 
 @router.post("/upload/stream")
 async def upload_bank_stream_api(
-    file: UploadFile = File(...),
-    replace_existing: bool = Form(False)
+    file: UploadFile = File(...), replace_existing: bool = Form(False)
 ):
     """Upload a file to the global reference bank."""
     return StreamingResponse(
@@ -66,4 +63,6 @@ async def reprocess_reference_bank_stream():
 @router.post("/files/{rel_path:path}/reprocess/stream")
 async def reprocess_single_file_stream(rel_path: str):
     """Stream reprocess progress for a single file."""
-    return StreamingResponse(stream_reprocess_file(rel_path), media_type="text/event-stream")
+    return StreamingResponse(
+        stream_reprocess_file(rel_path), media_type="text/event-stream"
+    )

@@ -1,7 +1,9 @@
 import type {
   AnswerBlock,
   AskResponse,
+  BatchDeleteEventHandler,
   BatchDeleteResult,
+  DeleteEventHandler,
   DeleteResult,
   DuplicateCheck,
   EvidenceChunk,
@@ -16,6 +18,7 @@ import type {
   Settings,
   UpdateCheck,
   ValidateResult,
+  QueueJob,
 } from "../types";
 import { getFileName } from "../utils";
 
@@ -151,6 +154,24 @@ function mapAnswerBlock(item: any): AnswerBlock {
     heading: item.heading ?? "Answer",
     body: item.body ?? item.text ?? "",
     citations: item.citations ?? [],
+  };
+}
+
+function mapQueueJob(item: any): QueueJob {
+  return {
+    id: item.id ?? "",
+    type: item.type ?? "upload",
+    scope: item.scope ?? "bank",
+    projectId: item.project_id ?? item.projectId ?? null,
+    name: item.name ?? null,
+    relPath: item.rel_path ?? item.relPath ?? null,
+    status: item.status ?? "pending",
+    phase: item.phase ?? null,
+    progress: item.progress ?? null,
+    error: item.error ?? null,
+    duplicatePath: item.duplicate_path ?? item.duplicatePath ?? null,
+    createdAt: item.created_at ?? item.createdAt ?? Date.now(),
+    updatedAt: item.updated_at ?? item.updatedAt ?? Date.now(),
   };
 }
 
@@ -352,6 +373,106 @@ export async function streamSummarize(
       }
       boundary = buffer.indexOf("\n\n");
     }
+  }
+}
+
+// =============================================================================
+// Queue API
+// =============================================================================
+
+export async function fetchQueueJobs(params?: {
+  scope?: string;
+  projectId?: string;
+  includeCompleted?: boolean;
+  limit?: number;
+}): Promise<QueueJob[]> {
+  const search = new URLSearchParams();
+  if (params?.scope) search.set("scope", params.scope);
+  if (params?.projectId) search.set("project_id", params.projectId);
+  if (params?.includeCompleted) search.set("include_completed", "true");
+  if (params?.limit) search.set("limit", String(params.limit));
+  const query = search.toString();
+  const path = query ? `/api/queue/jobs?${query}` : "/api/queue/jobs";
+  const data = await fetchJson<any[]>(path);
+  return (data ?? []).map(mapQueueJob);
+}
+
+export async function streamQueueJobs(
+  params: { scope?: string; projectId?: string } | undefined,
+  onJob: (job: QueueJob) => void,
+  signal?: AbortSignal,
+  onError?: (error: Error) => void,
+): Promise<void> {
+  const search = new URLSearchParams();
+  if (params?.scope) search.set("scope", params.scope);
+  if (params?.projectId) search.set("project_id", params.projectId);
+  const query = search.toString();
+  const url = query ? `${API_BASE}/api/queue/stream?${query}` : `${API_BASE}/api/queue/stream`;
+
+  console.log("[queue-stream] connecting to", url);
+  const response = await fetch(url, { signal });
+  if (!response.ok || !response.body) {
+    const detail = await response.text();
+    const error = new Error(`API ${response.status}: ${detail || "Queue stream failed"}`);
+    onError?.(error);
+    throw error;
+  }
+  console.log("[queue-stream] connected");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        console.log("[queue-stream] stream ended");
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const raw = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+
+        let event = "message";
+        let data = "";
+        for (const line of raw.split("\n")) {
+          if (line.startsWith("event:")) {
+            event = line.replace("event:", "").replace(/\s+/g, " ").trim();
+          } else if (line.startsWith("data:")) {
+            data += line.replace("data:", "").replace(/\s+/g, " ").trim();
+          }
+        }
+
+        if (event !== "job") {
+          boundary = buffer.indexOf("\n\n");
+          continue;
+        }
+
+        if (data) {
+          try {
+            const payload = JSON.parse(data);
+            const mapped = mapQueueJob(payload);
+            console.log("[queue-stream] job event:", mapped.id.slice(0, 8), "status:", mapped.status, "phase:", mapped.phase);
+            onJob(mapped);
+          } catch (e) {
+            console.error("[queue-stream] parse error:", e);
+          }
+        }
+        boundary = buffer.indexOf("\n\n");
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      console.log("[queue-stream] stream aborted");
+    } else {
+      console.error("[queue-stream] stream error:", error);
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    }
+    throw error;
   }
 }
 
@@ -1138,6 +1259,164 @@ export async function reprocessReferenceFileStream(
           }
         } catch (e) {
           console.error("[reprocess-file] Parse error:", e);
+        }
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+}
+
+export async function deleteFileStream(
+  relPath: string,
+  handlers: DeleteEventHandler,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/projects/default/files/${encodeURIComponent(relPath)}/delete/stream`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text();
+    handlers.onError?.(
+      "DELETE_FAILED",
+      detail || "Delete request failed",
+    );
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      let event = "message";
+      let data = "";
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim();
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim();
+        }
+      }
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data);
+          if (event === "file") {
+            handlers.onFile?.({
+              relPath: payload.rel_path ?? "",
+              status: payload.status ?? "processing",
+              phase: payload.phase,
+            });
+          } else if (event === "complete") {
+            handlers.onComplete?.({
+              relPath: payload.rel_path ?? "",
+              removedChunks: payload.removed_chunks ?? 0,
+            });
+          } else if (event === "error") {
+            handlers.onError?.(
+              payload.code ?? "DELETE_ERROR",
+              payload.message ?? "Delete failed",
+            );
+          }
+        } catch (e) {
+          console.error("[delete-file] Parse error:", e);
+        }
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+}
+
+export async function batchDeleteFilesStream(
+  relPaths: string[],
+  handlers: BatchDeleteEventHandler,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/projects/default/files/batch-delete/stream`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rel_paths: relPaths }),
+    },
+  );
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text();
+    handlers.onError?.(
+      "BATCH_DELETE_FAILED",
+      detail || "Batch delete request failed",
+    );
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      let event = "message";
+      let data = "";
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim();
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim();
+        }
+      }
+
+      if (data) {
+        try {
+          const payload = JSON.parse(data);
+          if (event === "start") {
+            handlers.onStart?.(payload.total_files ?? 0);
+          } else if (event === "file") {
+            handlers.onFile?.({
+              relPath: payload.rel_path ?? "",
+              status: payload.status ?? "processing",
+              phase: payload.phase,
+              index: payload.index,
+              total: payload.total,
+            });
+          } else if (event === "complete") {
+            handlers.onComplete?.({
+              deletedCount: payload.deleted_count ?? 0,
+              failedCount: payload.failed_count ?? 0,
+              results: (payload.results ?? []).map((r: any) => ({
+                relPath: r.rel_path,
+                success: r.success,
+                removedChunks: r.removed_chunks,
+                error: r.error,
+              })),
+            });
+          } else if (event === "error") {
+            handlers.onError?.(
+              payload.code ?? "BATCH_DELETE_ERROR",
+              payload.message ?? "Batch delete failed",
+            );
+          }
+        } catch (e) {
+          console.error("[batch-delete] Parse error:", e);
         }
       }
       boundary = buffer.indexOf("\n\n");

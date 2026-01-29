@@ -126,6 +126,28 @@ export interface AskResponse {
 export type UploadPhase = "uploading" | "hashing" | "checking_duplicate" | "storing" | "extracting" | "indexing"
 export type UploadStatus = "pending" | "uploading" | "processing" | "complete" | "error" | "duplicate"
 
+export type DeletePhase = "removing" | "rebuilding_index"
+export type QueuePhase = UploadPhase | DeletePhase | "scanning" | "resetting"
+export type QueueStatus = UploadStatus | "cancelled"
+export type QueueType = "upload" | "reprocess" | "delete"
+export type QueueScope = "bank" | "project"
+
+export interface QueueJob {
+  id: string
+  type: QueueType
+  scope: QueueScope
+  projectId?: string | null
+  name?: string | null
+  relPath?: string | null
+  status: QueueStatus
+  phase?: QueuePhase | null
+  progress?: number | null
+  error?: string | null
+  duplicatePath?: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export interface UploadProgress {
   phase: UploadPhase
   percent?: number
@@ -187,6 +209,19 @@ export interface BatchDeleteResult {
   failedCount: number
   totalChunksRemoved: number
   results: BatchDeleteFileResult[]
+}
+
+export interface DeleteEventHandler {
+  onFile?: (data: { relPath: string; status: string; phase?: string }) => void
+  onComplete?: (data: { relPath: string; removedChunks: number }) => void
+  onError?: (code: string, message: string) => void
+}
+
+export interface BatchDeleteEventHandler {
+  onStart?: (totalFiles: number) => void
+  onFile?: (data: { relPath: string; status: string; phase?: string; index?: number; total?: number }) => void
+  onComplete?: (data: { deletedCount: number; failedCount: number; results: BatchDeleteFileResult[] }) => void
+  onError?: (code: string, message: string) => void
 }
 
 // Project types

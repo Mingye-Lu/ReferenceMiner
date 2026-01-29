@@ -48,13 +48,17 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     ingest_parser = subparsers.add_parser("ingest", help="Build manifest and indexes")
-    ingest_parser.add_argument("--no-vectors", action="store_true", help="Skip vector index")
+    ingest_parser.add_argument(
+        "--no-vectors", action="store_true", help="Skip vector index"
+    )
     ingest_parser.set_defaults(func=cmd_ingest)
 
     list_parser = subparsers.add_parser("list", help="List reference files")
     list_parser.set_defaults(func=cmd_list)
 
-    ask_parser = subparsers.add_parser("ask", help="Ask a question against indexed references")
+    ask_parser = subparsers.add_parser(
+        "ask", help="Ask a question against indexed references"
+    )
     ask_parser.add_argument("question")
     ask_parser.add_argument("--top-k", type=int, default=5)
     ask_parser.set_defaults(func=cmd_ask)

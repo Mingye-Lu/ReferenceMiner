@@ -18,7 +18,6 @@ from refminer.llm.tools import (
     execute_retrieve_tool,
 )
 
-
 AGENT_PROMPT_PATH = Path(__file__).parent / "prompts" / "agent_prompt.md"
 
 
@@ -63,7 +62,9 @@ def _normalize_history(history: Optional[list[dict]]) -> list[dict]:
 
 def stream_chat_text(client: ChatCompletionsClient, messages: list[dict]) -> str:
     try:
-        sys.stderr.write(f"[agent_stream] llm_request={{\"messages\": {len(messages)}}}\n")
+        sys.stderr.write(
+            f'[agent_stream] llm_request={{"messages": {len(messages)}}}\n'
+        )
         sys.stderr.flush()
     except Exception:
         pass
@@ -136,7 +137,9 @@ def build_agent_messages(
         note_count = len(notes or [])
         meta_lines.append(f"Notes available: {note_count}")
     if meta_lines:
-        content = f"{question}\n\nContext:\n" + "\n".join(f"- {line}" for line in meta_lines)
+        content = f"{question}\n\nContext:\n" + "\n".join(
+            f"- {line}" for line in meta_lines
+        )
     else:
         content = question
     messages.append({"role": "user", "content": content})
@@ -168,7 +171,10 @@ def build_tool_result_message(tool_name: str, result: ToolResult) -> dict:
             ],
         },
     }
-    return {"role": "user", "content": f"TOOL_RESULT: {json.dumps(payload, ensure_ascii=False)}"}
+    return {
+        "role": "user",
+        "content": f"TOOL_RESULT: {json.dumps(payload, ensure_ascii=False)}",
+    }
 
 
 def run_agent(
@@ -193,7 +199,9 @@ def run_agent(
         )
 
     client = ChatCompletionsClient(config)
-    messages = build_agent_messages(question, history, context=context, use_notes=use_notes, notes=notes)
+    messages = build_agent_messages(
+        question, history, context=context, use_notes=use_notes, notes=notes
+    )
     plans: list[str] = []
     evidence: list[EvidenceChunk] = []
     analysis: dict = {"scope": derive_scope(question)}
@@ -228,7 +236,14 @@ def run_agent(
                 plans.append(decision.response_text)
             for action in decision.actions:
                 tool = (action.get("tool") or "").strip()
-                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search", "get_document_outline"}:
+                if tool not in {
+                    "rag_search",
+                    "read_chunk",
+                    "get_abstract",
+                    "list_files",
+                    "keyword_search",
+                    "get_document_outline",
+                }:
                     return AgentResult(
                         response_text="",
                         response_citations=[],

@@ -1,4 +1,5 @@
 """Utility functions for the server: SSE helpers, formatting, path utilities."""
+
 from __future__ import annotations
 
 import json
@@ -80,6 +81,7 @@ def clean_stream_text(text: str) -> str:
 
 
 # Path utilities
+
 
 def manifest_path() -> Path:
     """Get path to manifest.json."""
@@ -174,11 +176,17 @@ def resolve_rel_path(rel_path: str) -> str:
     if not name:
         return rel_path
 
-    matches = [entry.rel_path for entry in load_manifest_entries() if Path(entry.rel_path).name == name]
+    matches = [
+        entry.rel_path
+        for entry in load_manifest_entries()
+        if Path(entry.rel_path).name == name
+    ]
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
-        raise HTTPException(status_code=409, detail=f"Multiple files named '{name}'. Provide full path.")
+        raise HTTPException(
+            status_code=409, detail=f"Multiple files named '{name}'. Provide full path."
+        )
     return rel_path
 
 
@@ -192,6 +200,7 @@ def count_chunks() -> int:
 
 
 # Citation utilities
+
 
 def format_citation(path: str, page: Optional[int], section: Optional[str]) -> str:
     """Format a citation string from path, page, and section."""
@@ -240,6 +249,7 @@ def filter_evidence_by_citations(
 
 # Error helpers
 
+
 def emit_error_step(code: str, message: str) -> Iterator[str]:
     """Emit an error step SSE event."""
     details = format_details(
@@ -261,6 +271,7 @@ def emit_error_step(code: str, message: str) -> Iterator[str]:
 
 
 # JSON parsing utilities for streaming
+
 
 def unescape_json_text(text: str) -> str:
     """Unescape common JSON escape sequences."""
@@ -305,7 +316,9 @@ def extract_json_string_partial(buffer: str, key_name: str) -> Optional[str]:
     return unescape_json_text(partial)
 
 
-def extract_nested_json_string_partial(buffer: str, parent_key: str, child_key: str) -> Optional[str]:
+def extract_nested_json_string_partial(
+    buffer: str, parent_key: str, child_key: str
+) -> Optional[str]:
     """Extract a nested JSON string value from a streaming buffer."""
     parent = f'"{parent_key}"'
     idx = buffer.find(parent)
@@ -316,6 +329,7 @@ def extract_nested_json_string_partial(buffer: str, parent_key: str, child_key: 
 
 # Temp directory
 
+
 def get_temp_dir() -> Path:
     """Get or create the temp directory for uploads."""
     _, index_dir = get_bank_paths()
@@ -325,6 +339,7 @@ def get_temp_dir() -> Path:
 
 
 # Index management
+
 
 def clear_bank_indexes(index_dir: Path) -> None:
     """Delete all index files (but not reference files)."""

@@ -1,4 +1,5 @@
 """Agent streaming logic for Q&A."""
+
 from __future__ import annotations
 
 import re
@@ -91,7 +92,7 @@ def _stream_agent_decision(
             if partial is not None:
                 cleaned_partial = clean_stream_text(partial)
                 if cleaned_partial != answer_text:
-                    delta_text = cleaned_partial[len(answer_text):]
+                    delta_text = cleaned_partial[len(answer_text) :]
                     answer_text = cleaned_partial
                     if delta_text:
                         yield sse("answer_delta", {"delta": delta_text})
@@ -109,15 +110,28 @@ def stream_agent(
 ) -> Iterator[str]:
     """Stream agent response with SSE events."""
     dispatch_ts = time.time()
-    yield sse("step", {"step": "dispatch", "title": "Thinking", "timestamp": dispatch_ts})
+    yield sse(
+        "step", {"step": "dispatch", "title": "Thinking", "timestamp": dispatch_ts}
+    )
     config = _load_config()
     if not config:
-        yield from emit_error_step("LLM_NOT_CONFIGURED", "LLM not available. Please configure an LLM provider in Settings.")
-        yield sse("error", {"code": "LLM_NOT_CONFIGURED", "message": "LLM not available. Please configure an LLM provider in Settings."})
+        yield from emit_error_step(
+            "LLM_NOT_CONFIGURED",
+            "LLM not available. Please configure an LLM provider in Settings.",
+        )
+        yield sse(
+            "error",
+            {
+                "code": "LLM_NOT_CONFIGURED",
+                "message": "LLM not available. Please configure an LLM provider in Settings.",
+            },
+        )
         return
 
     client = ChatCompletionsClient(config)
-    messages = build_agent_messages(question, history, context=context, use_notes=use_notes, notes=notes)
+    messages = build_agent_messages(
+        question, history, context=context, use_notes=use_notes, notes=notes
+    )
     tool_calls = 0
     current_step: Optional[str] = "dispatch"
     malformed_retries = 0
@@ -150,7 +164,9 @@ def stream_agent(
                         current_step = "answer"
                 except StopIteration as stop:
                     if stop.value:
-                        raw, call_tool_emitted, call_tool_details, answer_emitted = stop.value
+                        raw, call_tool_emitted, call_tool_details, answer_emitted = (
+                            stop.value
+                        )
                     break
         except Exception as e:
             error_msg = str(e)
@@ -160,7 +176,11 @@ def stream_agent(
                 yield sse("error", {"code": "CONTENT_FILTERED", "message": summary})
             else:
                 max_len = 800
-                trimmed = error_msg if len(error_msg) <= max_len else error_msg[:max_len] + "..."
+                trimmed = (
+                    error_msg
+                    if len(error_msg) <= max_len
+                    else error_msg[:max_len] + "..."
+                )
                 summary = f"AI generation failed: {trimmed}"
                 yield from emit_error_step("LLM_ERROR", summary)
                 yield sse("error", {"code": "LLM_ERROR", "message": summary})
@@ -224,7 +244,14 @@ def stream_agent(
 
             for action in decision.actions:
                 tool = (action.get("tool") or "").strip()
-                if tool not in {"rag_search", "read_chunk", "get_abstract", "list_files", "keyword_search", "get_document_outline"}:
+                if tool not in {
+                    "rag_search",
+                    "read_chunk",
+                    "get_abstract",
+                    "list_files",
+                    "keyword_search",
+                    "get_document_outline",
+                }:
                     summary = f"Unknown tool requested: {tool or 'empty'}."
                     yield from emit_error_step("LLM_ERROR", summary)
                     yield sse("error", {"code": "LLM_ERROR", "message": summary})
@@ -262,7 +289,9 @@ def stream_agent(
                         yield from emit_error_step("LACK_INGEST", summary)
                         yield sse("error", {"code": "LACK_INGEST", "message": summary})
                         return
-                    pre_filters = (action.get("args") or {}).get("filter_files") or context or []
+                    pre_filters = (
+                        (action.get("args") or {}).get("filter_files") or context or []
+                    )
                     if pre_filters:
                         pre_filter_label = ", ".join(pre_filters[:5])
                         if len(pre_filters) > 5:
@@ -404,7 +433,9 @@ def stream_agent(
                 now_ts = time.time()
                 retrieve_sec = float(meta.get("retrieve_ms") or 0.0) / 1000.0
                 analyze_sec = float(meta.get("analyze_ms") or 0.0) / 1000.0
-                research_ts = max(dispatch_ts + 0.001, now_ts - (retrieve_sec + analyze_sec))
+                research_ts = max(
+                    dispatch_ts + 0.001, now_ts - (retrieve_sec + analyze_sec)
+                )
                 analyze_ts = max(research_ts + retrieve_sec, now_ts - analyze_sec)
                 if tool == "rag_search":
                     filters = meta.get("filter_files") or []
@@ -432,7 +463,9 @@ def stream_agent(
                     ]
                 elif tool == "list_files":
                     by_type = meta.get("by_type") or {}
-                    type_summary = ", ".join(f"{count} {ftype}" for ftype, count in sorted(by_type.items()))
+                    type_summary = ", ".join(
+                        f"{count} {ftype}" for ftype, count in sorted(by_type.items())
+                    )
                     research_lines = [
                         f"Tool: {meta.get('tool', 'list_files')}",
                         f"Total in bank: {meta.get('total_in_bank', 0)}",
@@ -550,11 +583,17 @@ def stream_agent(
             answer_start = time.perf_counter()
             citation_ids = {
                 match.group(1)
-                for match in (re.match(r"^C(\d+)$", item.strip(), re.IGNORECASE) for item in decision.response_citations)
+                for match in (
+                    re.match(r"^C(\d+)$", item.strip(), re.IGNORECASE)
+                    for item in decision.response_citations
+                )
                 if match
             }
             if decision.response_citations:
-                filtered = filter_evidence_by_citations(tool_result.evidence if 'tool_result' in locals() else [], decision.response_citations)
+                filtered = filter_evidence_by_citations(
+                    tool_result.evidence if "tool_result" in locals() else [],
+                    decision.response_citations,
+                )
                 if filtered:
                     yield sse("evidence", [asdict(e) for e in filtered])
             language = "Chinese" if contains_cjk(cleaned_response) else "English"
@@ -591,7 +630,9 @@ def stream_agent(
                 )
             for end_event in end_step("answer"):
                 yield end_event
-            yield sse("step", {"step": "done", "title": "Complete", "timestamp": time.time()})
+            yield sse(
+                "step", {"step": "done", "title": "Complete", "timestamp": time.time()}
+            )
             yield sse("done", {})
             return
 

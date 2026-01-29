@@ -3,4 +3,10 @@
 from .models import ChatMessage, ChatSession, TimelineStep, EvidenceSource
 from .manager import ChatManager
 
-__all__ = ["ChatMessage", "ChatSession", "TimelineStep", "EvidenceSource", "ChatManager"]
+__all__ = [
+    "ChatMessage",
+    "ChatSession",
+    "TimelineStep",
+    "EvidenceSource",
+    "ChatManager",
+]

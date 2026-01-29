@@ -5,7 +5,6 @@ from typing import Iterable
 
 import ftfy
 
-
 ABSTRACT_RE = re.compile(
     r"^\s*(?:abstract|摘要|摘\s*要)\s*[:：\-–—]?\s*(.*)$",
     re.IGNORECASE,
@@ -96,7 +95,9 @@ def normalize_text_with_mapping(text: str) -> tuple[str, dict[int, int]]:
             result.append(" ")
             normalized_pos += 1
         elif char in ("\u200b", "\u200c", "\u200d", "\ufeff"):  # Zero-width chars
-            char_map[original_pos] = normalized_pos  # Maps to current position (no advancement)
+            char_map[original_pos] = (
+                normalized_pos  # Maps to current position (no advancement)
+            )
         # Normalize special dashes to standard hyphen
         elif char in ("—", "–", "−"):  # Em dash, en dash, minus
             char_map[original_pos] = normalized_pos

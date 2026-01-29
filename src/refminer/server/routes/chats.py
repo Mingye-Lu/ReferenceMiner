@@ -1,4 +1,5 @@
 """Chat session endpoints."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
@@ -41,9 +42,7 @@ async def get_chat_session(project_id: str, session_id: str):
 async def update_chat_session(project_id: str, session_id: str, req: ChatSessionUpdate):
     """Update a chat session (title and/or messages)."""
     session = chat_manager.update_session(
-        project_id, session_id,
-        title=req.title,
-        messages=req.messages
+        project_id, session_id, title=req.title, messages=req.messages
     )
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
@@ -71,7 +70,9 @@ async def add_chat_message(project_id: str, session_id: str, req: ChatMessageAdd
 @router.patch("/{session_id}/messages")
 async def update_chat_message(project_id: str, session_id: str, req: ChatMessageUpdate):
     """Update a specific message in a chat session."""
-    session = chat_manager.update_message(project_id, session_id, req.message_id, req.updates)
+    session = chat_manager.update_message(
+        project_id, session_id, req.message_id, req.updates
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
     return session.to_dict()

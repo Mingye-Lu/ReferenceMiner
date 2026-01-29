@@ -12,13 +12,14 @@ from refminer.utils.text import normalize_text_with_mapping
 @dataclass
 class BoundingBox:
     """Bounding box for a span of text within a PDF page."""
-    page: int              # 1-indexed page number
-    x0: float              # Left coordinate
-    y0: float              # Top coordinate
-    x1: float              # Right coordinate
-    y1: float              # Bottom coordinate
-    char_start: int        # Character offset in chunk text (inclusive)
-    char_end: int          # Character offset in chunk text (exclusive)
+
+    page: int  # 1-indexed page number
+    x0: float  # Left coordinate
+    y0: float  # Top coordinate
+    x1: float  # Right coordinate
+    y1: float  # Bottom coordinate
+    char_start: int  # Character offset in chunk text (inclusive)
+    char_end: int  # Character offset in chunk text (exclusive)
 
 
 @dataclass
@@ -36,6 +37,7 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
     Uses PyMuPDF's dict mode to extract detailed text structure including coordinates.
     Normalizes text and maps bounding boxes to normalized character positions.
     """
+
     def _median(values: list[float]) -> float:
         if not values:
             return 0.0
@@ -45,7 +47,9 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
             return (ordered[mid - 1] + ordered[mid]) / 2.0
         return ordered[mid]
 
-    def _map_span(raw_start: int, raw_end: int, char_map: dict[int, int], text_len: int) -> tuple[int, int] | None:
+    def _map_span(
+        raw_start: int, raw_end: int, char_map: dict[int, int], text_len: int
+    ) -> tuple[int, int] | None:
         norm_start = char_map.get(raw_start)
         if norm_start is None:
             for pos in range(raw_start, -1, -1):
@@ -73,7 +77,9 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
         norm_end = max(norm_start, min(norm_end, text_len))
         return norm_start, norm_end
 
-    def _kmeans_1d(values: list[float], iterations: int = 6) -> tuple[float, float] | None:
+    def _kmeans_1d(
+        values: list[float], iterations: int = 6
+    ) -> tuple[float, float] | None:
         if len(values) < 6:
             return None
         sorted_vals = sorted(values)
@@ -105,7 +111,9 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
     ) -> str | None:
         if not normalized_text:
             return None
-        merged = " ".join(line.strip() for line in normalized_text.splitlines() if line.strip())
+        merged = " ".join(
+            line.strip() for line in normalized_text.splitlines() if line.strip()
+        )
         if not merged:
             return None
         if len(merged) > 140:
@@ -175,7 +183,11 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                                 "bbox": tuple(bbox),
                                 "char_start": span_start,
                                 "char_end": span_end,
-                                "size": float(span.get("size")) if isinstance(span.get("size"), (int, float)) else 0.0,
+                                "size": (
+                                    float(span.get("size"))
+                                    if isinstance(span.get("size"), (int, float))
+                                    else 0.0
+                                ),
                             }
                         )
                     size = span.get("size")
@@ -195,7 +207,9 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                 median_size = _median(sizes) if sizes else 0.0
                 size_cutoff = median_size * 0.7 if median_size else 0.0
                 anchor_spans = [s for s in line_spans if s["size"] >= size_cutoff]
-                anchor_x = min((s["bbox"][0] for s in anchor_spans), default=float(bbox[0]))
+                anchor_x = min(
+                    (s["bbox"][0] for s in anchor_spans), default=float(bbox[0])
+                )
 
                 lines.append(
                     {
@@ -256,8 +270,12 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
             footer_counts[key] = footer_counts.get(key, 0) + 1
 
     page_threshold = max(3, int(len(pages) * 0.6))
-    header_keys = {key for key, count in header_counts.items() if count >= page_threshold}
-    footer_keys = {key for key, count in footer_counts.items() if count >= page_threshold}
+    header_keys = {
+        key for key, count in header_counts.items() if count >= page_threshold
+    }
+    footer_keys = {
+        key for key, count in footer_counts.items() if count >= page_threshold
+    }
 
     for page in pages:
         height = page["height"]
@@ -279,9 +297,15 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
         if not filtered_lines:
             continue
 
-        line_heights = [line["y1"] - line["y0"] for line in filtered_lines if line["y1"] > line["y0"]]
+        line_heights = [
+            line["y1"] - line["y0"]
+            for line in filtered_lines
+            if line["y1"] > line["y0"]
+        ]
         median_line_height = _median(line_heights)
-        median_font_size = _median([line["font_size"] for line in filtered_lines if line["font_size"] > 0])
+        median_font_size = _median(
+            [line["font_size"] for line in filtered_lines if line["font_size"] > 0]
+        )
         height_cutoff = median_line_height * 0.7 if median_line_height else 0.0
         font_cutoff = median_font_size * 0.7 if median_font_size else 0.0
 
@@ -293,7 +317,9 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                 full_width_lines.append(line)
             else:
                 line_height = line["y1"] - line["y0"]
-                if (height_cutoff and line_height < height_cutoff) or (font_cutoff and line["font_size"] < font_cutoff):
+                if (height_cutoff and line_height < height_cutoff) or (
+                    font_cutoff and line["font_size"] < font_cutoff
+                ):
                     continue
                 column_candidates.append(line)
 
@@ -358,13 +384,19 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                 indent_change = abs(line["x0"] - prev["x0"]) > indent_threshold
                 prev_text = prev["text"].rstrip()
                 prev_end = prev_text[-1:] if prev_text else ""
-                starts_new = line["text"].lstrip()[:1].isupper() if line["text"] else False
+                starts_new = (
+                    line["text"].lstrip()[:1].isupper() if line["text"] else False
+                )
                 paragraph_break = False
                 if gap > gap_threshold:
                     paragraph_break = True
                 elif indent_change and gap > (median_gap * 0.5):
                     paragraph_break = True
-                elif prev_end in (".", "!", "?", ":") and gap > (median_gap * 1.1) and starts_new:
+                elif (
+                    prev_end in (".", "!", "?", ":")
+                    and gap > (median_gap * 1.1)
+                    and starts_new
+                ):
                     paragraph_break = True
 
                 if paragraph_break:
@@ -377,7 +409,9 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
 
             for para_lines in paragraphs:
                 raw_parts: list[str] = []
-                span_entries: list[tuple[int, int, tuple[float, float, float, float]]] = []
+                span_entries: list[
+                    tuple[int, int, tuple[float, float, float, float]]
+                ] = []
                 raw_len = 0
                 for line in para_lines:
                     line_text = line["text"]
@@ -398,11 +432,15 @@ def extract_pdf_text(path: Path) -> tuple[list[PdfTextBlock], int]:
                 if not normalized_text:
                     continue
 
-                section = _detect_heading_text(para_lines, normalized_text, median_font_size)
+                section = _detect_heading_text(
+                    para_lines, normalized_text, median_font_size
+                )
 
                 bbox_list: list[BoundingBox] = []
                 for raw_start, raw_end, (x0, y0, x1, y1) in span_entries:
-                    mapped = _map_span(raw_start, raw_end, char_map, len(normalized_text))
+                    mapped = _map_span(
+                        raw_start, raw_end, char_map, len(normalized_text)
+                    )
                     if not mapped:
                         continue
                     norm_start, norm_end = mapped

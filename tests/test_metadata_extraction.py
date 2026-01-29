@@ -17,7 +17,7 @@ class TestMetadataExtraction(unittest.TestCase):
             "We study widgets in 2021.\n"
             "doi: 10.1234/ABC.DEF.5678\n"
             "Journal of Widget Research",
-            "More content here."
+            "More content here.",
         ]
         result = extract_pdf_bibliography(text_blocks, title=None)
         self.assertIsNotNone(result)

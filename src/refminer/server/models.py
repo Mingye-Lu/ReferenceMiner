@@ -1,4 +1,5 @@
 """Pydantic request models for the server API."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -83,3 +84,15 @@ class FileMetadataUpdateRequest(BaseModel):
 
 class CitationFormatRequest(BaseModel):
     format: str
+
+
+# Queue models
+class QueueJobCreateRequest(BaseModel):
+    type: str
+    scope: str
+    project_id: Optional[str] = None
+    name: Optional[str] = None
+    rel_path: Optional[str] = None
+    status: Optional[str] = None
+    phase: Optional[str] = None
+    progress: Optional[int] = None

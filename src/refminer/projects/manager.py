@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from .models import Project
 
+
 class ProjectManager:
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
@@ -26,9 +27,9 @@ class ProjectManager:
                 root_path="default",
                 created_at=now,
                 last_active=now,
-                description="Your initial research project."
+                description="Your initial research project.",
             )
-            
+
             self._save_projects_to_disk({"default": default_project.to_dict()})
 
     def _load_projects(self):
@@ -42,7 +43,9 @@ class ProjectManager:
                         root_path=pdata.get("root_path", pid),
                         created_at=pdata["created_at"],
                         last_active=pdata["last_active"],
-                        file_count=pdata.get("file_count", len(pdata.get("selected_files", []) or [])),
+                        file_count=pdata.get(
+                            "file_count", len(pdata.get("selected_files", []) or [])
+                        ),
                         note_count=pdata.get("note_count", 0),
                         description=pdata.get("description"),
                         selected_files=pdata.get("selected_files", []) or [],
@@ -68,9 +71,9 @@ class ProjectManager:
         while pid in self.projects:
             pid = f"{original_pid}-{counter}"
             counter += 1
-        
+
         root_path = pid
-        
+
         now = datetime.now().timestamp()
         new_project = Project(
             id=pid,
@@ -78,9 +81,9 @@ class ProjectManager:
             root_path=root_path,
             created_at=now,
             last_active=now,
-            description=description
+            description=description,
         )
-        
+
         self.projects[pid] = new_project
         self._save_all()
         return new_project
@@ -132,7 +135,9 @@ class ProjectManager:
         if not project:
             return []
         remove_set = set(rel_paths)
-        project.selected_files = [p for p in project.selected_files if p not in remove_set]
+        project.selected_files = [
+            p for p in project.selected_files if p not in remove_set
+        ]
         project.file_count = len(project.selected_files)
         self._save_all()
         return list(project.selected_files)
@@ -141,7 +146,9 @@ class ProjectManager:
         changed = False
         for project in self.projects.values():
             if rel_path in project.selected_files:
-                project.selected_files = [p for p in project.selected_files if p != rel_path]
+                project.selected_files = [
+                    p for p in project.selected_files if p != rel_path
+                ]
                 project.file_count = len(project.selected_files)
                 changed = True
         if changed:

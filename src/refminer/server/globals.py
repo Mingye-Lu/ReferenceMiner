@@ -1,4 +1,5 @@
 """Global managers and path utilities for the server."""
+
 from __future__ import annotations
 
 import os
@@ -6,6 +7,7 @@ import sys
 from pathlib import Path
 
 from refminer.utils.paths import get_index_dir, get_references_dir
+from refminer.server.queue_store import QueueEventHub, QueueStore
 from refminer.projects.manager import ProjectManager
 from refminer.settings import SettingsManager
 from refminer.chats import ChatManager
@@ -62,6 +64,10 @@ chat_manager = ChatManager(get_index_dir(BASE_DIR))
 
 # Frontend directory for SPA serving
 FRONTEND_DIR = _get_frontend_dir()
+
+# Queue store and event hub
+queue_events = QueueEventHub()
+queue_store = QueueStore(get_index_dir(BASE_DIR), queue_events)
 
 
 def get_bank_paths() -> tuple[Path, Path]:

@@ -25,7 +25,9 @@ def set_settings_manager(manager: "SettingsManager") -> None:
 
 
 CITATION_RE = re.compile(r"\bC(\d+)\b")
-SECTION_RE = re.compile(r"^(Summary|Evidence|Limitations|Open Questions|Cross-check):\s*", re.IGNORECASE)
+SECTION_RE = re.compile(
+    r"^(Summary|Evidence|Limitations|Open Questions|Cross-check):\s*", re.IGNORECASE
+)
 BODY_RE = re.compile(r"^body:\s*", re.IGNORECASE)
 
 
@@ -52,10 +54,14 @@ class ChatCompletionsClient:
         if os.getenv("LLM_DEBUG_REQUEST") != "1":
             return
         try:
-            sys.stderr.write(f"[agent_stream] llm_request={json.dumps(payload, ensure_ascii=True)}\n")
+            sys.stderr.write(
+                f"[agent_stream] llm_request={json.dumps(payload, ensure_ascii=True)}\n"
+            )
             sys.stderr.flush()
         except Exception:
-            sys.stderr.write("[agent_stream] llm_request=<failed to serialize request>\n")
+            sys.stderr.write(
+                "[agent_stream] llm_request=<failed to serialize request>\n"
+            )
             sys.stderr.flush()
 
     def chat(self, messages: list[dict]) -> str:
@@ -96,7 +102,7 @@ class ChatCompletionsClient:
                     raise httpx.HTTPStatusError(
                         f"HTTP {response.status_code}: {error_body}",
                         request=response.request,
-                        response=response
+                        response=response,
                     )
                 for line in response.iter_lines():
                     if not line or not line.startswith("data:"):
@@ -114,7 +120,9 @@ def _contains_cjk(text: str) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
-def _format_evidence(evidence: Iterable[EvidenceChunk]) -> tuple[list[str], dict[int, str]]:
+def _format_evidence(
+    evidence: Iterable[EvidenceChunk],
+) -> tuple[list[str], dict[int, str]]:
     lines: list[str] = []
     citations: dict[int, str] = {}
     for index, item in enumerate(evidence, start=1):
@@ -128,7 +136,9 @@ def _format_evidence(evidence: Iterable[EvidenceChunk]) -> tuple[list[str], dict
     return lines, citations
 
 
-def format_evidence(evidence: Iterable[EvidenceChunk]) -> tuple[list[str], dict[int, str]]:
+def format_evidence(
+    evidence: Iterable[EvidenceChunk],
+) -> tuple[list[str], dict[int, str]]:
     return _format_evidence(evidence)
 
 
@@ -162,7 +172,9 @@ def _parse_sections(text: str, citations: dict[int, str]) -> list[AnswerBlock]:
         body = "\n".join(current_lines).strip()
         citation_ids = _extract_citation_ids(body)
         block_citations = [citations[idx] for idx in citation_ids if idx in citations]
-        blocks.append(AnswerBlock(heading=current_heading, body=body, citations=block_citations))
+        blocks.append(
+            AnswerBlock(heading=current_heading, body=body, citations=block_citations)
+        )
         current_lines = []
 
     for line in text.splitlines():
@@ -184,12 +196,19 @@ def _parse_sections(text: str, citations: dict[int, str]) -> list[AnswerBlock]:
         text = "\n".join(_normalize_line(line) for line in text.splitlines()).strip()
         citation_ids = _extract_citation_ids(text)
         block_citations = [citations[idx] for idx in citation_ids if idx in citations]
-        blocks.append(AnswerBlock(heading="Answer", body=text.strip(), citations=block_citations))
+        blocks.append(
+            AnswerBlock(heading="Answer", body=text.strip(), citations=block_citations)
+        )
 
     return blocks
 
 
-def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list[str], history: Optional[list[dict]] = None) -> list[dict]:
+def _build_messages(
+    question: str,
+    evidence: list[EvidenceChunk],
+    keywords: list[str],
+    history: Optional[list[dict]] = None,
+) -> list[dict]:
     evidence_lines, _ = _format_evidence(evidence)
     language_hint = "Use Chinese." if _contains_cjk(question) else "Use English."
     system = (
@@ -204,8 +223,7 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
     user = (
         f"Question: {question}\n\n"
         f"Keywords: {', '.join(keywords) if keywords else 'none'}\n\n"
-        "Evidence:\n"
-        + "\n".join(evidence_lines)
+        "Evidence:\n" + "\n".join(evidence_lines)
     )
 
     messages = [{"role": "system", "content": system}]
@@ -214,10 +232,9 @@ def _build_messages(question: str, evidence: list[EvidenceChunk], keywords: list
     if history:
         for msg in history:
             if msg.get("role") in ["user", "assistant"]:
-                messages.append({
-                    "role": msg.get("role"),
-                    "content": msg.get("content", "")
-                })
+                messages.append(
+                    {"role": msg.get("role"), "content": msg.get("content", "")}
+                )
 
     # Add the current question
     messages.append({"role": "user", "content": user})
@@ -233,9 +250,7 @@ def _load_config() -> ChatCompletionsConfig | None:
     if not config:
         return None
     return ChatCompletionsConfig(
-        api_key=config.api_key,
-        base_url=config.base_url,
-        model=config.model
+        api_key=config.api_key, base_url=config.base_url, model=config.model
     )
 
 
@@ -255,7 +270,12 @@ def blocks_to_markdown(blocks: Iterable[AnswerBlock]) -> str:
     return "\n".join(parts).strip()
 
 
-def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str], history: Optional[list[dict]] = None) -> list[AnswerBlock] | None:
+def generate_answer(
+    question: str,
+    evidence: list[EvidenceChunk],
+    keywords: list[str],
+    history: Optional[list[dict]] = None,
+) -> list[AnswerBlock] | None:
     config = _load_config()
     if not config:
         return None
@@ -266,7 +286,12 @@ def generate_answer(question: str, evidence: list[EvidenceChunk], keywords: list
     return _parse_sections(response, citations)
 
 
-def stream_answer(question: str, evidence: list[EvidenceChunk], keywords: list[str], history: Optional[list[dict]] = None) -> tuple[Iterator[str], dict[int, str]] | None:
+def stream_answer(
+    question: str,
+    evidence: list[EvidenceChunk],
+    keywords: list[str],
+    history: Optional[list[dict]] = None,
+) -> tuple[Iterator[str], dict[int, str]] | None:
     config = _load_config()
     if not config:
         return None

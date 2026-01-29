@@ -30,6 +30,7 @@ DEFAULT_MODELS = {
 @dataclass
 class ChatCompletionsConfig:
     """Configuration for OpenAI-compatible chat completions."""
+
     api_key: str
     base_url: str = "https://api.deepseek.com"
     model: str = "deepseek-chat"
@@ -67,7 +68,9 @@ class SettingsManager:
         provider = settings.get("llm_provider")
         provider = provider if provider in PROVIDERS else "deepseek"
 
-        legacy_base_url = settings.get("llm_base_url") or settings.get("deepseek_base_url")
+        legacy_base_url = settings.get("llm_base_url") or settings.get(
+            "deepseek_base_url"
+        )
         legacy_model = settings.get("llm_model") or settings.get("deepseek_model")
 
         if provider not in provider_settings and (legacy_base_url or legacy_model):
@@ -145,8 +148,16 @@ class SettingsManager:
         """Get LLM base URL."""
         provider = provider or self.get_provider()
         provider_settings = self._get_provider_settings()
-        provider_entry = provider_settings.get(provider, {}) if isinstance(provider_settings, dict) else {}
-        stored = provider_entry.get("base_url") or self._settings.get("llm_base_url") or self._settings.get("deepseek_base_url")
+        provider_entry = (
+            provider_settings.get(provider, {})
+            if isinstance(provider_settings, dict)
+            else {}
+        )
+        stored = (
+            provider_entry.get("base_url")
+            or self._settings.get("llm_base_url")
+            or self._settings.get("deepseek_base_url")
+        )
         if stored:
             return stored
         return DEFAULT_BASE_URLS.get(provider, DEFAULT_BASE_URLS["custom"])
@@ -169,8 +180,16 @@ class SettingsManager:
         """Get LLM model name."""
         provider = provider or self.get_provider()
         provider_settings = self._get_provider_settings()
-        provider_entry = provider_settings.get(provider, {}) if isinstance(provider_settings, dict) else {}
-        stored = provider_entry.get("model") or self._settings.get("llm_model") or self._settings.get("deepseek_model")
+        provider_entry = (
+            provider_settings.get(provider, {})
+            if isinstance(provider_settings, dict)
+            else {}
+        )
+        stored = (
+            provider_entry.get("model")
+            or self._settings.get("llm_model")
+            or self._settings.get("deepseek_model")
+        )
         if stored:
             return stored
         return DEFAULT_MODELS.get(provider, DEFAULT_MODELS["custom"])
@@ -194,11 +213,19 @@ class SettingsManager:
         settings: dict[str, dict[str, str]] = {}
         provider_settings = self._get_provider_settings()
         active_provider = self.get_provider()
-        legacy_base_url = self._settings.get("llm_base_url") or self._settings.get("deepseek_base_url")
-        legacy_model = self._settings.get("llm_model") or self._settings.get("deepseek_model")
+        legacy_base_url = self._settings.get("llm_base_url") or self._settings.get(
+            "deepseek_base_url"
+        )
+        legacy_model = self._settings.get("llm_model") or self._settings.get(
+            "deepseek_model"
+        )
 
         for provider in PROVIDERS:
-            entry = provider_settings.get(provider, {}) if isinstance(provider_settings, dict) else {}
+            entry = (
+                provider_settings.get(provider, {})
+                if isinstance(provider_settings, dict)
+                else {}
+            )
             base_url = entry.get("base_url")
             model = entry.get("model")
 
@@ -226,7 +253,7 @@ class SettingsManager:
         return ChatCompletionsConfig(
             api_key=api_key,
             base_url=self.get_base_url(provider),
-            model=self.get_model(provider)
+            model=self.get_model(provider),
         )
 
     def get_masked_api_key(self, provider: Optional[str] = None) -> Optional[str]:

@@ -1,4 +1,5 @@
 """File management endpoints (manifest, selection, upload, delete)."""
+
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -8,18 +9,28 @@ from fastapi.responses import StreamingResponse
 
 from pathlib import Path
 
-from refminer.ingest.incremental import remove_file_from_index
 from refminer.ingest.extract import extract_document
-from refminer.ingest.bibliography import extract_bibliography_from_pdf, merge_bibliography
+from refminer.ingest.bibliography import (
+    extract_bibliography_from_pdf,
+    merge_bibliography,
+)
 from refminer.ingest.registry import load_registry, check_duplicate
 from refminer.server.globals import project_manager, get_bank_paths
-from refminer.server.models import FileSelectionRequest, BatchDeleteRequest, FileMetadataUpdateRequest
+from refminer.server.models import (
+    FileSelectionRequest,
+    BatchDeleteRequest,
+    FileMetadataUpdateRequest,
+)
 from refminer.server.utils import (
     load_manifest_entries,
     load_chunk_highlights,
     resolve_rel_path,
     count_chunks,
     update_manifest_entry,
+)
+from refminer.server.streaming.delete import (
+    stream_delete_file,
+    stream_batch_delete_files,
 )
 from refminer.server.streaming.upload import stream_upload
 
@@ -28,12 +39,15 @@ router = APIRouter(tags=["files"])
 
 # --- Project-scoped file endpoints ---
 
+
 @router.get("/api/projects/{project_id}/manifest")
 async def get_manifest(project_id: str):
     """Get manifest entries for files in a project."""
     entries = load_manifest_entries()
     selected = set(project_manager.get_selected_files(project_id))
-    filtered = entries if not selected else [e for e in entries if e.rel_path in selected]
+    filtered = (
+        entries if not selected else [e for e in entries if e.rel_path in selected]
+    )
     return [asdict(entry) for entry in filtered]
 
 
@@ -73,9 +87,7 @@ async def get_status(project_id: str):
 
 @router.post("/api/projects/{project_id}/upload/stream")
 async def upload_file_stream_api(
-    project_id: str,
-    file: UploadFile = File(...),
-    replace_existing: bool = Form(False)
+    project_id: str, file: UploadFile = File(...), replace_existing: bool = Form(False)
 ):
     """Upload a file with SSE progress events."""
     return StreamingResponse(
@@ -101,31 +113,20 @@ async def check_duplicate_api(project_id: str, sha256: str):
     }
 
 
-@router.delete("/api/projects/{project_id}/files/{rel_path:path}")
-async def delete_file_api(project_id: str, rel_path: str):
-    """Delete a file from the bank and remove it from the index."""
-    ref_dir, idx_dir = get_bank_paths()
-    resolved_path = resolve_rel_path(rel_path)
-    file_path = ref_dir / resolved_path
+@router.post("/api/projects/{project_id}/files/{rel_path:path}/delete/stream")
+async def delete_file_stream_api(project_id: str, rel_path: str):
+    """Stream delete progress while removing a file from the bank."""
+    return StreamingResponse(
+        stream_delete_file(rel_path), media_type="text/event-stream"
+    )
 
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
 
-    # Remove from index (which also updates registry and unlinks file if called via higher level)
-    # Actually remove_file_from_index does: manifest update, chunks update, index rebuild, AND registry update.
-    removed_chunks = remove_file_from_index(resolved_path, index_dir=idx_dir, references_dir=ref_dir)
-
-    # Delete the actual file
-    if file_path.exists():
-        file_path.unlink()
-
-    project_manager.remove_file_from_all_projects(resolved_path)
-
-    return {
-        "success": True,
-        "removed_chunks": removed_chunks,
-        "message": f"Deleted {resolved_path} and removed {removed_chunks} chunks from index",
-    }
+@router.post("/api/projects/{project_id}/files/batch-delete/stream")
+async def batch_delete_files_stream_api(project_id: str, req: BatchDeleteRequest):
+    """Stream delete progress while removing multiple files from the bank."""
+    return StreamingResponse(
+        stream_batch_delete_files(req.rel_paths), media_type="text/event-stream"
+    )
 
 
 @router.post("/api/projects/{project_id}/files/batch-delete")
@@ -143,21 +144,37 @@ async def batch_delete_files_api(project_id: str, req: BatchDeleteRequest):
             resolved_path = resolve_rel_path(rel_path)
             file_path = ref_dir / resolved_path
             if not file_path.exists():
-                results.append({"rel_path": resolved_path, "success": False, "error": "File not found"})
+                results.append(
+                    {
+                        "rel_path": resolved_path,
+                        "success": False,
+                        "error": "File not found",
+                    }
+                )
                 failed_count += 1
                 continue
 
-            removed_chunks = remove_file_from_index(resolved_path, index_dir=idx_dir, references_dir=ref_dir)
+            removed_chunks = remove_file_from_index(
+                resolved_path, index_dir=idx_dir, references_dir=ref_dir
+            )
             total_chunks_removed += removed_chunks
 
             if file_path.exists():
                 file_path.unlink()
 
             project_manager.remove_file_from_all_projects(resolved_path)
-            results.append({"rel_path": resolved_path, "success": True, "removed_chunks": removed_chunks})
+            results.append(
+                {
+                    "rel_path": resolved_path,
+                    "success": True,
+                    "removed_chunks": removed_chunks,
+                }
+            )
             deleted_count += 1
         except HTTPException as e:
-            results.append({"rel_path": rel_path, "success": False, "error": str(e.detail)})
+            results.append(
+                {"rel_path": rel_path, "success": False, "error": str(e.detail)}
+            )
             failed_count += 1
         except Exception as e:
             results.append({"rel_path": rel_path, "success": False, "error": str(e)})
@@ -174,6 +191,7 @@ async def batch_delete_files_api(project_id: str, req: BatchDeleteRequest):
 
 # --- File highlights endpoint (not project-scoped) ---
 
+
 @router.get("/api/files/{rel_path:path}/highlights")
 async def get_file_highlights(rel_path: str):
     """Return bounding boxes for all chunks in a file (PDF only)."""
@@ -183,6 +201,7 @@ async def get_file_highlights(rel_path: str):
 
 
 # --- File metadata endpoints (not project-scoped) ---
+
 
 @router.get("/api/files/{rel_path:path}/metadata")
 async def get_file_metadata(rel_path: str):
@@ -222,7 +241,9 @@ async def extract_file_metadata(rel_path: str, force: bool = False):
     if not entry:
         raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
     if entry.file_type != "pdf":
-        raise HTTPException(status_code=400, detail="Metadata extraction is only supported for PDFs.")
+        raise HTTPException(
+            status_code=400, detail="Metadata extraction is only supported for PDFs."
+        )
 
     ref_dir, _ = get_bank_paths()
     file_path = ref_dir / resolved_path
@@ -230,7 +251,9 @@ async def extract_file_metadata(rel_path: str, force: bool = False):
         raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
 
     extracted = extract_document(Path(file_path), entry.file_type)
-    extracted_bib = extract_bibliography_from_pdf(file_path, extracted.text_blocks, extracted.title, file_path.name)
+    extracted_bib = extract_bibliography_from_pdf(
+        file_path, extracted.text_blocks, extracted.title, file_path.name
+    )
 
     if force:
         # Replace existing metadata entirely with new extraction

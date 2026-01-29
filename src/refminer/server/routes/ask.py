@@ -1,4 +1,5 @@
 """Q&A and summarization endpoints."""
+
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -43,7 +44,9 @@ async def ask(project_id: str, req: AskRequest):
     )
 
     if result.response_text:
-        filtered_evidence = filter_evidence_by_citations(result.evidence, result.response_citations)
+        filtered_evidence = filter_evidence_by_citations(
+            result.evidence, result.response_citations
+        )
         evidence_payload = [asdict(item) for item in filtered_evidence]
     else:
         evidence_payload = [asdict(item) for item in result.evidence]
@@ -53,7 +56,9 @@ async def ask(project_id: str, req: AskRequest):
         cleaned_response = clean_response_text(result.response_text)
         _lines, citations = format_evidence(result.evidence)
         answer_blocks = parse_answer_text(cleaned_response, citations)
-        resolved_citations = resolve_response_citations(result.response_citations, citations)
+        resolved_citations = resolve_response_citations(
+            result.response_citations, citations
+        )
         if resolved_citations:
             if all(not block.citations for block in answer_blocks):
                 answer_blocks[0].citations = resolved_citations
@@ -98,6 +103,7 @@ async def ask_stream(project_id: str, req: AskRequest) -> StreamingResponse:
 
 # --- Summarization ---
 
+
 def _generate_title_fallback(messages: list[dict]) -> str:
     """Generate a fallback title from the first user message."""
     first_msg = next((m for m in messages if m.get("role") == "user"), None)
@@ -136,7 +142,7 @@ def _stream_summarize(messages: list[dict]) -> Iterator[str]:
             for char in delta:
                 full_title += char
                 yield sse("title_delta", {"delta": char})
-        title = full_title.strip().strip('"\'')
+        title = full_title.strip().strip("\"'")
         if len(title) > 50:
             title = title[:50] + "..."
         yield sse("title_done", {"title": title or _generate_title_fallback(messages)})
@@ -148,8 +154,12 @@ def _stream_summarize(messages: list[dict]) -> Iterator[str]:
 async def summarize(project_id: str, request: SummarizeRequest):
     """Generate a chat title via LLM streaming."""
     if not request.messages:
+
         async def empty_gen() -> AsyncIterator[str]:
             yield sse("title_done", {"title": "New Chat"})
+
         return StreamingResponse(empty_gen(), media_type="text/event-stream")
 
-    return StreamingResponse(_stream_summarize(request.messages), media_type="text/event-stream")
+    return StreamingResponse(
+        _stream_summarize(request.messages), media_type="text/event-stream"
+    )

@@ -7,6 +7,7 @@ from typing import Any
 
 try:
     import pdf2bib
+
     PDF2BIB_AVAILABLE = True
 except ImportError:
     PDF2BIB_AVAILABLE = False
@@ -15,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 DOI_RE = re.compile(r"\b10\.\d{4,9}/[^\s\"<>]+", re.IGNORECASE)
 YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
-LABEL_RE = re.compile(r"^(original article|article|abstract|keywords?|introduction)$", re.IGNORECASE)
+LABEL_RE = re.compile(
+    r"^(original article|article|abstract|keywords?|introduction)$", re.IGNORECASE
+)
 META_KV_RE = re.compile(r"^(?P<key>[^=]{1,20})=(?P<value>.+)$")
 
 KV_TITLE_KEYS = ("书名", "题名")
@@ -222,8 +225,17 @@ def _is_likely_author_block(text: str) -> bool:
         return False
 
     # Skip obvious non-author blocks
-    skip_patterns = ("摘要", "关键词", "基金项目", "中图分类号", "文献标志码",
-                     "文章编号", "作者简介", "。", "；")
+    skip_patterns = (
+        "摘要",
+        "关键词",
+        "基金项目",
+        "中图分类号",
+        "文献标志码",
+        "文章编号",
+        "作者简介",
+        "。",
+        "；",
+    )
     text_normalized = text.replace("\n", " ")
     if any(p in text_normalized for p in skip_patterns):
         return False
@@ -242,7 +254,11 @@ def _is_likely_author_block(text: str) -> bool:
     if re.search(r"\d\s*[,，、]\s*\d", text):
         signals += 2
     # Has standalone numbers (superscripts) - but not in "第X卷" pattern
-    if re.search(r"(?:^|\s)[1-9](?:\s|$|[,，])", text) and "卷" not in text and "期" not in text:
+    if (
+        re.search(r"(?:^|\s)[1-9](?:\s|$|[,，])", text)
+        and "卷" not in text
+        and "期" not in text
+    ):
         signals += 1
     # Short block with Chinese chars
     if len(text) < 80 and _contains_cjk(text):
@@ -397,9 +413,7 @@ def _extract_author_from_filename(filename: str) -> list[dict[str, Any]]:
 
 
 def extract_pdf_bibliography(
-    text_blocks: list[str],
-    title: str | None = None,
-    filename: str | None = None
+    text_blocks: list[str], title: str | None = None, filename: str | None = None
 ) -> dict[str, Any] | None:
     if not text_blocks:
         return None
@@ -590,7 +604,9 @@ def extract_pdf_bibliography(
     return bibliography or None
 
 
-def merge_bibliography(existing: dict[str, Any] | None, extracted: dict[str, Any] | None) -> dict[str, Any] | None:
+def merge_bibliography(
+    existing: dict[str, Any] | None, extracted: dict[str, Any] | None
+) -> dict[str, Any] | None:
     if not extracted:
         return existing
     if not existing:
@@ -621,6 +637,7 @@ def _decrypt_pdf_if_needed(pdf_path: Path) -> Path | None:
     """
     try:
         from pypdf import PdfReader
+
         reader = PdfReader(str(pdf_path))
         if not reader.is_encrypted:
             return None  # Not encrypted, no temp file needed
@@ -715,7 +732,9 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
         doi_value = meta.get("DOI") or meta.get("doi")
         if doi_value:
             bibliography["doi"] = doi_value
-            bibliography["doi_status"] = "verified"  # pdf2bib verifies DOIs via CrossRef
+            bibliography["doi_status"] = (
+                "verified"  # pdf2bib verifies DOIs via CrossRef
+            )
 
         # Check both 'journal' (pdf2bib format) and 'container-title' (raw CrossRef format)
         journal_name = meta.get("journal") or meta.get("container-title")
@@ -790,7 +809,9 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
             bibliography["extraction"] = extraction_info
             # Detect language from title
             if bibliography.get("title"):
-                bibliography["language"] = "zh" if _contains_cjk(bibliography["title"]) else "en"
+                bibliography["language"] = (
+                    "zh" if _contains_cjk(bibliography["title"]) else "en"
+                )
 
         return bibliography if bibliography else None
 

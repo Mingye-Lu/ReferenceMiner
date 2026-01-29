@@ -24,9 +24,7 @@ def synthesize(question: str, evidence: list[EvidenceChunk]) -> str:
     if not evidence:
         return "No relevant evidence found in the indexed references."
     lead = f"Question: {question}"
-    highlights = "\n".join(
-        f"- {item.text[:240].rstrip()}" for item in evidence[:5]
-    )
+    highlights = "\n".join(f"- {item.text[:240].rstrip()}" for item in evidence[:5])
     return f"{lead}\nEvidence highlights:\n{highlights}"
 
 
@@ -46,10 +44,10 @@ def extract_keywords(question: str) -> list[str]:
 def analyze(question: str, evidence: list[EvidenceChunk]) -> dict:
     scope = derive_scope(question)
     keywords = extract_keywords(question)
-    
+
     synthesis = synthesize(question, evidence)
     crosscheck = cross_check(evidence)
-    
+
     return {
         "question": question,
         "scope": scope,

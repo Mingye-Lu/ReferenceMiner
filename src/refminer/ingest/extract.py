@@ -54,7 +54,9 @@ def extract_document(path: Path, file_type: str) -> ExtractedDocument:
             for block in blocks
         ]
         abstract = detect_abstract("\n".join(text_blocks).split("\n"))
-        title = _pdf_title(path) or (text_blocks[0].split("\n")[0] if text_blocks else None)
+        title = _pdf_title(path) or (
+            text_blocks[0].split("\n")[0] if text_blocks else None
+        )
         return ExtractedDocument(
             path=path,
             file_type=file_type,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 DEFAULT_REFERENCES_DIR = "references"
 DEFAULT_INDEX_DIR = ".index"
 

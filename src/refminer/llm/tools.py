@@ -1,4 +1,5 @@
 """Agent tools for retrieving and reading evidence."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -58,7 +59,9 @@ def _split_chunk_id(chunk_id: str) -> tuple[str | None, int | None]:
     return path_part, index
 
 
-def _resolve_manifest_entry(target: str, manifest: list[ManifestEntry]) -> ManifestEntry | None:
+def _resolve_manifest_entry(
+    target: str, manifest: list[ManifestEntry]
+) -> ManifestEntry | None:
     if not target:
         return None
     for entry in manifest:
@@ -114,7 +117,9 @@ def _candidate_heading_from_line(line: str) -> tuple[str, int] | None:
     return None
 
 
-def _build_outline_from_sections(chunks: list[tuple[str, dict]]) -> list[dict[str, Any]]:
+def _build_outline_from_sections(
+    chunks: list[tuple[str, dict]],
+) -> list[dict[str, Any]]:
     outline: list[dict[str, Any]] = []
     last_section: str | None = None
     for chunk_id, item in chunks:
@@ -231,7 +236,9 @@ def execute_get_abstract_tool(
     index_dir: Optional[Path] = None,
 ) -> ToolResult:
     idx_dir = index_dir or get_index_dir(None)
-    rel_path = (args.get("rel_path") or args.get("path") or args.get("file") or "").strip()
+    rel_path = (
+        args.get("rel_path") or args.get("path") or args.get("file") or ""
+    ).strip()
 
     retrieve_start = perf_counter()
     manifest = load_manifest(index_dir=idx_dir)
@@ -282,7 +289,9 @@ def execute_get_document_outline_tool(
     index_dir: Optional[Path] = None,
 ) -> ToolResult:
     idx_dir = index_dir or get_index_dir(None)
-    rel_path = (args.get("rel_path") or args.get("path") or args.get("file") or "").strip()
+    rel_path = (
+        args.get("rel_path") or args.get("path") or args.get("file") or ""
+    ).strip()
     max_items = int(args.get("max_items") or 50)
     max_items = max(1, min(max_items, 200))
 
@@ -410,8 +419,14 @@ def execute_list_files_tool(
         )
 
     # Summary line
-    type_summary = ", ".join(f"{count} {ftype}" for ftype, count in sorted(by_type.items()))
-    summary = f"Found {len(filtered)} files: {type_summary}" if type_summary else f"Found {len(filtered)} files"
+    type_summary = ", ".join(
+        f"{count} {ftype}" for ftype, count in sorted(by_type.items())
+    )
+    summary = (
+        f"Found {len(filtered)} files: {type_summary}"
+        if type_summary
+        else f"Found {len(filtered)} files"
+    )
 
     meta = {
         "tool": "list_files",
@@ -559,7 +574,11 @@ def execute_keyword_search_tool(
             analysis={"summary": "No valid keywords provided"},
             formatted_evidence=["No valid keywords provided"],
             citations={},
-            meta={"tool": "keyword_search", "keywords": keywords, "error": "no_valid_keywords"},
+            meta={
+                "tool": "keyword_search",
+                "keywords": keywords,
+                "error": "no_valid_keywords",
+            },
         )
 
     # Search through chunks with caps
