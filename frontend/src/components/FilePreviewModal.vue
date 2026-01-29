@@ -148,7 +148,7 @@ function handleClose() {
 
 <template>
   <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'"
-    :size="isFullscreen ? 'fullscreen' : 'xlarge'" @update:model-value="handleClose">
+    :size="isFullscreen ? 'fullscreen' : 'xlarge'" :fill-body="true" @update:model-value="handleClose">
     <template #header-content>
       <div class="preview-header">
         <h3 class="preview-title">{{ file ? getFileName(file.relPath) : 'Preview' }}</h3>
@@ -237,6 +237,7 @@ function handleClose() {
 .preview-content {
   flex: 1;
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -313,13 +314,5 @@ function handleClose() {
 :deep(.docx-wrapper) {
   background: var(--color-white);
   padding: 40px !important;
-}
-
-:deep(.modal-body) {
-  padding: 0 !important;
-  overflow: hidden !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
 }
 </style>

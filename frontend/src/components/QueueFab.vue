@@ -227,7 +227,8 @@ watch(queueItems, (items) => {
             <div class="queue-meta">
               <span class="queue-status" :class="item.status">{{ formatQueueStatus(item.status) }}</span>
               <span v-if="item.phase" class="queue-phase">{{ formatQueuePhase(item.phase) }}</span>
-              <span v-if="item.progress !== null && item.progress !== undefined" class="queue-progress-text">{{ item.progress }}%</span>
+              <span v-if="item.progress !== null && item.progress !== undefined" class="queue-progress-text">{{
+                item.progress }}%</span>
             </div>
             <div v-if="item.progress !== null && item.progress !== undefined" class="queue-progress">
               <div class="queue-progress-fill" :style="{ width: `${item.progress}%` }"></div>
@@ -246,8 +247,7 @@ watch(queueItems, (items) => {
 
   <Teleport to="body">
     <div class="queue-eject-layer" aria-hidden="true">
-      <span v-for="burst in activeBursts" :key="burst.id" class="queue-eject-ball"
-        :style="getBurstStyle(burst)"></span>
+      <span v-for="burst in activeBursts" :key="burst.id" class="queue-eject-ball" :style="getBurstStyle(burst)"></span>
     </div>
   </Teleport>
 </template>
@@ -255,7 +255,7 @@ watch(queueItems, (items) => {
 <style scoped>
 .queue-fab {
   position: fixed;
-  right: 28px;
+  right: 16px;
   bottom: 28px;
   display: flex;
   flex-direction: column-reverse;
@@ -473,9 +473,11 @@ watch(queueItems, (items) => {
   0% {
     transform: scale(1);
   }
+
   40% {
     transform: scale(1.08);
   }
+
   100% {
     transform: scale(1);
   }
@@ -485,12 +487,15 @@ watch(queueItems, (items) => {
   0% {
     transform: translateY(0) scale(1);
   }
+
   40% {
     transform: translateY(-3px) scale(1.1);
   }
+
   70% {
     transform: translateY(1px) scale(0.98);
   }
+
   100% {
     transform: translateY(0) scale(1);
   }

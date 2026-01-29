@@ -49,22 +49,16 @@ let pageObserver: IntersectionObserver | null = null
 // Map of page number -> render task mainly for continuous mode cancellation
 const renderTasks = new Map<number, pdfjsLib.RenderTask>()
 
-// Read highlight palette from CSS variables for consistency with design system
-const getHighlightPalette = () => {
-  const style = getComputedStyle(document.documentElement)
-  return [
-    style.getPropertyValue('--color-highlight-amber').trim() || '#F59E0B',
-    style.getPropertyValue('--color-highlight-emerald').trim() || '#10B981',
-    style.getPropertyValue('--color-highlight-blue').trim() || '#3B82F6',
-    style.getPropertyValue('--color-highlight-red').trim() || '#EF4444',
-    style.getPropertyValue('--color-highlight-violet').trim() || '#8B5CF6',
-    style.getPropertyValue('--color-highlight-teal').trim() || '#14B8A6',
-    style.getPropertyValue('--color-highlight-rose').trim() || '#E11D48',
-    style.getPropertyValue('--color-highlight-indigo').trim() || '#6366F1',
-  ]
-}
-
-const highlightPalette = computed(() => getHighlightPalette())
+const highlightPalette = [
+  '#F59E0B',
+  '#10B981',
+  '#3B82F6',
+  '#EF4444',
+  '#8B5CF6',
+  '#14B8A6',
+  '#E11D48',
+  '#6366F1',
+]
 
 const hasHighlights = computed(() => {
   return (props.highlightGroups?.length ?? 0) > 0
@@ -92,9 +86,6 @@ let dragStartX = 0
 let dragStartY = 0
 let scrollStartX = 0
 let scrollStartY = 0
-
-// Hold-to-zoom state
-const isZoomMode = ref(false)
 
 const loadPdf = async () => {
   try {
@@ -453,16 +444,15 @@ const renderHighlights = (viewport: any, pageNumber: number) => {
 
 const colorForGroup = (group: HighlightGroup, index: number) => {
   if (group.color) return group.color
-  const palette = highlightPalette.value
   const id = group.id || ''
   if (id) {
     let hash = 0
     for (let i = 0; i < id.length; i++) {
       hash = (hash * 31 + id.charCodeAt(i)) >>> 0
     }
-    return palette[hash % palette.length]
+    return highlightPalette[hash % highlightPalette.length]
   }
-  return palette[index % palette.length]
+  return highlightPalette[index % highlightPalette.length]
 }
 
 const toAlpha = (color: string, alpha: number) => {
@@ -603,7 +593,6 @@ watch(
 
 
 // Drag-to-pan functionality (H key for Hand tool - standard in PDF viewers)
-// Hold-to-zoom functionality (Z key for zoom mode)
 // Arrow keys for page navigation
 const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null
@@ -614,11 +603,6 @@ const handleKeyDown = (e: KeyboardEvent) => {
   // H key for pan mode
   if (e.key === 'h' && !isDragMode.value && pageContainerRef.value) {
     isDragMode.value = true
-  }
-
-  // Z key for zoom mode
-  if (e.key === 'z' && !isZoomMode.value && pageContainerRef.value) {
-    isZoomMode.value = true
   }
 
   // Arrow keys for page navigation
@@ -673,9 +657,6 @@ const handleKeyUp = (e: KeyboardEvent) => {
     isDragMode.value = false
     isDragging.value = false
   }
-  if (e.key === 'z') {
-    isZoomMode.value = false
-  }
 }
 
 const handleMouseDown = (e: MouseEvent) => {
@@ -701,61 +682,11 @@ const handleMouseUp = () => {
   isDragging.value = false
 }
 
-const handleWheel = (e: WheelEvent) => {
-  if (!isZoomMode.value || !pageContainerRef.value) return
-
-  e.preventDefault()
-
-  const container = pageContainerRef.value
-  const rect = container.getBoundingClientRect()
-
-  // Get mouse position relative to container
-  const mouseX = e.clientX - rect.left
-  const mouseY = e.clientY - rect.top
-
-  // Get current scroll position
-  const scrollLeft = container.scrollLeft
-  const scrollTop = container.scrollTop
-
-  // Calculate zoom factor (scroll up = zoom in, scroll down = zoom out)
-  const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
-  const oldScale = scale.value
-  const newScale = clamp(oldScale * zoomFactor, 0.5, 3)
-
-  if (newScale === oldScale) return
-
-  // Calculate the point relative to the viewport (in document coordinates)
-  const pointX = mouseX + scrollLeft
-  const pointY = mouseY + scrollTop
-
-  // Apply new scale
-  scale.value = newScale
-  zoomInput.value = `${Math.round(scale.value * 100)}`
-  fitMode.value = 'custom'
-
-  // Re-render pages
-  if (viewMode.value === 'continuous') {
-    rerenderVisiblePages()
-  } else {
-    renderPage()
-  }
-
-  // After rendering, adjust scroll to keep the mouse point centered
-  nextTick(() => {
-    const newScrollLeft = pointX * (newScale / oldScale) - mouseX
-    const newScrollTop = pointY * (newScale / oldScale) - mouseY
-
-    container.scrollLeft = newScrollLeft
-    container.scrollTop = newScrollTop
-  })
-}
-
 onMounted(() => {
   loadPdf()
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('mouseup', handleMouseUp)
-  window.addEventListener('wheel', handleWheel, { passive: false })
   if ('ResizeObserver' in window) {
     resizeObserver = new ResizeObserver(() => {
       if (resizeRaf) cancelAnimationFrame(resizeRaf)
@@ -785,7 +716,6 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('mouseup', handleMouseUp)
-  window.removeEventListener('wheel', handleWheel)
   if (resizeObserver && pageContainerRef.value) {
     resizeObserver.unobserve(pageContainerRef.value)
   }
@@ -862,11 +792,6 @@ onUnmounted(() => {
             <span v-if="isDragMode">Pan mode</span>
             <span v-else>Hold to pan</span>
           </div>
-          <div class="keyboard-hint" :class="{ active: isZoomMode }">
-            <kbd>Z</kbd>
-            <span v-if="isZoomMode">Zoom mode</span>
-            <span v-else>Hold to zoom</span>
-          </div>
         </div>
 
         <!-- Progress Bar (Sticky with controls) -->
@@ -912,7 +837,6 @@ onUnmounted(() => {
   flex-direction: column;
   background: var(--bg-panel);
   overflow: hidden;
-  min-height: 0;
 }
 
 .pdf-loading,

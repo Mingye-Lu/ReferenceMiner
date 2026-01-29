@@ -10,13 +10,15 @@ const props = withDefaults(defineProps<{
   closeOnClickOutside?: boolean
   closeOnEsc?: boolean
   zIndex?: number
+  fillBody?: boolean
 }>(), {
   size: 'medium',
   hideHeader: false,
   hideCloseButton: false,
   closeOnClickOutside: true,
   closeOnEsc: true,
-  zIndex: 1300
+  zIndex: 1300,
+  fillBody: false
 })
 
 const emit = defineEmits<{
@@ -115,7 +117,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Body -->
-          <div class="modal-body">
+          <div class="modal-body" :class="{ 'modal-body-fill': fillBody }">
             <slot></slot>
           </div>
 
@@ -241,6 +243,14 @@ onUnmounted(() => {
   padding: 24px 20px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+}
+
+.modal-body-fill {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Footer */
