@@ -5,6 +5,7 @@ import {
   fetchProjects,
   createProject,
   fetchBankManifest,
+  fetchFileStats,
   deleteFileStream,
   deleteProject,
   selectProjectFiles,
@@ -28,6 +29,7 @@ import type {
   Settings as AppSettings,
   UpdateCheck,
   CitationCopyFormat,
+  BibliographyAuthor,
 } from "../types";
 import ProjectCard from "./ProjectCard.vue";
 import FileUploader from "./FileUploader.vue";
@@ -43,6 +45,8 @@ import {
   FileText,
   Trash2,
   Settings,
+  X,
+  RefreshCw,
 } from "lucide-vue-next";
 import { type Theme, getStoredTheme, setTheme } from "../utils/theme";
 import { getFileName } from "../utils";
@@ -59,6 +63,24 @@ const bankFiles = ref<ManifestEntry[]>([]);
 const loading = ref(true);
 const bankLoading = ref(false);
 const searchQuery = ref("");
+
+// Bank filter & sort state
+const bankSearchQuery = ref("");
+const bankFileStats = ref<Record<string, { usage_count: number; last_used: number }>>({});
+const bankFilters = ref({
+  fileTypes: new Set<string>(),
+  years: new Set<string>(),
+  language: null as string | null,
+});
+const bankSortBy = ref<"usage" | "name" | "year" | "added">("usage");
+const bankSortOrder = ref<"asc" | "desc">("desc");
+
+const bankSortOptions = [
+  { value: "usage", label: "Usage" },
+  { value: "name", label: "Name" },
+  { value: "year", label: "Year" },
+  { value: "added", label: "Date Added" },
+];
 const showCreateModal = ref(false);
 const newProjectName = ref("");
 const newProjectDesc = ref("");
@@ -232,7 +254,12 @@ async function loadProjects() {
 async function loadBankFiles() {
   try {
     bankLoading.value = true;
-    bankFiles.value = await fetchBankManifest();
+    const [manifest, stats] = await Promise.all([
+      fetchBankManifest(),
+      fetchFileStats(),
+    ]);
+    bankFiles.value = manifest;
+    bankFileStats.value = stats;
   } catch (err) {
     console.error("Failed to load bank files:", err);
   } finally {
@@ -274,13 +301,145 @@ async function handleCreate() {
   }
 }
 
-const sortedBankFiles = computed(() => {
-  return [...bankFiles.value].sort((a, b) => {
-    const nameA = getFileName(a.relPath).toLowerCase();
-    const nameB = getFileName(b.relPath).toLowerCase();
-    if (nameA !== nameB) return nameA.localeCompare(nameB);
-    return a.relPath.localeCompare(b.relPath);
+// Bank helper functions
+function formatAuthors(authors: BibliographyAuthor[] | string | undefined): string {
+  if (!authors) return "";
+  if (typeof authors === "string") return authors;
+  const names = authors
+    .map((a) => {
+      if (a.literal) return a.literal;
+      if (a.family && a.given) return `${a.given} ${a.family}`;
+      return a.family || a.given || "";
+    })
+    .filter(Boolean);
+  if (names.length === 0) return "";
+  if (names.length <= 2) return names.join(" & ");
+  return `${names[0]} et al.`;
+}
+
+function truncateText(str: string | undefined | null, len: number): string {
+  if (!str || str.length <= len) return str || "";
+  return str.slice(0, len) + "...";
+}
+
+// Bank filter computed properties
+const availableBankTypes = computed(() => {
+  const types = new Set(bankFiles.value.map((f) => f.fileType));
+  return Array.from(types).sort();
+});
+
+const availableBankYears = computed(() => {
+  const years = new Set<string>();
+  bankFiles.value.forEach((f) => {
+    if (f.bibliography?.year) years.add(f.bibliography.year.toString());
   });
+  return Array.from(years).sort().reverse().slice(0, 5);
+});
+
+const hasActiveBankFilters = computed(() => {
+  return (
+    bankFilters.value.fileTypes.size > 0 ||
+    bankFilters.value.years.size > 0 ||
+    bankFilters.value.language !== null
+  );
+});
+
+function toggleBankFilter(filterKey: "fileTypes" | "years", value: string) {
+  const filterSet = bankFilters.value[filterKey];
+  if (filterSet.has(value)) {
+    filterSet.delete(value);
+  } else {
+    filterSet.add(value);
+  }
+  bankFilters.value[filterKey] = new Set(filterSet);
+}
+
+function clearAllBankFilters() {
+  bankFilters.value.fileTypes.clear();
+  bankFilters.value.years.clear();
+  bankFilters.value.language = null;
+  bankFilters.value = { ...bankFilters.value };
+  bankSearchQuery.value = "";
+}
+
+function sortBankFiles(files: ManifestEntry[]): ManifestEntry[] {
+  return [...files].sort((a, b) => {
+    const multiplier = bankSortOrder.value === "asc" ? 1 : -1;
+
+    switch (bankSortBy.value) {
+      case "usage": {
+        const usageA = bankFileStats.value[a.relPath]?.usage_count || 0;
+        const usageB = bankFileStats.value[b.relPath]?.usage_count || 0;
+        if (usageA !== usageB) return (usageB - usageA) * multiplier;
+
+        const timeA = bankFileStats.value[a.relPath]?.last_used || 0;
+        const timeB = bankFileStats.value[b.relPath]?.last_used || 0;
+        if (timeA !== timeB) return (timeB - timeA) * multiplier;
+        break;
+      }
+      case "name":
+        return (
+          getFileName(a.relPath).localeCompare(getFileName(b.relPath)) *
+          multiplier
+        );
+      case "year": {
+        const yearA = a.bibliography?.year || 0;
+        const yearB = b.bibliography?.year || 0;
+        if (yearA !== yearB) return (yearB - yearA) * multiplier;
+        break;
+      }
+      case "added": {
+        const timeA = bankFileStats.value[a.relPath]?.last_used || 0;
+        const timeB = bankFileStats.value[b.relPath]?.last_used || 0;
+        return (timeB - timeA) * multiplier;
+      }
+    }
+
+    // Default fallback: sort by file type then name
+    if (a.fileType !== b.fileType) {
+      return a.fileType.localeCompare(b.fileType);
+    }
+    return getFileName(a.relPath).localeCompare(getFileName(b.relPath));
+  });
+}
+
+const sortedBankFiles = computed(() => {
+  let files = bankFiles.value;
+
+  // Text search (title, authors, filename)
+  if (bankSearchQuery.value.trim()) {
+    const query = bankSearchQuery.value.toLowerCase();
+    files = files.filter((f) => {
+      const name = getFileName(f.relPath).toLowerCase();
+      const title = (f.bibliography?.title || "").toLowerCase();
+      const authors = formatAuthors(f.bibliography?.authors).toLowerCase();
+      return (
+        name.includes(query) || title.includes(query) || authors.includes(query)
+      );
+    });
+  }
+
+  // File type filter
+  if (bankFilters.value.fileTypes.size > 0) {
+    files = files.filter((f) => bankFilters.value.fileTypes.has(f.fileType));
+  }
+
+  // Year filter
+  if (bankFilters.value.years.size > 0) {
+    files = files.filter((f) => {
+      const year = f.bibliography?.year?.toString();
+      return year && bankFilters.value.years.has(year);
+    });
+  }
+
+  // Language filter
+  if (bankFilters.value.language) {
+    files = files.filter(
+      (f) => f.bibliography?.language === bankFilters.value.language
+    );
+  }
+
+  return sortBankFiles(files);
 });
 
 function upsertBankFile(entry: ManifestEntry) {
@@ -879,7 +1038,7 @@ onUnmounted(() => {});
             <button
               class="bank-action-btn"
               :disabled="isReprocessing || bankLoading"
-                @click="handleReprocessConfirm($event); showReprocessConfirm = true"
+              @click="handleReprocessConfirm($event); showReprocessConfirm = true"
             >
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
               <span>{{
@@ -894,6 +1053,82 @@ onUnmounted(() => {});
           @upload-complete="handleUploadComplete"
         />
 
+        <!-- Search & Filter Section -->
+        <div v-if="bankFiles.length > 0" class="bank-search-section">
+          <div class="bank-search-wrapper">
+            <Search :size="16" class="bank-search-icon" />
+            <input
+              v-model="bankSearchQuery"
+              type="text"
+              placeholder="Search by title, author, or filename..."
+              class="bank-search-input"
+            />
+          </div>
+
+          <!-- Filter Chips -->
+          <div class="bank-filter-chips">
+            <!-- File Type Chips -->
+            <button
+              v-for="type in availableBankTypes"
+              :key="type"
+              class="bank-filter-chip"
+              :class="{ active: bankFilters.fileTypes.has(type) }"
+              @click="toggleBankFilter('fileTypes', type)"
+            >
+              {{ type.toUpperCase() }}
+            </button>
+
+            <!-- Year Chips -->
+            <button
+              v-for="year in availableBankYears"
+              :key="year"
+              class="bank-filter-chip"
+              :class="{ active: bankFilters.years.has(year) }"
+              @click="toggleBankFilter('years', year)"
+            >
+              {{ year }}
+            </button>
+
+            <!-- Language Toggle -->
+            <button
+              class="bank-filter-chip"
+              :class="{ active: bankFilters.language === 'zh' }"
+              @click="bankFilters.language = bankFilters.language === 'zh' ? null : 'zh'"
+            >
+              中文
+            </button>
+
+            <!-- Clear All Filters -->
+            <button
+              v-if="hasActiveBankFilters || bankSearchQuery"
+              class="bank-filter-chip clear-filters"
+              @click="clearAllBankFilters"
+            >
+              <X :size="12" />
+              Clear
+            </button>
+          </div>
+
+          <!-- Sort Controls & File Count -->
+          <div class="bank-controls-row">
+            <div class="bank-sort-controls">
+              <span>Sort:</span>
+              <CustomSelect
+                v-model="bankSortBy"
+                :options="bankSortOptions"
+                class="bank-sort-select"
+              />
+            </div>
+            <div class="bank-file-count">
+              {{ sortedBankFiles.length }}
+              <span v-if="sortedBankFiles.length !== bankFiles.length">
+                of {{ bankFiles.length }}
+              </span>
+              file{{ sortedBankFiles.length === 1 ? "" : "s" }}
+            </div>
+          </div>
+        </div>
+
         <div v-if="bankLoading" class="loading-state">
           <Loader2 class="spinner" :size="32" />
           <p>Loading files...</p>
@@ -903,6 +1138,14 @@ onUnmounted(() => {});
           <Upload :size="48" class="empty-icon-svg" />
           <h3>No files in Reference Bank</h3>
           <p>Upload files using the button above to get started.</p>
+        </div>
+
+        <div
+          v-else-if="sortedBankFiles.length === 0"
+          class="empty-state empty-state-compact"
+        >
+          <FileText :size="36" class="empty-icon-svg" />
+          <p>No files match your search or filters</p>
         </div>
 
         <TransitionGroup
@@ -916,6 +1159,7 @@ onUnmounted(() => {});
             v-for="file in sortedBankFiles"
             :key="file.relPath"
             class="file-card"
+            @click="handlePreview(file)"
           >
             <div class="file-icon">
               <FileText :size="24" />
@@ -924,30 +1168,52 @@ onUnmounted(() => {});
               <div class="file-name" :title="getFileName(file.relPath)">
                 {{ getFileName(file.relPath) }}
               </div>
+              <div
+                v-if="file.bibliography?.title"
+                class="file-title"
+                :title="file.bibliography.title"
+              >
+                {{ truncateText(file.bibliography.title, 60) }}
+              </div>
+              <div
+                v-if="file.bibliography?.authors || file.bibliography?.year"
+                class="file-authors"
+              >
+                {{ formatAuthors(file.bibliography?.authors) }}
+                <span
+                  v-if="formatAuthors(file.bibliography?.authors) && file.bibliography?.year"
+                >
+                  ·
+                </span>
+                {{ file.bibliography?.year }}
+              </div>
               <div class="file-meta">
                 {{ file.fileType }} ·
                 {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
+                <span
+                  v-if="bankFileStats[file.relPath]?.usage_count"
+                  class="usage-badge"
+                >
+                  {{
+                    bankFileStats[file.relPath].usage_count
+                  }} project{{
+                    bankFileStats[file.relPath].usage_count > 1 ? "s" : ""
+                  }}
+                </span>
               </div>
             </div>
             <div class="file-actions">
               <button
                 class="btn-icon tooltip"
-                data-tooltip="Preview file"
-                @click="handlePreview(file)"
-              >
-                <Search :size="16" />
-              </button>
-              <button
-                class="btn-icon tooltip"
                 data-tooltip="Reprocess file"
-                @click="handleReprocessFile(file, $event)"
+                @click.stop="handleReprocessFile(file, $event)"
               >
-                <Upload :size="16" />
+                <RefreshCw :size="16" />
               </button>
               <button
                 class="btn-icon delete tooltip"
                 data-tooltip="Delete file"
-                @click="requestDelete(file)"
+                @click.stop="requestDelete(file)"
               >
                 <Trash2 :size="16" />
               </button>
@@ -2335,9 +2601,21 @@ onUnmounted(() => {});
 .file-grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 24px;
+}
+
+@media (max-width: 1200px) {
+  .file-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .file-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .file-list-move {
@@ -2386,6 +2664,7 @@ onUnmounted(() => {});
 }
 
 .file-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2409,7 +2688,7 @@ onUnmounted(() => {});
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-neutral-180);
+  background: var(--accent-soft);
   border-radius: 8px;
   color: var(--accent-color);
 }
@@ -2474,6 +2753,224 @@ onUnmounted(() => {});
 
 .file-card:hover .file-actions {
   opacity: 1;
+}
+
+/* Bank Search & Filter Section */
+.bank-search-section {
+  margin-top: 24px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+}
+
+.bank-search-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.bank-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+.bank-search-input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.bank-search-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(var(--accent-color-rgb), 0.1));
+}
+
+.bank-search-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Filter Chips */
+.bank-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bank-filter-chip {
+  padding: 4px 10px;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bank-filter-chip:hover {
+  background: var(--color-neutral-150);
+  border-color: var(--border-card-hover, var(--border-color));
+}
+
+.bank-filter-chip.active {
+  background: var(--accent-soft, rgba(var(--accent-color-rgb), 0.1));
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.bank-filter-chip.clear-filters {
+  background: var(--color-danger-50);
+  border-color: var(--color-danger-200);
+  color: var(--color-danger-600);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bank-filter-chip.clear-filters:hover {
+  background: var(--color-danger-100);
+}
+
+/* Controls Row */
+.bank-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bank-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.bank-sort-select {
+  min-width: 110px;
+}
+
+.bank-sort-select :deep(.custom-select-trigger) {
+  padding: 5px 10px;
+  min-width: 110px;
+  border-radius: 6px;
+}
+
+.bank-sort-select :deep(.custom-select-label) {
+  font-size: 12px;
+}
+
+.bank-sort-select :deep(.custom-options) {
+  min-width: 110px;
+}
+
+.bank-sort-select :deep(.custom-option) {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.bank-file-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Enhanced File Card Metadata */
+.file-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.file-authors {
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.usage-badge {
+  background: var(--color-neutral-120);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+/* Empty state for filtered results */
+.empty-state-compact {
+  padding: 40px 20px;
+  min-height: auto;
+}
+
+.empty-state-compact p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Dark mode adjustments for bank section */
+[data-theme="dark"] .bank-search-section {
+  background: var(--color-neutral-105);
+  border-color: var(--color-neutral-150);
+}
+
+[data-theme="dark"] .bank-search-input {
+  background: var(--color-neutral-150);
+  border-color: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .bank-filter-chip {
+  background: var(--color-neutral-150);
+  border-color: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .bank-filter-chip:hover {
+  background: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .bank-filter-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+[data-theme="dark"] .bank-filter-chip.clear-filters {
+  background: var(--color-danger-50);
+  border-color: var(--color-danger-200);
+  color: var(--color-danger-400);
+}
+
+[data-theme="dark"] .bank-filter-chip.clear-filters:hover {
+  background: var(--color-danger-100);
+}
+
+[data-theme="dark"] .usage-badge {
+  background: var(--color-neutral-150);
 }
 
 /* File Selection in Create Modal */

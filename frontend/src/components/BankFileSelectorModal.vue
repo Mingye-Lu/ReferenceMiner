@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue"
+import { ref, computed, onMounted, onUnmounted, watch, TransitionGroup } from "vue"
 import BaseModal from "./BaseModal.vue"
 import FilePreviewModal from "./FilePreviewModal.vue"
 import CustomSelect from "./CustomSelect.vue"
@@ -297,6 +297,19 @@ function handleClose() {
   emit("close")
 }
 
+function handleBeforeLeave(el: Element) {
+  const element = el as HTMLElement
+  const parent = element.parentElement
+  if (!parent) return
+
+  const rect = element.getBoundingClientRect()
+  const parentRect = parent.getBoundingClientRect()
+  element.style.position = "absolute"
+  element.style.top = `${rect.top - parentRect.top}px`
+  element.style.left = `${rect.left - parentRect.left}px`
+  element.style.width = `${rect.width}px`
+}
+
 async function loadData() {
   try {
     loading.value = true
@@ -423,7 +436,13 @@ onUnmounted(() => {
           <p v-else>No files in Reference Bank</p>
         </div>
 
-        <div v-else class="file-grid">
+        <TransitionGroup
+          v-else
+          name="file-list"
+          tag="div"
+          class="file-grid"
+          @before-leave="handleBeforeLeave"
+        >
           <div
             v-for="(file, index) in filteredFiles"
             :key="file.relPath"
@@ -459,7 +478,7 @@ onUnmounted(() => {
               <Search :size="14" />
             </button>
           </div>
-        </div>
+        </TransitionGroup>
       </div>
 
       <!-- Quick Actions Toolbar (Phase 4) -->
@@ -698,9 +717,31 @@ onUnmounted(() => {
 }
 
 .file-grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
+}
+
+.file-list-move {
+  transition: transform 360ms ease-out;
+}
+
+.file-list-enter-active,
+.file-list-leave-active {
+  transition:
+    opacity 240ms ease,
+    transform 240ms ease;
+}
+
+.file-list-enter-from,
+.file-list-leave-to {
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+}
+
+.file-list-leave-active {
+  pointer-events: none;
 }
 
 .file-card {
@@ -708,17 +749,17 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
-  background: var(--color-neutral-60);
+  background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  will-change: transform;
 }
 
 .file-card:hover {
-  background: var(--color-neutral-80);
-  border-color: var(--accent-soft, var(--color-accent-100));
+  border-color: var(--accent-bright);
   box-shadow: 0 2px 8px var(--alpha-black-08);
 }
 
@@ -822,26 +863,6 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-[data-theme="dark"] .file-card {
-  background: var(--color-neutral-105);
-  border-color: var(--color-neutral-150);
-}
-
-[data-theme="dark"] .file-card:hover {
-  background: var(--color-neutral-150);
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-sm);
-}
-
-[data-theme="dark"] .file-card.selected {
-  background: var(--accent-soft);
-  border-color: var(--accent-color);
-}
-
-[data-theme="dark"] .file-icon {
-  background: var(--accent-soft);
-  color: var(--accent-color);
-}
 
 [data-theme="dark"] .usage-badge {
   background: var(--color-neutral-150);
