@@ -354,7 +354,7 @@ function handlePin() {
 
 .resize-line {
   width: 3px;
-  height: 40px;
+  height: 12%;
   background: var(--color-neutral-300);
   border-radius: 2px;
   opacity: 0;
