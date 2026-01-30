@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue"
+import { computed, ref, watch } from "vue"
 import BaseModal from "./BaseModal.vue"
 import CustomSelect from "./CustomSelect.vue"
 import type { ManifestEntry, BibliographyAuthor } from "../types"
@@ -22,6 +22,18 @@ const isSaving = ref(false)
 const isExtracting = ref(false)
 const errorMessage = ref("")
 const draft = ref<BibliographyDraft>(emptyDraft())
+const showAdvanced = ref(false)
+
+const docType = computed(() => draft.value?.docType ?? "")
+const isJournal = computed(() => docType.value === "J")
+const isConference = computed(() => docType.value === "C")
+const isBook = computed(() => docType.value === "M")
+const isThesis = computed(() => docType.value === "D")
+const isReport = computed(() => docType.value === "R")
+const isStandard = computed(() => docType.value === "S")
+const isPatent = computed(() => docType.value === "P")
+const isOnline = computed(() => docType.value === "EB")
+const isOther = computed(() => !docType.value || docType.value === "Z")
 
 const docTypeOptions = [
   { value: "J", label: "Journal Article [J]" },
@@ -92,6 +104,7 @@ async function loadMetadata() {
     draft.value = emptyDraft()
     return
   }
+  showAdvanced.value = false
   isLoading.value = true
   errorMessage.value = ""
   try {
@@ -214,28 +227,15 @@ watch(
       <div v-if="isLoading" class="metadata-loading">Loading metadata...</div>
       <div v-else-if="!file" class="metadata-empty">Select a file to edit metadata.</div>
       <div v-else class="metadata-form">
+        <div class="section-title">Core</div>
         <div class="form-row">
           <label class="form-label">Document Type</label>
           <CustomSelect :model-value="draft!.docType ?? ''" :options="docTypeOptions"
             @update:model-value="(value: string) => draft!.docType = value" placeholder="Select type" />
         </div>
         <div class="form-row">
-          <label class="form-label">Language</label>
-          <CustomSelect :model-value="draft!.language ?? ''" :options="languageOptions"
-            @update:model-value="(value: string) => draft!.language = value" placeholder="Select language" />
-        </div>
-        <div class="form-row">
           <label class="form-label">Title</label>
           <input v-model="draft!.title" type="text" placeholder="Paper title" class="form-input" />
-        </div>
-        <div class="form-row">
-          <label class="form-label">Subtitle</label>
-          <input v-model="draft!.subtitle" type="text" placeholder="Subtitle (optional)" class="form-input" />
-        </div>
-        <div class="form-row">
-          <label class="form-label">Organization</label>
-          <input v-model="draft!.organization" type="text" placeholder="Institution or group author"
-            class="form-input" />
         </div>
 
         <div class="form-row">
@@ -247,80 +247,198 @@ watch(
               <input v-model="author.literal" type="text" placeholder="Full name (optional)" class="form-input" />
               <button class="btn-danger" @click="removeAuthor(index)">Remove</button>
             </div>
-            <button class="btn-secondary" @click="addAuthor">Add author</button>
+            <button class="btn-primary" @click="addAuthor">Add author</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Year</label>
+          <input v-model.number="draft!.year" type="number" placeholder="2024" class="form-input" />
+        </div>
+
+        <div v-if="isJournal" class="form-section">
+          <div class="section-title">Journal</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Journal</label>
+              <input v-model="draft!.journal" type="text" placeholder="Journal name" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Volume</label>
+              <input v-model="draft!.volume" type="text" placeholder="Volume" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Issue</label>
+              <input v-model="draft!.issue" type="text" placeholder="Issue" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Pages</label>
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
+            </div>
           </div>
         </div>
 
-        <div class="form-grid">
-          <div class="form-row">
-            <label class="form-label">Year</label>
-            <input v-model.number="draft!.year" type="number" placeholder="2024" class="form-input" />
+        <div v-if="isConference" class="form-section">
+          <div class="section-title">Conference</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Conference</label>
+              <input v-model="draft!.conference" type="text" placeholder="Conference name" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Pages</label>
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
+            </div>
           </div>
-          <div class="form-row">
-            <label class="form-label">Date</label>
-            <input v-model="draft!.date" type="text" placeholder="YYYY-MM-DD" class="form-input" />
+        </div>
+
+        <div v-if="isBook" class="form-section">
+          <div class="section-title">Book</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Publisher</label>
+              <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Place</label>
+              <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Pages</label>
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
+            </div>
           </div>
-          <div class="form-row">
-            <label class="form-label">Journal</label>
-            <input v-model="draft!.journal" type="text" placeholder="Journal name" class="form-input" />
+        </div>
+
+        <div v-if="isThesis" class="form-section">
+          <div class="section-title">Thesis</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Institution</label>
+              <input v-model="draft!.institution" type="text" placeholder="University or institute" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Place</label>
+              <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
+            </div>
           </div>
-          <div class="form-row">
-            <label class="form-label">Volume</label>
-            <input v-model="draft!.volume" type="text" placeholder="Volume" class="form-input" />
+        </div>
+
+        <div v-if="isReport" class="form-section">
+          <div class="section-title">Report</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Report Number</label>
+              <input v-model="draft!.reportNumber" type="text" placeholder="Report number" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Institution</label>
+              <input v-model="draft!.institution" type="text" placeholder="University or institute" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Publisher</label>
+              <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
+            </div>
           </div>
-          <div class="form-row">
-            <label class="form-label">Issue</label>
-            <input v-model="draft!.issue" type="text" placeholder="Issue" class="form-input" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Pages</label>
-            <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Publisher</label>
-            <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Place</label>
-            <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Conference</label>
-            <input v-model="draft!.conference" type="text" placeholder="Conference name" class="form-input" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Institution</label>
-            <input v-model="draft!.institution" type="text" placeholder="University or institute" class="form-input" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Report Number</label>
-            <input v-model="draft!.reportNumber" type="text" placeholder="Report number" class="form-input" />
-          </div>
+        </div>
+
+        <div v-if="isStandard" class="form-section">
+          <div class="section-title">Standard</div>
           <div class="form-row">
             <label class="form-label">Standard Number</label>
             <input v-model="draft!.standardNumber" type="text" placeholder="Standard number" class="form-input" />
           </div>
+        </div>
+
+        <div v-if="isPatent" class="form-section">
+          <div class="section-title">Patent</div>
           <div class="form-row">
             <label class="form-label">Patent Number</label>
             <input v-model="draft!.patentNumber" type="text" placeholder="Patent number" class="form-input" />
           </div>
         </div>
 
-        <div class="form-row">
-          <label class="form-label">URL</label>
-          <input v-model="draft!.url" type="text" placeholder="https://..." class="form-input" />
+        <div v-if="isOnline" class="form-section">
+          <div class="section-title">Online</div>
+          <div class="form-row">
+            <label class="form-label">Accessed</label>
+            <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" class="form-input" />
+          </div>
         </div>
-        <div class="form-row">
-          <label class="form-label">Accessed</label>
-          <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" class="form-input" />
+
+        <div v-if="isOther" class="form-section">
+          <div class="section-title">General Details</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Journal</label>
+              <input v-model="draft!.journal" type="text" placeholder="Journal name" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Conference</label>
+              <input v-model="draft!.conference" type="text" placeholder="Conference name" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Publisher</label>
+              <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Place</label>
+              <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Pages</label>
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
+            </div>
+          </div>
         </div>
-        <div class="form-row">
-          <label class="form-label">DOI</label>
-          <input v-model="draft!.doi" type="text" placeholder="10.xxxx/xxxxx" class="form-input" />
+
+        <div class="form-section">
+          <div class="section-title">Links</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">URL</label>
+              <input v-model="draft!.url" type="text" placeholder="https://..." class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">DOI</label>
+              <input v-model="draft!.doi" type="text" placeholder="10.xxxx/xxxxx" class="form-input" />
+            </div>
+          </div>
         </div>
-        <div class="form-row">
-          <label class="form-label">DOI Status</label>
-          <input v-model="draft!.doiStatus" type="text" placeholder="missing/verified" class="form-input" />
+
+        <button class="metadata-advanced-toggle" type="button" @click="showAdvanced = !showAdvanced">
+          {{ showAdvanced ? "Hide advanced fields" : "Show advanced fields" }}
+        </button>
+
+        <div v-if="showAdvanced" class="form-section">
+          <div class="section-title">Advanced</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">Language</label>
+              <CustomSelect :model-value="draft!.language ?? ''" :options="languageOptions"
+                @update:model-value="(value: string) => draft!.language = value" placeholder="Select language" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Subtitle</label>
+              <input v-model="draft!.subtitle" type="text" placeholder="Subtitle (optional)" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Date</label>
+              <input v-model="draft!.date" type="text" placeholder="YYYY-MM-DD" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Organization</label>
+              <input v-model="draft!.organization" type="text" placeholder="Institution or group author"
+                class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">DOI Status</label>
+              <input v-model="draft!.doiStatus" type="text" placeholder="missing/verified" class="form-input" />
+            </div>
+            <div class="form-row" v-if="!isOnline">
+              <label class="form-label">Accessed</label>
+              <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" class="form-input" />
+            </div>
+          </div>
         </div>
 
         <div v-if="errorMessage" class="metadata-error">{{ errorMessage }}</div>
@@ -361,6 +479,39 @@ watch(
   flex-direction: column;
   gap: 14px;
 }
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metadata-advanced-toggle {
+  align-self: flex-start;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.metadata-advanced-toggle:hover {
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+}
+
 
 /* Component-specific styles */
 .authors-list {
