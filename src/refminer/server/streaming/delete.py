@@ -154,7 +154,10 @@ async def stream_batch_delete_files(rel_paths: list[str]) -> AsyncIterator[str]:
 
                 if job_id:
                     queue_store.update_job(
-                        job_id, status="processing", phase="rebuilding_index", progress=50
+                        job_id,
+                        status="processing",
+                        phase="rebuilding_index",
+                        progress=50,
                     )
                 yield sse(
                     "file",

@@ -87,6 +87,9 @@ let dragStartY = 0
 let scrollStartX = 0
 let scrollStartY = 0
 
+// Hold-to-zoom state
+const isZoomMode = ref(false)
+
 const loadPdf = async () => {
   try {
     if (!props.fileUrl) return
@@ -194,67 +197,6 @@ const renderPage = async () => {
   }
 }
 
-/*
-const renderSpecificPage_Legacy = async (pageNumber: number) => {
-  return
-
-
-
-
-  try {
-    const page = await pdfDoc.getPage(pageNumber)
-    // If viewMode is continuous, we might want to check visibility again before rendering?
-    // But since we call this from observer or direct call, it's fine.
-
-    const viewport = page.getViewport({ scale: scale.value })
-
-    const context = canvas.getContext('2d')
-    if (!context) return
-
-    canvas.height = viewport.height
-    canvas.width = viewport.width
-    canvas.setAttribute('data-rendered-scale', `${scale.value}`)
-
-    // Explicitly set style dimensions to match viewport
-    canvas.style.width = `${viewport.width}px`
-    canvas.style.height = `${viewport.height}px`
-
-    // Update overlay size
-    overlay.style.width = `${viewport.width}px`
-    overlay.style.height = `${viewport.height}px`
-
-    // Update wrapper min-height to match actual height
-    if (pageWrapper) {
-      pageWrapper.style.minHeight = `${viewport.height}px`
-    }
-
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport,
-    }
-
-    // Cancel previous render on this page
-    if (renderTasks.has(pageNumber)) {
-      renderTasks.get(pageNumber)?.cancel()
-    }
-
-    const task = page.render(renderContext)
-    renderTasks.set(pageNumber, task)
-
-    await task.promise
-    renderTasks.delete(pageNumber)
-
-    // Render highlights
-    renderHighlights(viewport, pageNumber, overlay)
-
-  } catch (err: any) {
-    if (err?.name !== 'RenderingCancelledException') {
-      console.error(`Error rendering page ${pageNumber}:`, err)
-    }
-  }
-}
-*/
-
 const syncOverlay = (viewport: any) => {
   if (!overlayRef.value || !canvasRef.value) return
 
@@ -315,8 +257,7 @@ const renderSpecificPage = async (pageNum: number) => {
 
     canvas.setAttribute('data-rendered-scale', String(scale.value))
 
-    // Pass overlay element specifically for this page
-    renderHighlights(viewport, pageNum, overlay)
+    // Render highlights for this page
     renderHighlightsForPage(viewport, pageNum, overlay)
 
   } catch (err: any) {
@@ -450,12 +391,11 @@ onBeforeUnmount(() => {
   renderTasks.forEach(task => task.cancel())
 })
 
-const renderHighlights = (viewport: any, pageNumber: number, overlayEl?: HTMLElement) => {
-  const overlay = overlayEl || overlayRef.value
-  if (!overlay) return
+const renderHighlights = (viewport: any, pageNumber: number) => {
+  if (!overlayRef.value) return
 
   // Clear existing highlights
-  overlay.innerHTML = ''
+  overlayRef.value.innerHTML = ''
 
   if (!highlightEnabled.value || !hasHighlights.value) {
     return
@@ -499,7 +439,7 @@ const renderHighlights = (viewport: any, pageNumber: number, overlayEl?: HTMLEle
       highlightDiv.style.border = `1px solid ${border}`
       highlightDiv.style.pointerEvents = 'none'
 
-      overlay.appendChild(highlightDiv)
+      overlayRef.value.appendChild(highlightDiv)
     }
   }
 
@@ -656,6 +596,7 @@ watch(
 
 
 // Drag-to-pan functionality (H key for Hand tool - standard in PDF viewers)
+// Hold-to-zoom functionality (Z key for zoom mode)
 // Arrow keys for page navigation
 const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null
@@ -666,6 +607,11 @@ const handleKeyDown = (e: KeyboardEvent) => {
   // H key for pan mode
   if (e.key === 'h' && !isDragMode.value && pageContainerRef.value) {
     isDragMode.value = true
+  }
+
+  // Z key for zoom mode
+  if (e.key === 'z' && !isZoomMode.value && pageContainerRef.value) {
+    isZoomMode.value = true
   }
 
   // Arrow keys for page navigation
@@ -687,8 +633,9 @@ const scrollToPage = (pageNum: number) => {
     renderPage()
   } else {
     // Continuous: just scroll to it
+    currentPage.value = pageNum
     const el = pageRefs.value[pageNum - 1]
-    el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    el?.scrollIntoView({ block: 'start' })
   }
 }
 
@@ -719,6 +666,9 @@ const handleKeyUp = (e: KeyboardEvent) => {
     isDragMode.value = false
     isDragging.value = false
   }
+  if (e.key === 'z') {
+    isZoomMode.value = false
+  }
 }
 
 const handleMouseDown = (e: MouseEvent) => {
@@ -744,11 +694,61 @@ const handleMouseUp = () => {
   isDragging.value = false
 }
 
+const handleWheel = (e: WheelEvent) => {
+  if (!isZoomMode.value || !pageContainerRef.value) return
+
+  e.preventDefault()
+
+  const container = pageContainerRef.value
+  const rect = container.getBoundingClientRect()
+
+  // Get mouse position relative to container
+  const mouseX = e.clientX - rect.left
+  const mouseY = e.clientY - rect.top
+
+  // Get current scroll position
+  const scrollLeft = container.scrollLeft
+  const scrollTop = container.scrollTop
+
+  // Calculate zoom factor (scroll up = zoom in, scroll down = zoom out)
+  const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+  const oldScale = scale.value
+  const newScale = clamp(oldScale * zoomFactor, 0.5, 3)
+
+  if (newScale === oldScale) return
+
+  // Calculate the point relative to the viewport (in document coordinates)
+  const pointX = mouseX + scrollLeft
+  const pointY = mouseY + scrollTop
+
+  // Apply new scale
+  scale.value = newScale
+  zoomInput.value = `${Math.round(scale.value * 100)}`
+  fitMode.value = 'custom'
+
+  // Re-render pages
+  if (viewMode.value === 'continuous') {
+    rerenderVisiblePages()
+  } else {
+    renderPage()
+  }
+
+  // After rendering, adjust scroll to keep the mouse point centered
+  nextTick(() => {
+    const newScrollLeft = pointX * (newScale / oldScale) - mouseX
+    const newScrollTop = pointY * (newScale / oldScale) - mouseY
+
+    container.scrollLeft = newScrollLeft
+    container.scrollTop = newScrollTop
+  })
+}
+
 onMounted(() => {
   loadPdf()
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
   window.addEventListener('mouseup', handleMouseUp)
+  window.addEventListener('wheel', handleWheel, { passive: false })
   if ('ResizeObserver' in window) {
     resizeObserver = new ResizeObserver(() => {
       if (resizeRaf) cancelAnimationFrame(resizeRaf)
@@ -778,6 +778,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   window.removeEventListener('mouseup', handleMouseUp)
+  window.removeEventListener('wheel', handleWheel)
   if (resizeObserver && pageContainerRef.value) {
     resizeObserver.unobserve(pageContainerRef.value)
   }
@@ -853,6 +854,11 @@ onUnmounted(() => {
             <kbd>H</kbd>
             <span v-if="isDragMode">Pan mode</span>
             <span v-else>Hold to pan</span>
+          </div>
+          <div class="keyboard-hint" :class="{ active: isZoomMode }">
+            <kbd>Z</kbd>
+            <span v-if="isZoomMode">Zoom mode</span>
+            <span v-else>Hold to zoom</span>
           </div>
         </div>
 
@@ -1238,7 +1244,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-height: 0;
 }
 
 .pdf-page-container {
@@ -1247,7 +1252,6 @@ onUnmounted(() => {
   padding: 12px;
   background: var(--bg-app);
   position: relative;
-  min-height: 0;
 }
 
 /* PDF progress bar */
