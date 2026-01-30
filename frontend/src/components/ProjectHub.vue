@@ -919,7 +919,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {});
+onUnmounted(() => { });
 </script>
 
 <template>
@@ -927,14 +927,7 @@ onUnmounted(() => {});
     <header class="hub-header">
       <div class="header-left">
         <div class="logo">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
           <span>ReferenceMiner</span>
@@ -956,39 +949,24 @@ onUnmounted(() => {});
     <!-- Tabs -->
     <div class="hub-tabs">
       <div class="tabs-left">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'projects' }"
-          @click="activeTab = 'projects'"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
           <Search :size="16" />
           <span>Projects</span>
         </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'bank' }"
-          @click="switchToBank"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
           <FileText :size="16" />
           <span>Reference Bank</span>
         </button>
       </div>
       <div class="tabs-right">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'settings' }"
-          @click="activeTab = 'settings'"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
           <Settings :size="16" />
           <span>Settings</span>
         </button>
       </div>
     </div>
 
-    <main
-      class="hub-content"
-      :class="{ 'settings-active': activeTab === 'settings' }"
-    >
+    <main class="hub-content" :class="{ 'settings-active': activeTab === 'settings' }">
       <!-- Projects Tab -->
       <div v-if="activeTab === 'projects'">
         <div v-if="loading" class="loading-state">
@@ -1007,13 +985,8 @@ onUnmounted(() => {});
         </div>
 
         <div v-else class="project-grid">
-          <ProjectCard
-            v-for="p in projects"
-            :key="p.id"
-            :project="p"
-            @open="openProject"
-            @delete="handleDeleteProject"
-          />
+          <ProjectCard v-for="p in projects" :key="p.id" :project="p" @open="openProject"
+            @delete="handleDeleteProject" />
 
           <div class="create-card" @click="showCreateModal = true">
             <div class="plus-icon">
@@ -1035,11 +1008,8 @@ onUnmounted(() => {});
             </p>
           </div>
           <div class="bank-header-actions">
-            <button
-              class="bank-action-btn"
-              :disabled="isReprocessing || bankLoading"
-              @click="handleReprocessConfirm($event); showReprocessConfirm = true"
-            >
+            <button class="bank-action-btn" :disabled="isReprocessing || bankLoading"
+              @click="handleReprocessConfirm($event); showReprocessConfirm = true">
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
               <span>{{
                 isReprocessing ? "Reprocessing..." : "Reprocess All"
@@ -1048,62 +1018,39 @@ onUnmounted(() => {});
           </div>
         </div>
 
-        <FileUploader
-          upload-mode="bank"
-          @upload-complete="handleUploadComplete"
-        />
+        <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete" />
 
         <!-- Search & Filter Section -->
         <div v-if="bankFiles.length > 0" class="bank-search-section">
           <div class="bank-search-wrapper">
             <Search :size="16" class="bank-search-icon" />
-            <input
-              v-model="bankSearchQuery"
-              type="text"
-              placeholder="Search by title, author, or filename..."
-              class="bank-search-input"
-            />
+            <input v-model="bankSearchQuery" type="text" placeholder="Search by title, author, or filename..."
+              class="bank-search-input" />
           </div>
 
           <!-- Filter Chips -->
           <div class="bank-filter-chips">
             <!-- File Type Chips -->
-            <button
-              v-for="type in availableBankTypes"
-              :key="type"
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.fileTypes.has(type) }"
-              @click="toggleBankFilter('fileTypes', type)"
-            >
+            <button v-for="type in availableBankTypes" :key="type" class="bank-filter-chip"
+              :class="{ active: bankFilters.fileTypes.has(type) }" @click="toggleBankFilter('fileTypes', type)">
               {{ type.toUpperCase() }}
             </button>
 
             <!-- Year Chips -->
-            <button
-              v-for="year in availableBankYears"
-              :key="year"
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.years.has(year) }"
-              @click="toggleBankFilter('years', year)"
-            >
+            <button v-for="year in availableBankYears" :key="year" class="bank-filter-chip"
+              :class="{ active: bankFilters.years.has(year) }" @click="toggleBankFilter('years', year)">
               {{ year }}
             </button>
 
             <!-- Language Toggle -->
-            <button
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.language === 'zh' }"
-              @click="bankFilters.language = bankFilters.language === 'zh' ? null : 'zh'"
-            >
+            <button class="bank-filter-chip" :class="{ active: bankFilters.language === 'zh' }"
+              @click="bankFilters.language = bankFilters.language === 'zh' ? null : 'zh'">
               中文
             </button>
 
             <!-- Clear All Filters -->
-            <button
-              v-if="hasActiveBankFilters || bankSearchQuery"
-              class="bank-filter-chip clear-filters"
-              @click="clearAllBankFilters"
-            >
+            <button v-if="hasActiveBankFilters || bankSearchQuery" class="bank-filter-chip clear-filters"
+              @click="clearAllBankFilters">
               <X :size="12" />
               Clear
             </button>
@@ -1113,11 +1060,7 @@ onUnmounted(() => {});
           <div class="bank-controls-row">
             <div class="bank-sort-controls">
               <span>Sort:</span>
-              <CustomSelect
-                v-model="bankSortBy"
-                :options="bankSortOptions"
-                class="bank-sort-select"
-              />
+              <CustomSelect v-model="bankSortBy" :options="bankSortOptions" class="bank-sort-select" />
             </div>
             <div class="bank-file-count">
               {{ sortedBankFiles.length }}
@@ -1140,27 +1083,13 @@ onUnmounted(() => {});
           <p>Upload files using the button above to get started.</p>
         </div>
 
-        <div
-          v-else-if="sortedBankFiles.length === 0"
-          class="empty-state empty-state-compact"
-        >
+        <div v-else-if="sortedBankFiles.length === 0" class="empty-state empty-state-compact">
           <FileText :size="36" class="empty-icon-svg" />
           <p>No files match your search or filters</p>
         </div>
 
-        <TransitionGroup
-          v-else
-          name="file-list"
-          tag="div"
-          class="file-grid"
-          @before-leave="handleBeforeLeave"
-        >
-          <div
-            v-for="file in sortedBankFiles"
-            :key="file.relPath"
-            class="file-card"
-            @click="handlePreview(file)"
-          >
+        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
+          <div v-for="file in sortedBankFiles" :key="file.relPath" class="file-card" @click="handlePreview(file)">
             <div class="file-icon">
               <FileText :size="24" />
             </div>
@@ -1168,21 +1097,12 @@ onUnmounted(() => {});
               <div class="file-name" :title="getFileName(file.relPath)">
                 {{ getFileName(file.relPath) }}
               </div>
-              <div
-                v-if="file.bibliography?.title"
-                class="file-title"
-                :title="file.bibliography.title"
-              >
+              <div v-if="file.bibliography?.title" class="file-title" :title="file.bibliography.title">
                 {{ truncateText(file.bibliography.title, 60) }}
               </div>
-              <div
-                v-if="file.bibliography?.authors || file.bibliography?.year"
-                class="file-authors"
-              >
+              <div v-if="file.bibliography?.authors || file.bibliography?.year" class="file-authors">
                 {{ formatAuthors(file.bibliography?.authors) }}
-                <span
-                  v-if="formatAuthors(file.bibliography?.authors) && file.bibliography?.year"
-                >
+                <span v-if="formatAuthors(file.bibliography?.authors) && file.bibliography?.year">
                   ·
                 </span>
                 {{ file.bibliography?.year }}
@@ -1190,10 +1110,7 @@ onUnmounted(() => {});
               <div class="file-meta">
                 {{ file.fileType }} ·
                 {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
-                <span
-                  v-if="bankFileStats[file.relPath]?.usage_count"
-                  class="usage-badge"
-                >
+                <span v-if="bankFileStats[file.relPath]?.usage_count" class="usage-badge">
                   {{
                     bankFileStats[file.relPath].usage_count
                   }} project{{
@@ -1203,18 +1120,11 @@ onUnmounted(() => {});
               </div>
             </div>
             <div class="file-actions">
-              <button
-                class="btn-icon tooltip"
-                data-tooltip="Reprocess file"
-                @click.stop="handleReprocessFile(file, $event)"
-              >
+              <button class="btn-icon tooltip" data-tooltip="Reprocess file"
+                @click.stop="handleReprocessFile(file, $event)">
                 <RefreshCw :size="16" />
               </button>
-              <button
-                class="btn-icon delete tooltip"
-                data-tooltip="Delete file"
-                @click.stop="requestDelete(file)"
-              >
+              <button class="btn-icon delete tooltip" data-tooltip="Delete file" @click.stop="requestDelete(file)">
                 <Trash2 :size="16" />
               </button>
             </div>
@@ -1226,45 +1136,20 @@ onUnmounted(() => {});
       <div v-else-if="activeTab === 'settings'" class="settings-container">
         <aside class="settings-sidebar">
           <nav class="settings-nav">
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'preferences' }"
-              @click="settingsSection = 'preferences'"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'preferences' }"
+              @click="settingsSection = 'preferences'">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path
-                  d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                />
+                  d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
               <span>Preferences</span>
             </button>
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'advanced' }"
-              @click="settingsSection = 'advanced'"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'advanced' }"
+              @click="settingsSection = 'advanced'">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="9" y1="3" x2="9" y2="21"></line>
               </svg>
@@ -1275,10 +1160,7 @@ onUnmounted(() => {});
 
         <main class="settings-content">
           <!-- Preferences Section -->
-          <div
-            v-if="settingsSection === 'preferences'"
-            class="settings-section-container"
-          >
+          <div v-if="settingsSection === 'preferences'" class="settings-section-container">
             <div class="settings-header">
               <h2 class="settings-section-title">Preferences</h2>
               <p class="settings-section-desc">
@@ -1292,17 +1174,8 @@ onUnmounted(() => {});
               <section class="settings-card updates-card">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <circle cx="12" cy="12" r="4" />
                       <path d="M12 2v2" />
                       <path d="M12 20v2" />
@@ -1329,11 +1202,8 @@ onUnmounted(() => {});
                         Select light, dark, or match your system settings
                       </p>
                     </div>
-                    <CustomSelect
-                      :model-value="currentTheme"
-                      :options="themeOptions"
-                      @update:model-value="(value) => setTheme(value as Theme)"
-                    />
+                    <CustomSelect :model-value="currentTheme" :options="themeOptions"
+                      @update:model-value="(value) => setTheme(value as Theme)" />
                   </div>
                 </div>
               </section>
@@ -1342,20 +1212,9 @@ onUnmounted(() => {});
               <section class="settings-card">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
-                      ></path>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
                       <polyline points="14 2 14 8 20 8"></polyline>
                     </svg>
                   </div>
@@ -1374,13 +1233,9 @@ onUnmounted(() => {});
                         Choose between single page or continuous scrolling
                       </p>
                     </div>
-                    <CustomSelect
-                      :model-value="viewMode"
-                      :options="pdfViewOptions"
-                      @update:model-value="
-                        (value) => setViewMode(value as 'single' | 'continuous')
-                      "
-                    />
+                    <CustomSelect :model-value="viewMode" :options="pdfViewOptions" @update:model-value="
+                      (value) => setViewMode(value as 'single' | 'continuous')
+                    " />
                   </div>
                 </div>
               </section>
@@ -1389,23 +1244,12 @@ onUnmounted(() => {});
               <section class="settings-card">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path
-                        d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21"
-                      />
+                        d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21" />
                       <path
-                        d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3"
-                      />
+                        d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3" />
                     </svg>
                   </div>
                   <div>
@@ -1423,12 +1267,8 @@ onUnmounted(() => {});
                         Replaces [C1] markers when copying responses
                       </p>
                     </div>
-                    <CustomSelect
-                      :model-value="citationCopyFormat"
-                      :options="citationFormatOptions"
-                      :disabled="isSavingCitation"
-                      @update:model-value="handleCitationFormatChange"
-                    />
+                    <CustomSelect :model-value="citationCopyFormat" :options="citationFormatOptions"
+                      :disabled="isSavingCitation" @update:model-value="handleCitationFormatChange" />
                   </div>
                 </div>
               </section>
@@ -1437,17 +1277,8 @@ onUnmounted(() => {});
               <section class="settings-card">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M9 18l6-6-6-6" />
                     </svg>
                   </div>
@@ -1461,28 +1292,17 @@ onUnmounted(() => {});
                 <div class="section-content">
                   <div class="radio-group-vertical">
                     <label class="radio-option">
-                      <input
-                        type="radio"
-                        name="submitKey"
-                        value="enter"
-                        checked
-                      />
+                      <input type="radio" name="submitKey" value="enter" checked />
                       <div class="radio-option-content">
                         <span class="radio-option-label">Enter to send</span>
-                        <span class="radio-option-desc"
-                          >Shift+Enter for new line</span
-                        >
+                        <span class="radio-option-desc">Shift+Enter for new line</span>
                       </div>
                     </label>
                     <label class="radio-option">
                       <input type="radio" name="submitKey" value="ctrl-enter" />
                       <div class="radio-option-content">
-                        <span class="radio-option-label"
-                          >Ctrl+Enter to send</span
-                        >
-                        <span class="radio-option-desc"
-                          >Enter for new line</span
-                        >
+                        <span class="radio-option-label">Ctrl+Enter to send</span>
+                        <span class="radio-option-desc">Enter for new line</span>
                       </div>
                     </label>
                   </div>
@@ -1493,17 +1313,8 @@ onUnmounted(() => {});
               <section class="settings-card">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                       <line x1="8" y1="21" x2="16" y2="21" />
                       <line x1="12" y1="17" x2="12" y2="21" />
@@ -1526,20 +1337,14 @@ onUnmounted(() => {});
                       </p>
                     </div>
                     <div class="input-group" style="width: 120px">
-                      <input
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :value="filesPerPage"
-                        @input="
-                          (e) =>
-                            saveDisplaySetting(
-                              'filesPerPage',
-                              parseInt((e.target as HTMLInputElement).value) ||
-                                0,
-                            )
-                        "
-                      />
+                      <input type="number" min="0" class="form-input" :value="filesPerPage" @input="
+                        (e) =>
+                          saveDisplaySetting(
+                            'filesPerPage',
+                            parseInt((e.target as HTMLInputElement).value) ||
+                            0,
+                          )
+                      " />
                     </div>
                   </div>
 
@@ -1552,20 +1357,14 @@ onUnmounted(() => {});
                       </p>
                     </div>
                     <div class="input-group" style="width: 120px">
-                      <input
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :value="notesPerPage"
-                        @input="
-                          (e) =>
-                            saveDisplaySetting(
-                              'notesPerPage',
-                              parseInt((e.target as HTMLInputElement).value) ||
-                                0,
-                            )
-                        "
-                      />
+                      <input type="number" min="0" class="form-input" :value="notesPerPage" @input="
+                        (e) =>
+                          saveDisplaySetting(
+                            'notesPerPage',
+                            parseInt((e.target as HTMLInputElement).value) ||
+                            0,
+                          )
+                      " />
                     </div>
                   </div>
 
@@ -1578,20 +1377,14 @@ onUnmounted(() => {});
                       </p>
                     </div>
                     <div class="input-group" style="width: 120px">
-                      <input
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :value="chatsPerPage"
-                        @input="
-                          (e) =>
-                            saveDisplaySetting(
-                              'chatsPerPage',
-                              parseInt((e.target as HTMLInputElement).value) ||
-                                0,
-                            )
-                        "
-                      />
+                      <input type="number" min="0" class="form-input" :value="chatsPerPage" @input="
+                        (e) =>
+                          saveDisplaySetting(
+                            'chatsPerPage',
+                            parseInt((e.target as HTMLInputElement).value) ||
+                            0,
+                          )
+                      " />
                     </div>
                   </div>
                 </div>
@@ -1600,10 +1393,7 @@ onUnmounted(() => {});
           </div>
 
           <!-- Advanced Section -->
-          <div
-            v-else-if="settingsSection === 'advanced'"
-            class="settings-section-container"
-          >
+          <div v-else-if="settingsSection === 'advanced'" class="settings-section-container">
             <div class="settings-header">
               <h2 class="settings-section-title">Advanced</h2>
               <p class="settings-section-desc">
@@ -1620,20 +1410,10 @@ onUnmounted(() => {});
               <section class="settings-card">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path
-                        d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
-                      />
+                        d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
                     </svg>
                   </div>
                   <div>
@@ -1663,13 +1443,9 @@ onUnmounted(() => {});
                           ChatGPT, Gemini, Anthropic, DeepSeek, or a custom
                           endpoint.
                         </p>
-                        <CustomSelect
-                          :model-value="selectedProvider"
-                          :options="providerOptions"
-                          @update:model-value="
-                            (value) => setProvider(value as string)
-                          "
-                        />
+                        <CustomSelect :model-value="selectedProvider" :options="providerOptions" @update:model-value="
+                          (value) => setProvider(value as string)
+                        " />
                       </div>
                     </div>
 
@@ -1683,30 +1459,15 @@ onUnmounted(() => {});
                         </p>
                         <p v-if="currentProviderLink.url" class="form-hint">
                           Get your key from
-                          <a
-                            :href="currentProviderLink.url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            >{{ currentProviderLink.label }}</a
-                          >
+                          <a :href="currentProviderLink.url" target="_blank" rel="noopener noreferrer">{{
+                            currentProviderLink.label }}</a>
                         </p>
 
-                        <div
-                          class="current-key"
-                          v-if="currentProviderKey.hasKey"
-                        >
+                        <div class="current-key" v-if="currentProviderKey.hasKey">
                           <span class="key-status valid">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                              stroke-linejoin="round">
                               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                               <polyline points="22 4 12 14.01 9 11.01" />
                             </svg>
@@ -1715,81 +1476,39 @@ onUnmounted(() => {});
                           <span class="masked-key">{{
                             currentProviderKey.maskedKey
                           }}</span>
-                          <button
-                            class="btn-link danger"
-                            @click="handleDeleteApiKey"
-                            :disabled="isSaving"
-                          >
+                          <button class="btn-link danger" @click="handleDeleteApiKey" :disabled="isSaving">
                             Remove
                           </button>
                         </div>
 
                         <div class="api-input-row">
                           <div class="input-group">
-                            <input
-                              v-model="apiKeyInput"
-                              :type="showApiKey ? 'text' : 'password'"
-                              class="form-input"
-                              :placeholder="
-                                currentProviderKey.hasKey
-                                  ? 'Enter new key to replace'
-                                  : 'Enter your API key'
-                              "
-                            />
-                            <button
-                              class="input-addon"
-                              @click="showApiKey = !showApiKey"
-                              type="button"
-                            >
-                              <svg
-                                v-if="showApiKey"
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                              >
+                            <input v-model="apiKeyInput" :type="showApiKey ? 'text' : 'password'" class="form-input"
+                              :placeholder="currentProviderKey.hasKey
+                                ? 'Enter new key to replace'
+                                : 'Enter your API key'
+                                " />
+                            <button class="input-addon" @click="showApiKey = !showApiKey" type="button">
+                              <svg v-if="showApiKey" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
                                 <path
-                                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
-                                />
+                                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                                 <line x1="1" x2="23" y1="1" y2="23" />
                               </svg>
-                              <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                              >
-                                <path
-                                  d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                                />
+                              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                                 <circle cx="12" cy="12" r="3" />
                               </svg>
                             </button>
                           </div>
                           <div class="api-actions">
-                            <button
-                              class="btn btn-outline"
-                              @click="handleValidate"
-                              :disabled="isValidating"
-                            >
+                            <button class="btn btn-outline" @click="handleValidate" :disabled="isValidating">
                               {{ isValidating ? "Validating..." : "Validate" }}
                             </button>
-                            <button
-                              class="btn btn-primary-sm"
-                              @click="handleSave"
-                              :disabled="isSaving || !apiKeyInput"
-                            >
+                            <button class="btn btn-primary-sm" @click="handleSave" :disabled="isSaving || !apiKeyInput">
                               {{ isSaving ? "Saving..." : "Save" }}
                             </button>
                           </div>
@@ -1799,42 +1518,20 @@ onUnmounted(() => {});
                           {{ saveError }}
                         </div>
 
-                        <div
-                          class="validation-result"
-                          v-if="validationStatus !== 'none'"
-                        >
-                          <span
-                            v-if="validationStatus === 'valid'"
-                            class="status valid"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            >
+                        <div class="validation-result" v-if="validationStatus !== 'none'">
+                          <span v-if="validationStatus === 'valid'" class="status valid">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                              stroke-linejoin="round">
                               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                               <polyline points="22 4 12 14.01 9 11.01" />
                             </svg>
                             {{ apiKeyStatusMessage }}
                           </span>
                           <span v-else class="status invalid">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                              stroke-linejoin="round">
                               <circle cx="12" cy="12" r="10" />
                               <line x1="15" x2="9" y1="9" y2="15" />
                               <line x1="9" x2="15" y1="9" y2="15" />
@@ -1849,18 +1546,11 @@ onUnmounted(() => {});
                         <div v-if="balanceInfos.length" class="balance-panel">
                           <div class="balance-header">
                             <span class="balance-title">Remaining balance</span>
-                            <span
-                              v-if="balanceAvailable === false"
-                              class="balance-warning"
-                              >Insufficient for API calls</span
-                            >
+                            <span v-if="balanceAvailable === false" class="balance-warning">Insufficient for API
+                              calls</span>
                           </div>
                           <div class="balance-list">
-                            <div
-                              v-for="info in balanceInfos"
-                              :key="info.currency"
-                              class="balance-item"
-                            >
+                            <div v-for="info in balanceInfos" :key="info.currency" class="balance-item">
                               <div class="balance-line">
                                 <span class="balance-currency">{{
                                   info.currency
@@ -1890,56 +1580,29 @@ onUnmounted(() => {});
 
                         <label class="form-label">Base URL</label>
                         <div class="input-group">
-                          <input
-                            v-model="baseUrlInput"
-                            class="form-input"
-                            placeholder="https://api.openai.com/v1"
-                          />
+                          <input v-model="baseUrlInput" class="form-input" placeholder="https://api.openai.com/v1" />
                         </div>
 
                         <label class="form-label">Model</label>
-                        <div
-                          v-if="modelOptions.length"
-                          class="model-select-row"
-                        >
-                          <CustomSelect
-                            :model-value="modelInput"
-                            :options="modelOptions"
-                            @update:model-value="
-                              (value) => (modelInput = value as string)
-                            "
-                          />
-                          <button
-                            class="btn btn-outline"
-                            @click="handleLoadModels"
-                            :disabled="isLoadingModels"
-                          >
+                        <div v-if="modelOptions.length" class="model-select-row">
+                          <CustomSelect :model-value="modelInput" :options="modelOptions" @update:model-value="
+                            (value) => (modelInput = value as string)
+                          " />
+                          <button class="btn btn-outline" @click="handleLoadModels" :disabled="isLoadingModels">
                             {{
                               isLoadingModels ? "Loading..." : "Reload models"
                             }}
                           </button>
                         </div>
                         <div v-else class="input-group">
-                          <input
-                            v-model="modelInput"
-                            class="form-input"
-                            placeholder="gpt-4o-mini"
-                          />
+                          <input v-model="modelInput" class="form-input" placeholder="gpt-4o-mini" />
                         </div>
 
                         <div class="llm-config-actions">
-                          <button
-                            class="btn btn-outline"
-                            @click="handleLoadModels"
-                            :disabled="isLoadingModels"
-                          >
+                          <button class="btn btn-outline" @click="handleLoadModels" :disabled="isLoadingModels">
                             {{ isLoadingModels ? "Loading..." : "Load models" }}
                           </button>
-                          <button
-                            class="btn btn-primary-sm"
-                            @click="handleSaveLlmSettings"
-                            :disabled="isSavingLlm"
-                          >
+                          <button class="btn btn-primary-sm" @click="handleSaveLlmSettings" :disabled="isSavingLlm">
                             {{
                               isSavingLlm
                                 ? "Saving..."
@@ -1963,17 +1626,8 @@ onUnmounted(() => {});
               <section class="settings-card updates-section">
                 <div class="section-header">
                   <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M21 12a9 9 0 1 1-9-9" />
                       <path d="M22 3 12 13" />
                       <path d="M22 3 15 3" />
@@ -2010,22 +1664,12 @@ onUnmounted(() => {});
                       </p>
                     </div>
                     <div class="update-actions">
-                      <a
-                        v-if="
-                          updateInfo?.isUpdateAvailable &&
-                          updateInfo?.latest?.url
-                        "
-                        class="btn btn-primary-sm"
-                        :href="updateInfo.latest.url"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        >Download</a
-                      >
-                      <button
-                        class="btn btn-outline"
-                        @click="handleUpdateCheck"
-                        :disabled="isCheckingUpdate"
-                      >
+                      <a v-if="
+                        updateInfo?.isUpdateAvailable &&
+                        updateInfo?.latest?.url
+                      " class="btn btn-primary-sm" :href="updateInfo.latest.url" target="_blank"
+                        rel="noopener noreferrer">Download</a>
+                      <button class="btn btn-outline" @click="handleUpdateCheck" :disabled="isCheckingUpdate">
                         {{ isCheckingUpdate ? "Checking..." : "Check" }}
                       </button>
                     </div>
@@ -2040,20 +1684,9 @@ onUnmounted(() => {});
               <section class="settings-card danger-zone-card">
                 <div class="section-header">
                   <div class="section-icon danger-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
-                      />
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
                       <line x1="12" x2="12" y1="9" y2="13" />
                       <line x1="12" x2="12.01" y1="17" y2="17" />
                     </svg>
@@ -2067,10 +1700,7 @@ onUnmounted(() => {});
                 </div>
 
                 <div class="section-content">
-                  <p
-                    class="form-hint"
-                    style="font-weight: 700; margin-bottom: 1rem"
-                  >
+                  <p class="form-hint" style="font-weight: 700; margin-bottom: 1rem">
                     Clear all indexed chunks and chat sessions. Files will
                     remain in the reference folder.
                   </p>
@@ -2082,22 +1712,9 @@ onUnmounted(() => {});
                     {{ resetError }}
                   </div>
 
-                  <button
-                    class="btn btn-danger-action"
-                    @click="handleResetClick"
-                    :disabled="isResetting"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                  <button class="btn btn-danger-action" @click="handleResetClick" :disabled="isResetting">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M3 6h18" />
                       <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
                       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
@@ -2117,28 +1734,16 @@ onUnmounted(() => {});
 
   <!-- Create Modal -->
   <Transition name="fade">
-    <div
-      v-if="showCreateModal"
-      class="modal-mask"
-      @click.self="showCreateModal = false"
-    >
+    <div v-if="showCreateModal" class="modal-mask" @click.self="showCreateModal = false">
       <div class="modal-container">
         <h2>Create New Study</h2>
         <div class="form-group">
           <label>Project Name</label>
-          <input
-            v-model="newProjectName"
-            placeholder="e.g. Photovoltaic Research"
-            autofocus
-          />
+          <input v-model="newProjectName" placeholder="e.g. Photovoltaic Research" autofocus />
         </div>
         <div class="form-group">
           <label>Description (Optional)</label>
-          <textarea
-            v-model="newProjectDesc"
-            placeholder="What is this study about?"
-            rows="3"
-          ></textarea>
+          <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
         </div>
         <div class="form-group">
           <label>Initial Content (Optional)</label>
@@ -2158,11 +1763,7 @@ onUnmounted(() => {});
           <button class="btn-secondary" @click="showCreateModal = false">
             Cancel
           </button>
-          <button
-            class="btn-primary"
-            :disabled="!newProjectName.trim() || creating"
-            @click="handleCreate"
-          >
+          <button class="btn-primary" :disabled="!newProjectName.trim() || creating" @click="handleCreate">
             <Loader2 v-if="creating" class="spinner" :size="16" />
             <span>{{ creating ? "Creating..." : "Create Project" }}</span>
           </button>
@@ -2175,59 +1776,30 @@ onUnmounted(() => {});
   <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
   <!-- Delete Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showDeleteModal"
-    title="Delete File?"
-    :message="
-      fileToDelete
-        ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
-        : ''
-    "
-    confirmText="Delete"
-    @confirm="confirmDelete"
-    @cancel="cancelDelete"
-  />
+  <ConfirmationModal v-model="showDeleteModal" title="Delete File?" :message="fileToDelete
+    ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
+    : ''
+    " confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
 
   <!-- Delete Project Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showDeleteProjectModal"
-    title="Delete Project?"
-    :message="
-      projectToDelete
-        ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
-        : ''
-    "
-    confirmText="Delete"
-    @confirm="confirmDeleteProject"
-    @cancel="cancelDeleteProject"
-  />
+  <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?" :message="projectToDelete
+    ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
+    : ''
+    " confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
 
   <!-- Initial File Selector -->
-  <BankFileSelectorModal
-    v-model="showFileSelectorForCreate"
-    :selected-files="selectedFilesForCreate"
-    @confirm="handleInitialFilesSelected"
-  />
+  <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
+    @confirm="handleInitialFilesSelected" />
 
   <!-- Reset Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showResetConfirm"
-    title="Clear All Data?"
+  <ConfirmationModal v-model="showResetConfirm" title="Clear All Data?"
     message="This will permanently delete all indexed chunks, search indexes, and chat sessions. Your files will remain in the reference folder. This action cannot be undone."
-    confirm-text="Clear All Data"
-    cancel-text="Cancel"
-    @confirm="handleResetConfirm"
-  />
+    confirm-text="Clear All Data" cancel-text="Cancel" @confirm="handleResetConfirm" />
 
   <!-- Reprocess Reference Bank -->
-  <ConfirmationModal
-    v-model="showReprocessConfirm"
-    title="Reprocess Reference Bank?"
+  <ConfirmationModal v-model="showReprocessConfirm" title="Reprocess Reference Bank?"
     message="This will delete all indexed data and rebuild from files in the reference folder. Your files will remain untouched."
-    confirm-text="Reprocess"
-    cancel-text="Cancel"
-    @confirm="handleReprocessConfirm"
-  />
+    confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm" />
 </template>
 
 <style scoped>
@@ -2790,8 +2362,8 @@ onUnmounted(() => {});
 
 .bank-search-input:focus {
   outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px var(--accent-soft, rgba(var(--accent-color-rgb), 0.1));
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
 }
 
 .bank-search-input::placeholder {
@@ -2942,6 +2514,11 @@ onUnmounted(() => {});
 [data-theme="dark"] .bank-search-input {
   background: var(--color-neutral-150);
   border-color: var(--color-neutral-200);
+}
+
+[data-theme="dark"] .bank-search-input:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.15);
 }
 
 [data-theme="dark"] .bank-filter-chip {

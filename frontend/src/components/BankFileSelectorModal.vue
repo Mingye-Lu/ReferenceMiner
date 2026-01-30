@@ -355,57 +355,38 @@ onUnmounted(() => {
       <div class="search-section">
         <div class="search-input-wrapper">
           <Search :size="16" class="search-icon" />
-          <input v-model="searchQuery" type="text" placeholder="Search by title, author, or filename..." class="search-input" />
+          <input v-model="searchQuery" type="text" placeholder="Search by title, author, or filename..."
+            class="search-input" />
         </div>
 
         <!-- Filter Chips -->
         <div class="filter-chips" v-if="bankFiles.length > 0">
           <!-- File Type Chips -->
-          <button
-            v-for="type in availableTypes"
-            :key="type"
-            class="filter-chip"
-            :class="{ active: filters.fileTypes.has(type) }"
-            @click="toggleFilter('fileTypes', type)"
-          >
+          <button v-for="type in availableTypes" :key="type" class="filter-chip"
+            :class="{ active: filters.fileTypes.has(type) }" @click="toggleFilter('fileTypes', type)">
             {{ type.toUpperCase() }}
           </button>
 
           <!-- Year Chips -->
-          <button
-            v-for="year in availableYears"
-            :key="year"
-            class="filter-chip"
-            :class="{ active: filters.years.has(year) }"
-            @click="toggleFilter('years', year)"
-          >
+          <button v-for="year in availableYears" :key="year" class="filter-chip"
+            :class="{ active: filters.years.has(year) }" @click="toggleFilter('years', year)">
             {{ year }}
           </button>
 
           <!-- Language Toggle -->
-          <button
-            class="filter-chip"
-            :class="{ active: filters.language === 'zh' }"
-            @click="filters.language = filters.language === 'zh' ? null : 'zh'"
-          >
+          <button class="filter-chip" :class="{ active: filters.language === 'zh' }"
+            @click="filters.language = filters.language === 'zh' ? null : 'zh'">
             中文
           </button>
 
           <!-- In-Project Toggle -->
-          <button
-            class="filter-chip"
-            :class="{ active: filters.inProject === true }"
-            @click="filters.inProject = filters.inProject === true ? null : true"
-          >
+          <button class="filter-chip" :class="{ active: filters.inProject === true }"
+            @click="filters.inProject = filters.inProject === true ? null : true">
             In Project
           </button>
 
           <!-- Clear All Filters -->
-          <button
-            v-if="hasActiveFilters"
-            class="filter-chip clear-filters"
-            @click="clearAllFilters"
-          >
+          <button v-if="hasActiveFilters" class="filter-chip clear-filters" @click="clearAllFilters">
             <X :size="12" />
             Clear
           </button>
@@ -436,24 +417,11 @@ onUnmounted(() => {
           <p v-else>No files in Reference Bank</p>
         </div>
 
-        <TransitionGroup
-          v-else
-          name="file-list"
-          tag="div"
-          class="file-grid"
-          @before-leave="handleBeforeLeave"
-        >
-          <div
-            v-for="(file, index) in filteredFiles"
-            :key="file.relPath"
-            :data-index="index"
-            class="file-card"
-            :class="{
-              selected: localSelected.has(file.relPath),
-              focused: focusedIndex === index
-            }"
-            @click="toggleSelection(file.relPath)"
-          >
+        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
+          <div v-for="(file, index) in filteredFiles" :key="file.relPath" :data-index="index" class="file-card" :class="{
+            selected: localSelected.has(file.relPath),
+            focused: focusedIndex === index
+          }" @click="toggleSelection(file.relPath)">
             <div class="file-icon">
               <FileText :size="20" />
             </div>
@@ -470,7 +438,8 @@ onUnmounted(() => {
               <div class="file-meta">
                 {{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
                 <span v-if="fileStats[file.relPath]?.usage_count" class="usage-badge">
-                  {{ fileStats[file.relPath].usage_count }} project{{ fileStats[file.relPath].usage_count > 1 ? 's' : '' }}
+                  {{ fileStats[file.relPath].usage_count }} project{{ fileStats[file.relPath].usage_count > 1 ? 's' : ''
+                  }}
                 </span>
               </div>
             </div>
@@ -584,8 +553,8 @@ onUnmounted(() => {
 
 .search-input:focus {
   outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px var(--accent-soft, var(--color-accent-50));
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
 }
 
 /* Filter Chips */
@@ -995,6 +964,11 @@ onUnmounted(() => {
   background: var(--color-neutral-150);
   border-color: var(--color-neutral-200);
   color: var(--text-primary);
+}
+
+[data-theme="dark"] .search-input:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.15);
 }
 
 [data-theme="dark"] .search-input::placeholder {

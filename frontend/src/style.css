@@ -467,21 +467,6 @@ body {
   transform: translateX(0);
 }
 
-.btn-primary {
-  background: var(--accent-color);
-  color: var(--color-white);
-  border: none;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-}
-
 .btn-icon {
   background: transparent;
   border: none;
@@ -1090,6 +1075,7 @@ input[type="checkbox"].custom-checkbox:checked::after {
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s;
+  white-space: nowrap;
 }
 
 .btn-primary:hover:not(:disabled) {
