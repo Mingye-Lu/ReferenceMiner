@@ -1,0 +1,171 @@
+"""PubMed crawler using NCBI E-utilities API."""
+
+from __future__ import annotations
+
+import logging
+import urllib.parse
+from typing import Any, Optional
+
+from refminer.crawler.base import BaseCrawler
+from refminer.crawler.models import SearchQuery, SearchResult
+
+logger = logging.getLogger(__name__)
+
+
+class PubMedCrawler(BaseCrawler):
+    """PubMed crawler using NCBI E-utilities API."""
+
+    @property
+    def name(self) -> str:
+        return "pubmed"
+
+    @property
+    def base_base_url(self) -> str:
+        return "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+
+    @property
+    def base_url(self) -> str:
+        return "https://pubmed.ncbi.nlm.nih.gov"
+
+    @property
+    def requires_api_key(self) -> bool:
+        return False
+
+    async def search(self, query: SearchQuery) -> list[SearchResult]:
+        """Search PubMed for papers."""
+        results: list[SearchResult] = []
+
+        try:
+            pmids = await self._search_pmids(query)
+            if not pmids:
+                logger.info(f"[{self.name}] No PMIDs found")
+                return []
+
+            summaries = await self._fetch_summaries(pmids)
+            results = self._parse_summaries(summaries, query)
+
+            logger.info(f"[{self.name}] Found {len(results)} results")
+        except Exception as e:
+            logger.error(f"[{self.name}] Search failed: {e}", exc_info=True)
+
+        return results
+
+    async def _search_pmids(self, query: SearchQuery) -> list[str]:
+        """Search for PMIDs using ESearch."""
+        search_url = f"{self.base_base_url}/esearch.fcgi"
+
+        params = {
+            "db": "pubmed",
+            "term": query.query,
+            "retmode": "json",
+            "retmax": str(query.max_results),
+        }
+
+        if query.year_from:
+            params["datetype"] = "pdat"
+            params["mindate"] = str(query.year_from)
+        if query.year_to:
+            params["datetype"] = "pdat"
+            params["maxdate"] = str(query.year_to)
+
+        response = await self._fetch(search_url, params=params)
+        data = response.json()
+
+        pmids = data.get("esearchresult", {}).get("idlist", [])
+        return pmids
+
+    async def _fetch_summaries(self, pmids: list[str]) -> dict[str, Any]:
+        """Fetch article summaries using ESummary."""
+        if not pmids:
+            return {}
+
+        summary_url = f"{self.base_base_url}/esummary.fcgi"
+
+        params = {
+            "db": "pubmed",
+            "id": ",".join(pmids),
+            "retmode": "json",
+        }
+
+        response = await self._fetch(summary_url, params=params)
+        return response.json()
+
+    def _parse_summaries(
+        self, data: dict[str, Any], query: SearchQuery
+    ) -> list[SearchResult]:
+        """Parse ESummary results."""
+        results: list[SearchResult] = []
+
+        result_data = data.get("result", {})
+        if not result_data:
+            return results
+
+        uids = result_data.get("uids", [])
+        for uid in uids:
+            try:
+                article_data = result_data.get(uid, {})
+                result = self._parse_single_article(article_data, uid)
+                if result:
+                    results.append(result)
+            except Exception as e:
+                logger.debug(f"[{self.name}] Failed to parse article {uid}: {e}")
+                continue
+
+        return results
+
+    def _parse_single_article(
+        self, data: dict[str, Any], uid: str
+    ) -> Optional[SearchResult]:
+        """Parse a single article from ESummary."""
+        title = data.get("title", "")
+        if not title:
+            return None
+
+        authors = self._parse_authors(data)
+        year = self._parse_year(data)
+        doi = self._parse_doi(data)
+        journal = data.get("source", "")
+
+        result = SearchResult(
+            title=title,
+            authors=authors,
+            year=year,
+            doi=doi,
+            source=self.name,
+            url=f"{self.base_url}/{uid}/",
+            journal=journal,
+        )
+
+        return result
+
+    def _parse_authors(self, data: dict[str, Any]) -> list[str]:
+        """Parse authors from article data."""
+        authors: list[str] = []
+        authors_list = data.get("authors", [])
+
+        for author in authors_list:
+            name = author.get("name", "")
+            if name:
+                authors.append(name)
+
+        return authors
+
+    def _parse_year(self, data: dict[str, Any]) -> Optional[int]:
+        """Parse publication year from article data."""
+        pubdates = data.get("pubdates", [])
+        for pubdate in pubdates:
+            year = pubdate.get("year")
+            if year:
+                try:
+                    return int(year)
+                except (ValueError, TypeError):
+                    continue
+        return None
+
+    def _parse_doi(self, data: dict[str, Any]) -> Optional[str]:
+        """Parse DOI from article data."""
+        article_ids = data.get("articleids", [])
+        for aid in article_ids:
+            if aid.get("idtype") == "doi":
+                return aid.get("value")
+        return None

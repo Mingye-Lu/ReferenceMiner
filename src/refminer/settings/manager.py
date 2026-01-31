@@ -291,3 +291,35 @@ class SettingsManager:
             raise ValueError("Unsupported citation format")
         self._settings["citation_copy_format"] = fmt
         self._save()
+
+    def get_crawler_config(self) -> dict:
+        """Get crawler configuration."""
+        crawler_settings = self._settings.get("crawler")
+        return crawler_settings if isinstance(crawler_settings, dict) else {}
+
+    def set_crawler_config(self, config: dict) -> None:
+        """Save crawler configuration."""
+        self._settings["crawler"] = config
+        self._save()
+
+    def is_crawler_enabled(self) -> bool:
+        """Check if crawler is enabled."""
+        crawler_config = self.get_crawler_config()
+        return crawler_config.get("enabled", True)
+
+    def set_crawler_enabled(self, enabled: bool) -> None:
+        """Enable or disable crawler."""
+        crawler_config = self.get_crawler_config()
+        crawler_config["enabled"] = enabled
+        self.set_crawler_config(crawler_config)
+
+    def is_auto_download_enabled(self) -> bool:
+        """Check if auto-download is enabled."""
+        crawler_config = self.get_crawler_config()
+        return crawler_config.get("auto_download", False)
+
+    def set_auto_download_enabled(self, enabled: bool) -> None:
+        """Enable or disable auto-download."""
+        crawler_config = self.get_crawler_config()
+        crawler_config["auto_download"] = enabled
+        self.set_crawler_config(crawler_config)

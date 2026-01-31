@@ -192,7 +192,7 @@ sequenceDiagram
 
         alt call_tool
             A->>T: Execute tool
-            Note over T: rag_search<br/>read_chunk<br/>get_abstract
+            Note over T: rag_search<br/>read_chunk<br/>get_abstract<br/>list_files<br/>keyword_search<br/>get_document_outline
             T->>A: Evidence chunks
             A->>A: Add to context
         else respond
@@ -209,9 +209,12 @@ The agent operates in a multi-turn loop (max 6 turns, 10 tool calls):
 2. **LLM decides** — Returns either `call_tool` (needs more info) or `respond` (ready to answer).
 
 3. **Tool execution** — If `call_tool`, the agent executes one of:
-   - `rag_search` — Semantic search with optional file filtering
+   - `rag_search` — Semantic + keyword search across documents
    - `read_chunk` — Retrieve specific chunks by ID with surrounding context
-   - `get_abstract` — Fetch document abstract by path
+   - `get_abstract` — Fetch document abstract/summary
+   - `list_files` — List available documents with metadata
+   - `keyword_search` — Exact term matching (better for author names, acronyms, identifiers)
+   - `get_document_outline` — Return document's section outline (headings + structure)
 
 4. **Accumulate evidence** — Tool results are added to context for the next turn.
 

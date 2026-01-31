@@ -32,6 +32,7 @@ from refminer.server.routes import (
     ask_router,
     bank_router,
     queue_router,
+    crawler_router,
 )
 
 
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(ask_router)
     app.include_router(bank_router)
     app.include_router(queue_router)
+    app.include_router(crawler_router)
 
     # Mount frontend assets if available
     if FRONTEND_DIR.exists() and (FRONTEND_DIR / "assets").exists():
