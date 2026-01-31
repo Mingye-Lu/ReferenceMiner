@@ -375,16 +375,52 @@ Open `http://localhost:5173` and configure your LLM provider in Settings.
 |----------|----------|-------------|
 | **Projects** | `GET /api/projects` | List all projects |
 | | `POST /api/projects` | Create project |
+| | `GET /api/projects/{id}` | Get project details |
 | | `DELETE /api/projects/{id}` | Delete project |
+| | `POST /api/projects/{id}/activate` | Update last_active timestamp |
 | **Chats** | `GET /api/projects/{id}/chats` | List sessions |
 | | `POST /api/projects/{id}/chats` | Create session |
+| | `GET /api/projects/{id}/chats/{sid}` | Get session with messages |
+| | `PUT /api/projects/{id}/chats/{sid}` | Update session |
+| | `DELETE /api/projects/{id}/chats/{sid}` | Delete session |
 | | `POST /api/projects/{id}/chats/{sid}/messages` | Add message |
+| | `PATCH /api/projects/{id}/chats/{sid}/messages` | Update message |
 | **Q&A** | `POST /api/projects/{id}/ask` | Non-streaming answer |
 | | `POST /api/projects/{id}/ask/stream` | Streaming answer (SSE) |
-| **Files** | `POST /api/projects/{id}/upload/stream` | Upload with progress |
-| | `POST /api/projects/{id}/files/select` | Select files for project |
-| **Settings** | `POST /api/settings/api-key` | Save API key |
+| | `POST /api/projects/{id}/summarize` | Generate chat title (SSE) |
+| **Files** | `GET /api/projects/{id}/manifest` | Get project manifest |
+| | `GET /api/projects/{id}/files` | Get selected files |
+| | `POST /api/projects/{id}/files/select` | Add files to project |
+| | `POST /api/projects/{id}/files/remove` | Remove files from project |
+| | `GET /api/projects/{id}/status` | Get index statistics |
+| | `POST /api/projects/{id}/upload/stream` | Upload with progress (SSE) |
+| | `GET /api/projects/{id}/files/check-duplicate` | Check duplicate by hash |
+| | `POST /api/projects/{id}/files/{rel_path}/delete/stream` | Delete file (SSE) |
+| | `POST /api/projects/{id}/files/batch-delete` | Batch delete files |
+| | `POST /api/projects/{id}/files/batch-delete/stream` | Batch delete (SSE) |
+| | `GET /api/files/{rel_path}/highlights` | Get PDF highlights |
+| | `GET /api/files/{rel_path}/metadata` | Get file metadata |
+| | `PATCH /api/files/{rel_path}/metadata` | Update file metadata |
+| | `POST /api/files/{rel_path}/metadata/extract` | Extract metadata from PDF |
+| **Bank** | `GET /api/bank/manifest` | Get all files in bank |
+| | `GET /api/bank/files/stats` | Get file usage statistics |
+| | `POST /api/bank/upload/stream` | Upload to bank (SSE) |
+| | `POST /api/bank/reprocess/stream` | Rebuild all indexes (SSE) |
+| | `POST /api/bank/files/{rel_path}/reprocess/stream` | Reprocess single file (SSE) |
+| **Settings** | `GET /api/settings` | Get current settings |
+| | `GET /api/settings/version` | Get app version |
+| | `GET /api/settings/update-check` | Check for updates |
+| | `POST /api/settings/api-key` | Save API key |
+| | `DELETE /api/settings/api-key` | Delete API key |
 | | `POST /api/settings/validate` | Validate key |
+| | `POST /api/settings/models` | Fetch available models |
+| | `POST /api/settings/llm` | Save LLM configuration |
+| | `POST /api/settings/citation-format` | Save citation format |
+| | `POST /api/settings/reset` | Reset all data (preserves refs) |
+| **Queue** | `GET /api/queue/jobs` | List queue jobs |
+| | `GET /api/queue/jobs/{job_id}` | Get specific job |
+| | `POST /api/queue/jobs` | Create queue job |
+| | `GET /api/queue/stream` | Stream job events (SSE) |
 
 ---
 

@@ -132,7 +132,45 @@ GET /api/settings
   "has_api_key": true,
   "masked_api_key": "sk-****1234",
   "base_url": "https://api.deepseek.com",
-  "model": "deepseek-chat"
+  "model": "deepseek-chat",
+  "citation_copy_format": "apa"
+}
+```
+
+---
+
+### Get Version
+
+```
+GET /api/settings/version
+```
+
+**Response:**
+```json
+{
+  "version": "1.0.0"
+}
+```
+
+---
+
+### Check for Updates
+
+```
+GET /api/settings/update-check
+```
+
+Checks GitHub for a newer version.
+
+**Response:**
+```json
+{
+  "repo": "owner/repo",
+  "current": {"version": "1.0.0"},
+  "latest": {"version": "1.1.0", "url": "https://github.com/...", "source": "release"},
+  "is_update_available": true,
+  "checked_at": 1234567890000,
+  "error": null
 }
 ```
 
@@ -279,8 +317,32 @@ Clears all indexes, manifest, and chat sessions. **Preserves reference files.**
 ```json
 {
   "success": true,
-  "message": "Reset complete",
-  "deleted_files": ["chunks.jsonl", "bm25.pkl"]
+  "message": "All metadata, indexes, and chat sessions cleared. Reference files preserved."
+}
+```
+
+---
+
+### Save Citation Format
+
+```
+POST /api/settings/citation-format
+```
+
+Save the preferred citation format for copying AI responses.
+
+**Request Body:**
+```json
+{
+  "format": "apa|mla|chicago|gbt7714|numeric"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "citation_copy_format": "apa"
 }
 ```
 
@@ -614,24 +676,27 @@ GET /api/projects/{project_id}/files/check-duplicate?sha256=abc123
 
 ---
 
-### Delete File
+### Delete File (Streaming)
 
 ```
-DELETE /api/projects/{project_id}/files/{rel_path}
+POST /api/projects/{project_id}/files/{rel_path:path}/delete/stream
 ```
 
 Supports subdirectories (e.g., `subdir/file.pdf`).
 
-**Response:**
-```json
-{
-  "success": true,
-  "removed_chunks": 42,
-  "message": "Deleted file.pdf"
-}
-```
+**Response:** `text/event-stream` (SSE)
 
-**Status Codes:** `200`, `404`
+**Events:**
+```
+event: progress
+data: {"phase": "deleting", "percent": 50}
+
+event: complete
+data: {"success": true, "removed_chunks": 42, "rel_path": "file.pdf"}
+
+event: error
+data: {"code": "NOT_FOUND", "message": "..."}
+```
 
 ---
 
@@ -816,6 +881,83 @@ data: {"title": "Machine Learning Overview"}
 
 ---
 
+## Queue Management
+
+### List Queue Jobs
+
+```
+GET /api/queue/jobs
+```
+
+**Query Parameters:**
+- `scope` (optional) - Filter by scope
+- `project_id` (optional) - Filter by project
+- `include_completed` (optional, default: false) - Include completed jobs
+- `limit` (optional, default: 200) - Max results
+
+**Response:** `List[QueueJob]`
+
+---
+
+### Get Queue Job
+
+```
+GET /api/queue/jobs/{job_id}
+```
+
+**Response:** `QueueJob` object
+
+**Status Codes:** `200`, `404`
+
+---
+
+### Create Queue Job
+
+```
+POST /api/queue/jobs
+```
+
+**Request Body:**
+```json
+{
+  "type": "upload|reprocess|delete",
+  "scope": "project|bank",
+  "project_id": "string (optional)",
+  "name": "string",
+  "rel_path": "string (optional)",
+  "status": "pending|running|complete|failed (optional)",
+  "phase": "string (optional)",
+  "progress": 0.0
+}
+```
+
+**Response:** `QueueJob` object
+
+---
+
+### Stream Queue Jobs
+
+```
+GET /api/queue/stream
+```
+
+**Query Parameters:**
+- `scope` (optional) - Filter by scope
+- `project_id` (optional) - Filter by project
+
+**Response:** `text/event-stream` (SSE)
+
+**Events:**
+```
+event: job
+data: {"id": "...", "type": "upload", "status": "running", "progress": 50, ...}
+
+event: ready
+data: {"ok": true}
+```
+
+---
+
 ## Data Structures
 
 ### Project
@@ -900,6 +1042,25 @@ interface TimelineEntry {
   phase: string;
   message: string;
   startTime: number;       // epoch ms
+}
+```
+
+### QueueJob
+
+```typescript
+interface QueueJob {
+  id: string;
+  type: "upload" | "reprocess" | "delete";
+  scope: "project" | "bank";
+  project_id?: string;
+  name: string;
+  rel_path?: string;
+  status: "pending" | "running" | "complete" | "failed";
+  phase?: string;
+  progress: number;         // 0.0 to 1.0
+  created_at: number;      // epoch ms
+  updated_at: number;      // epoch ms
+  error?: string;
 }
 ```
 
