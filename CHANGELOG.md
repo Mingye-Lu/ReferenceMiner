@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.2.0
+
+### Added
+- Zoom hotkey functionality for PDF viewer
+- Confirm extract metadata modal with user confirmation
+- Global queue component with projectile eject animation
+- Copy with in-text citation feature
+- GB/T 7714-2015 citation format support
+- Works cited modal for managing citations
+
+### Changed
+- Reorganized file metadata modal for better UX
+- Unified styles across reference bank and selector modal
+- Adjusted bankfile selector modal and component layouts
+- Improved metadata extraction accuracy
+- Various UI style improvements and polish
+
+### Fixed
+- Build issues for Electron packaging (missing dependencies)
+- Layout overflow issue of preview-container
+- DOCX reload bug with LRU cache implementation
+- Queue state consistency across page refreshes
+- Various layout fixes and responsiveness issues
+
 ## 1.1.0
 
 ### Added
