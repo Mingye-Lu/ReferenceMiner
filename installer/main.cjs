@@ -8,6 +8,16 @@ const path = require("path")
 const PRODUCT_NAME = "ReferenceMiner"
 const INSTALL_LOG_NAME = "install-log.json"
 
+function getInstallerVersion() {
+  try {
+    const packagePath = path.join(__dirname, "package.json")
+    const pkg = JSON.parse(fs.readFileSync(packagePath, "utf-8"))
+    return pkg.version || "unknown"
+  } catch {
+    return "unknown"
+  }
+}
+
 let mainWindow = null
 let currentLogPath = null
 
@@ -275,7 +285,7 @@ async function runInstall(options) {
     appendLog("Desktop shortcut created.")
   }
 
-  await writeUninstallEntry(installDir, manifest.version || "1.0.0")
+  await writeUninstallEntry(installDir, manifest.version || getInstallerVersion())
   await writeInstallLog(installDir, manifest, options)
   appendLog("Install log written.")
 

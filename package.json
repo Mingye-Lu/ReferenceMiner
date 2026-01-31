@@ -1,7 +1,7 @@
 {
   "name": "referenceminer-desktop",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "electron/main.cjs",
   "scripts": {
     "electron:dev": "npm --prefix frontend run build && electron .",

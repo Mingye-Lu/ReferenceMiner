@@ -103,7 +103,8 @@ echo ========================================
 echo.
 echo Output:
 echo   Portable:   dist-electron\win-unpacked\ReferenceMiner.exe
-echo   Installer:  dist-electron\ReferenceMiner Setup 1.0.0.exe
+for /f "tokens=*" %%i in ('node -p "require('./package.json').version"') do set APP_VERSION=%%i
+echo   Installer:  dist-electron\ReferenceMiner Setup %APP_VERSION%.exe
 echo.
 echo Development:
 echo   npm run electron:run

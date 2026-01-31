@@ -7,9 +7,8 @@ from typing import Any
 
 try:
     import pdf2bib
-
     PDF2BIB_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception):
     PDF2BIB_AVAILABLE = False
 
 logger = logging.getLogger(__name__)

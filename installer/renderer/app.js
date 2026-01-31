@@ -68,7 +68,7 @@ async function loadConfig() {
   state.installDir = result.defaultInstallDir
   state.existingInstall = result.existingInstall
   elements.installDir.value = state.installDir
-  elements.versionLabel.textContent = `v${state.manifest?.version || "1.0.0"}`
+  elements.versionLabel.textContent = `v${state.manifest?.version || "unknown"}`
   if (state.existingInstall) {
     elements.existingInstall.classList.remove("hidden")
   }
@@ -104,7 +104,7 @@ async function startInstall() {
   }
   state.installResult = result.result
   elements.finalPath.textContent = result.result.installDir
-  elements.finalVersion.textContent = state.manifest?.version || "1.0.0"
+  elements.finalVersion.textContent = state.manifest?.version || "unknown"
   elements.finishLaunch.disabled = !result.result.appExe
   setStatus("Install complete.")
   setStep(4)

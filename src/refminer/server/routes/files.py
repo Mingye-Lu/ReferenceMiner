@@ -14,6 +14,7 @@ from refminer.ingest.bibliography import (
     extract_bibliography_from_pdf,
     merge_bibliography,
 )
+from refminer.ingest.incremental import remove_file_from_index
 from refminer.ingest.registry import load_registry, check_duplicate
 from refminer.server.globals import project_manager, get_bank_paths
 from refminer.server.models import (
