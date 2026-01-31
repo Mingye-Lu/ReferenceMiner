@@ -115,12 +115,15 @@ async def batch_download_stream(
 
     async def _run_download():
         try:
-            downloader = PDFDownloader(
-                ref_dir,
-                progress_callback=lambda i, total, title: queue_store.update_job(
+            def progress_callback(i: int, total: int, title: str) -> None:
+                queue_store.update_job(
                     job["id"],
                     progress=int((i / total) * 100) if total > 0 else 0,
-                ),
+                )
+
+            downloader = PDFDownloader(
+                ref_dir,
+                progress_callback=progress_callback,
             )
 
             async with downloader:

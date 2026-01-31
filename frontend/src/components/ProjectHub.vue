@@ -21,6 +21,8 @@ import {
   fetchVersion,
   fetchUpdateCheck,
   saveCitationCopyFormat,
+  fetchCrawlerConfig,
+  updateCrawlerConfig,
 } from "../api/client";
 import type {
   Project,
@@ -30,6 +32,7 @@ import type {
   UpdateCheck,
   CitationCopyFormat,
   BibliographyAuthor,
+  CrawlerConfig,
 } from "../types";
 import ProjectCard from "./ProjectCard.vue";
 import FileUploader from "./FileUploader.vue";
@@ -37,6 +40,8 @@ import FilePreviewModal from "./FilePreviewModal.vue";
 import ConfirmationModal from "./ConfirmationModal.vue";
 import CustomSelect from "./CustomSelect.vue";
 import BankFileSelectorModal from "./BankFileSelectorModal.vue";
+import CrawlerSearchModal from "./CrawlerSearchModal.vue";
+import CrawlerSettingsTab from "./CrawlerSettingsTab.vue";
 import {
   Plus,
   Search,
@@ -56,7 +61,7 @@ import { useQueue } from "../composables/useQueue";
 const router = useRouter();
 const isDev = import.meta.env.DEV;
 const activeTab = ref<"projects" | "bank" | "settings">("projects");
-const settingsSection = ref<"preferences" | "advanced">("preferences");
+const settingsSection = ref<"preferences" | "crawler" | "advanced">("preferences");
 const currentTheme = ref<Theme>("system");
 const projects = ref<Project[]>([]);
 const bankFiles = ref<ManifestEntry[]>([]);
@@ -122,6 +127,10 @@ const updateInfo = ref<UpdateCheck | null>(null);
 const isCheckingUpdate = ref(false);
 const updateError = ref("");
 const currentVersion = ref<string>("");
+
+// Crawler Settings
+const showCrawlerModal = ref(false);
+const crawlerConfig = ref<CrawlerConfig | null>(null);
 
 // Display Settings
 const filesPerPage = ref(7);
@@ -618,6 +627,22 @@ async function handleDataReset() {
   }
 }
 
+async function handleCrawlerConfigUpdate(config: CrawlerConfig) {
+  try {
+    await updateCrawlerConfig(config);
+    crawlerConfig.value = config;
+  } catch (e) {
+    console.error("Failed to save crawler config:", e);
+  }
+}
+
+async function handleCrawlerDownloadComplete(entries: ManifestEntry[]) {
+  // Add downloaded entries to bank files
+  entries.forEach((entry) => upsertBankFile(entry));
+  // Reload bank files to show new downloads
+  await loadBankFiles();
+}
+
 // Settings Methods
 async function handleValidate() {
   isValidating.value = true;
@@ -904,14 +929,18 @@ onMounted(async () => {
   // Load settings and version
   isLoadingSettings.value = true;
   try {
-    const [settingsData, version] = await Promise.all([
+    const [settingsData, version, crawlerData] = await Promise.all([
       getSettings(),
       fetchVersion().catch(() => ""),
+      fetchCrawlerConfig().catch(() => null),
     ]);
     settings.value = settingsData;
     currentVersion.value = version;
     citationCopyFormat.value = settingsData.citationCopyFormat || "apa";
     syncLlmInputs(settingsData);
+    if (crawlerData) {
+      crawlerConfig.value = crawlerData;
+    }
   } catch (e) {
     console.error("Failed to load settings:", e);
   } finally {
@@ -1008,6 +1037,10 @@ onUnmounted(() => { });
             </p>
           </div>
           <div class="bank-header-actions">
+            <button class="bank-action-btn" @click="showCrawlerModal = true">
+              <Search :size="14" />
+              <span>Search Online</span>
+            </button>
             <button class="bank-action-btn" :disabled="isReprocessing || bankLoading"
               @click="handleReprocessConfirm($event); showReprocessConfirm = true">
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
@@ -1145,6 +1178,16 @@ onUnmounted(() => { });
                 <circle cx="12" cy="12" r="3" />
               </svg>
               <span>Preferences</span>
+            </button>
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'crawler' }"
+              @click="settingsSection = 'crawler'">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10" />
+              </svg>
+              <span>Crawler</span>
             </button>
             <button class="settings-nav-item" :class="{ active: settingsSection === 'advanced' }"
               @click="settingsSection = 'advanced'">
@@ -1390,6 +1433,22 @@ onUnmounted(() => { });
                 </div>
               </section>
             </div>
+          </div>
+
+          <!-- Crawler Section -->
+          <div v-else-if="settingsSection === 'crawler'" class="settings-section-container">
+            <div class="settings-header">
+              <h2 class="settings-section-title">Web Crawler</h2>
+              <p class="settings-section-desc">
+                Configure search engines, download settings, and deep crawl options.
+              </p>
+            </div>
+
+            <CrawlerSettingsTab
+              v-if="crawlerConfig"
+              :config="crawlerConfig"
+              @update="handleCrawlerConfigUpdate"
+            />
           </div>
 
           <!-- Advanced Section -->
@@ -1798,8 +1857,14 @@ onUnmounted(() => { });
 
   <!-- Reprocess Reference Bank -->
   <ConfirmationModal v-model="showReprocessConfirm" title="Reprocess Reference Bank?"
-    message="This will delete all indexed data and rebuild from files in the reference folder. Your files will remain untouched."
-    confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm" />
+    message="This will delete all indexed data and rebuild from files in reference folder. Your files will remain untouched."
+    confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm" @cancel="showReprocessConfirm = false" />
+
+  <!-- Crawler Search Modal -->
+  <CrawlerSearchModal
+    v-model="showCrawlerModal"
+    @download-complete="handleCrawlerDownloadComplete"
+  />
 </template>
 
 <style scoped>

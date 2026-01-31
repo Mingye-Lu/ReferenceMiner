@@ -283,3 +283,48 @@ export interface UpdateCheck {
   checkedAt?: number
   error?: string | null
 }
+
+// Crawler types
+export interface CrawlerEngineConfig {
+  enabled: boolean
+  rate_limit: number
+  timeout: number
+}
+
+export interface CrawlerConfig {
+  enabled: boolean
+  auto_download: boolean
+  max_results_per_engine: number
+  timeout_seconds: number
+  engines: Record<string, CrawlerEngineConfig>
+}
+
+export interface CrawlerSearchResult {
+  hash: string
+  title: string
+  authors: string[]
+  year: number | null
+  abstract: string | null
+  doi: string | null
+  url: string | null
+  pdf_url: string | null
+  source: string
+  citations: number | null
+}
+
+export interface CrawlerSearchQuery {
+  query: string
+  max_results?: number
+  engines?: string[]
+  year_range?: [number, number] | null
+  sort_by?: 'relevance' | 'date' | 'citations'
+  deep_crawl?: boolean
+  deep_crawl_max_papers?: number
+}
+
+export interface CrawlerDownloadResult {
+  hash: string
+  success: boolean
+  path: string | null
+  error: string | null
+}
