@@ -2,6 +2,10 @@
 import { ref, computed, watch } from "vue";
 import BaseModal from "./BaseModal.vue";
 import BaseToggle from "./BaseToggle.vue";
+import CustomSelect from "./CustomSelect.vue";
+import googleScholarIcon from "../assets/google-scholar.svg";
+import pubmedIcon from "../assets/pubmed.svg";
+import semanticScholarIcon from "../assets/semantic-scholar.svg";
 import type {
   CrawlerSearchResult,
   CrawlerSearchQuery,
@@ -13,7 +17,13 @@ import {
   downloadPapersStream,
   fetchCrawlerConfig,
 } from "../api/client";
-import { Search, ChevronDown, ChevronUp, ExternalLink } from "lucide-vue-next";
+import {
+  Search,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  ArrowUpDown,
+} from "lucide-vue-next";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -35,11 +45,14 @@ const maxResults = ref(20);
 const searchResults = ref<CrawlerSearchResult[]>([]);
 const selectedResults = ref<Set<string>>(new Set());
 const expandedAbstracts = ref<Set<string>>(new Set());
+const showAdvanced = ref(false);
+const hasSearched = ref(false);
 
 const isSearching = ref(false);
 const isDownloading = ref(false);
 const showDownloadConfirm = ref(false);
 const searchError = ref<string | null>(null);
+const isLoadingEngines = ref(false);
 
 const downloadProgress = ref({ current: 0, total: 0 });
 const downloadResults = ref<Map<string, CrawlerDownloadResult>>(new Map());
@@ -53,16 +66,111 @@ const sortOptions = [
   { value: "citations", label: "Citations" },
 ];
 
+const engineIcons: Record<string, string> = {
+  google_scholar: googleScholarIcon,
+  pubmed: pubmedIcon,
+  semantic_scholar: semanticScholarIcon,
+};
+
+const showFilters = ref(false);
+const filterEngines = ref<Set<string>>(new Set());
+const filterPdfOnly = ref<boolean | null>(null);
+const filterYearRange = ref<[number, number] | null>(null);
+const filterMinCitations = ref<number | null>(null);
+const filterKeywords = ref<string>("");
+
 const selectedCount = computed(() => selectedResults.value.size);
 
+function getResultKey(result: CrawlerSearchResult, index: number): string {
+  const trimmedHash = result.hash?.trim();
+  if (trimmedHash) return trimmedHash;
+  const fallback =
+    result.doi ||
+    result.url ||
+    `${result.title}-${result.year ?? ""}-${result.source}`;
+  return `${fallback}-${index}`;
+}
+
+const keyedResults = computed(() =>
+  searchResults.value.map((result, index) => ({
+    result,
+    key: getResultKey(result, index),
+  })),
+);
+
 const allSelected = computed(() => {
-  if (searchResults.value.length === 0) return false;
-  return searchResults.value.every((r) => selectedResults.value.has(r.hash));
+  if (filteredResults.value.length === 0) return false;
+  return filteredResults.value.every((item) =>
+    selectedResults.value.has(item.key),
+  );
 });
 
-const papersWithPdfs = computed(() =>
-  searchResults.value.filter((r) => r.pdf_url),
+const resultEngines = computed(() => {
+  const engines = new Set<string>();
+  searchResults.value.forEach((result) => {
+    if (result.source) engines.add(result.source);
+  });
+  return Array.from(engines);
+});
+
+const filteredResults = computed(() => {
+  let results = keyedResults.value;
+
+  if (filterEngines.value.size > 0) {
+    results = results.filter((item) =>
+      filterEngines.value.has(item.result.source),
+    );
+  }
+
+  if (filterPdfOnly.value !== null) {
+    results = results.filter((item) =>
+      filterPdfOnly.value ? !!item.result.pdf_url : !item.result.pdf_url,
+    );
+  }
+
+  if (filterYearRange.value) {
+    results = results.filter((item) => {
+      if (!item.result.year) return false;
+      const year = item.result.year;
+      return (
+        year >= filterYearRange.value![0] && year <= filterYearRange.value![1]
+      );
+    });
+  }
+
+  if (filterMinCitations.value !== null) {
+    results = results.filter(
+      (item) => (item.result.citations ?? 0) >= filterMinCitations.value!,
+    );
+  }
+
+  if (filterKeywords.value.trim()) {
+    const keywords = filterKeywords.value.toLowerCase();
+    results = results.filter((item) => {
+      const titleMatch = item.result.title.toLowerCase().includes(keywords);
+      const abstractMatch = item.result.abstract
+        ?.toLowerCase()
+        .includes(keywords);
+      return titleMatch || abstractMatch;
+    });
+  }
+
+  return results;
+});
+
+const filteredPapersWithPdfs = computed(() =>
+  filteredResults.value.filter((item) => item.result.pdf_url),
 );
+
+const activeFilterCount = computed(() => {
+  let count = 0;
+  if (filterEngines.value.size > 0) count++;
+  if (filterPdfOnly.value !== null) count++;
+  if (filterYearRange.value) count++;
+  if (filterMinCitations.value !== null) count++;
+  if (filterKeywords.value.trim()) count++;
+  return count;
+});
 
 watch(
   () => props.modelValue,
@@ -76,6 +184,7 @@ watch(
 );
 
 async function loadEngines() {
+  isLoadingEngines.value = true;
   try {
     const config = await fetchCrawlerConfig();
     availableEngines.value = Object.keys(config.engines);
@@ -85,6 +194,8 @@ async function loadEngines() {
     selectedEngines.value = new Set(enabledEngines.value);
   } catch (e) {
     console.error("Failed to load engines:", e);
+  } finally {
+    isLoadingEngines.value = false;
   }
 }
 
@@ -93,12 +204,25 @@ function resetState() {
   searchResults.value = [];
   selectedResults.value.clear();
   expandedAbstracts.value.clear();
+  showAdvanced.value = false;
+  hasSearched.value = false;
   isSearching.value = false;
   isDownloading.value = false;
   showDownloadConfirm.value = false;
   searchError.value = null;
+  isLoadingEngines.value = false;
   downloadProgress.value = { current: 0, total: 0 };
   downloadResults.value.clear();
+  resetFilters();
+}
+
+function resetFilters() {
+  filterEngines.value.clear();
+  filterPdfOnly.value = null;
+  filterYearRange.value = null;
+  filterMinCitations.value = null;
+  filterKeywords.value = "";
+  showFilters.value = false;
 }
 
 async function handleSearch() {
@@ -112,6 +236,7 @@ async function handleSearch() {
     return;
   }
 
+  hasSearched.value = true;
   isSearching.value = true;
   searchError.value = null;
   searchResults.value = [];
@@ -157,33 +282,64 @@ function toggleEngine(engine: string) {
   selectedEngines.value = newSet;
 }
 
-function toggleAllSelection() {
-  const downloadablePapers = papersWithPdfs.value;
-  if (allSelected.value) {
-    selectedResults.value = new Set();
+function toggleFilterEngine(engine: string) {
+  const newSet = new Set(filterEngines.value);
+  if (newSet.has(engine)) {
+    newSet.delete(engine);
   } else {
-    selectedResults.value = new Set(downloadablePapers.map((r) => r.hash));
+    newSet.add(engine);
+  }
+  filterEngines.value = newSet;
+}
+
+function toggleAllFilterEngines() {
+  if (filterEngines.value.size === resultEngines.value.length) {
+    filterEngines.value.clear();
+  } else {
+    filterEngines.value = new Set(resultEngines.value);
   }
 }
 
-function toggleSelection(hash: string, hasPdf: boolean | null) {
+function toggleAllSelection() {
+  if (allSelected.value) {
+    selectedResults.value = new Set();
+  } else {
+    selectedResults.value = new Set(
+      filteredPapersWithPdfs.value.map((item) => item.key),
+    );
+  }
+}
+
+function toggleSelection(
+  key: string,
+  hasPdf: boolean | null,
+  event?: MouseEvent,
+) {
   if (hasPdf === false) return;
+  if (event) {
+    const target = event.target as HTMLElement;
+    if (target.tagName === "A" || target.closest("a")) {
+      return;
+    }
+  }
 
   const newSet = new Set(selectedResults.value);
-  if (newSet.has(hash)) {
-    newSet.delete(hash);
+  if (newSet.has(key)) {
+    newSet.delete(key);
   } else {
-    newSet.add(hash);
+    newSet.add(key);
   }
   selectedResults.value = newSet;
 }
 
-function toggleAbstract(hash: string) {
-  if (expandedAbstracts.value.has(hash)) {
-    expandedAbstracts.value.delete(hash);
+function toggleAbstract(key: string) {
+  const next = new Set(expandedAbstracts.value);
+  if (next.has(key)) {
+    next.delete(key);
   } else {
-    expandedAbstracts.value.add(hash);
+    next.add(key);
   }
+  expandedAbstracts.value = next;
 }
 
 function formatAuthors(authors: string[]): string {
@@ -197,15 +353,19 @@ function openDownloadConfirm() {
   showDownloadConfirm.value = true;
 }
 
+function getEngineIcon(engine: string): string | undefined {
+  return engineIcons[engine];
+}
+
 async function confirmDownload() {
   showDownloadConfirm.value = false;
   isDownloading.value = true;
   downloadProgress.value = { current: 0, total: selectedCount.value };
   downloadResults.value.clear();
 
-  const selectedPapers = searchResults.value.filter((r) =>
-    selectedResults.value.has(r.hash),
-  );
+  const selectedPapers = keyedResults.value
+    .filter((item) => selectedResults.value.has(item.key))
+    .map((item) => item.result);
 
   try {
     await downloadPapersStream(selectedPapers, false, {
@@ -264,7 +424,7 @@ function cancelDownload() {
             />
           </div>
           <button
-            class="btn-primary"
+            class="btn-primary search-btn"
             @click="handleSearch"
             :disabled="isSearching"
           >
@@ -272,115 +432,128 @@ function cancelDownload() {
             <span v-else>Search</span>
           </button>
         </div>
+        <p class="search-hint">Try keywords, author names, or paper titles.</p>
 
         <!-- Search Options -->
         <div class="search-options">
+          <div class="search-options-header">
+            <div class="section-title">Search Options</div>
+            <button
+              class="advanced-toggle"
+              type="button"
+              @click="showAdvanced = !showAdvanced"
+            >
+              {{ showAdvanced ? "Hide advanced" : "Show advanced" }}
+            </button>
+          </div>
           <!-- Engine Selection -->
-          <div class="option-group">
-            <label class="option-label">Engines</label>
-            <div class="engine-checkboxes">
-              <label class="engine-checkbox">
-                <input
-                  type="checkbox"
-                  :checked="selectedEngines.size === availableEngines.length"
-                  @click="toggleAllEngines"
-                />
-                <span>All</span>
-              </label>
-              <label
-                v-for="engine in availableEngines"
-                :key="engine"
-                class="engine-checkbox"
-              >
-                <input
-                  type="checkbox"
-                  :checked="selectedEngines.has(engine)"
-                  @click="toggleEngine(engine)"
-                />
-                <span>{{ engine }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Year Range -->
-          <div class="option-group">
-            <label class="option-label">Year Range</label>
-            <div class="year-inputs">
-              <input
-                :value="yearRange?.[0]"
-                @input="
-                  (e) => {
-                    if (yearRange)
-                      yearRange[0] = parseInt(
-                        (e.target as HTMLInputElement).value,
-                      );
-                  }
-                "
-                type="number"
-                placeholder="From"
-                class="year-input"
-              />
-              <span class="year-separator">to</span>
-              <input
-                :value="yearRange?.[1]"
-                @input="
-                  (e) => {
-                    if (yearRange)
-                      yearRange[1] = parseInt(
-                        (e.target as HTMLInputElement).value,
-                      );
-                  }
-                "
-                type="number"
-                placeholder="To"
-                class="year-input"
-              />
-            </div>
-          </div>
-
-          <!-- Sort By -->
-          <div class="option-group">
-            <label class="option-label">Sort By</label>
-            <select v-model="sortBy" class="sort-select">
-              <option
-                v-for="option in sortOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Max Results -->
-          <div class="option-group">
-            <label class="option-label">Max Results per Engine</label>
-            <input
-              v-model.number="maxResults"
-              type="number"
-              min="5"
-              max="100"
-              class="number-input"
-            />
-          </div>
-
-          <!-- Deep Crawl -->
-          <div class="option-group">
-            <label class="option-label">Deep Crawl</label>
-            <div class="deep-crawl-controls">
-              <div class="toggle-wrapper">
-                <BaseToggle v-model="deepCrawl" />
-                <span class="toggle-label-text">Enable citation expansion</span>
+          <div class="search-options-grid">
+            <div class="form-row">
+              <label class="form-label">Engines</label>
+              <div v-if="isLoadingEngines" class="engine-empty">
+                Loading engines...
               </div>
+              <div
+                v-else-if="availableEngines.length === 0"
+                class="engine-empty"
+              >
+                No engines available. Check Settings → Web Crawler.
+              </div>
+              <div v-else class="engine-checkboxes">
+                <div
+                  class="engine-card"
+                  :class="{
+                    selected: selectedEngines.size === availableEngines.length,
+                  }"
+                  @click="toggleAllEngines"
+                >
+                  <span>All</span>
+                </div>
+                <div
+                  v-for="engine in availableEngines"
+                  :key="engine"
+                  class="engine-card"
+                  :class="{ selected: selectedEngines.has(engine) }"
+                  @click="toggleEngine(engine)"
+                >
+                  <img
+                    v-if="getEngineIcon(engine)"
+                    :src="getEngineIcon(engine)"
+                    :alt="`${engine} icon`"
+                    class="engine-icon"
+                  />
+                  <span>{{ engine }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Max Results per Engine</label>
               <input
-                v-if="deepCrawl"
-                v-model.number="deepCrawlMaxPapers"
+                v-model.number="maxResults"
                 type="number"
-                min="10"
-                max="500"
-                placeholder="Max papers"
-                class="number-input small"
+                min="5"
+                max="100"
+                class="form-input"
               />
+            </div>
+          </div>
+
+          <div v-if="showAdvanced" class="advanced-options">
+            <div class="form-row">
+              <label class="form-label">Year Range</label>
+              <div class="year-inputs">
+                <input
+                  :value="yearRange?.[0]"
+                  @input="
+                    (e) => {
+                      if (yearRange)
+                        yearRange[0] = parseInt(
+                          (e.target as HTMLInputElement).value,
+                        );
+                    }
+                  "
+                  type="number"
+                  placeholder="From"
+                  class="form-input year-input"
+                />
+                <span class="year-separator">to</span>
+                <input
+                  :value="yearRange?.[1]"
+                  @input="
+                    (e) => {
+                      if (yearRange)
+                        yearRange[1] = parseInt(
+                          (e.target as HTMLInputElement).value,
+                        );
+                    }
+                  "
+                  type="number"
+                  placeholder="To"
+                  class="form-input year-input"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Deep Crawl</label>
+              <div class="deep-crawl-controls">
+                <div class="toggle-wrapper">
+                  <BaseToggle v-model="deepCrawl" />
+                  <span class="toggle-label-text">
+                    Enable citation expansion
+                  </span>
+                </div>
+                <input
+                  v-if="deepCrawl"
+                  v-model.number="deepCrawlMaxPapers"
+                  type="number"
+                  min="10"
+                  max="500"
+                  placeholder="Max papers"
+                  class="form-input deep-crawl-input"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -396,79 +569,231 @@ function cancelDownload() {
         v-if="!isSearching && !isDownloading && searchResults.length > 0"
         class="results-section"
       >
-        <div class="results-header">
-          <div class="results-count">
-            {{ searchResults.length }} papers found
-            <span
-              v-if="papersWithPdfs.length < searchResults.length"
-              class="pdf-hint"
-            >
-              ({{ papersWithPdfs.length }} with PDFs)
-            </span>
-          </div>
-          <div class="results-actions">
-            <button class="btn-text" @click="toggleAllSelection">
-              {{ allSelected ? "Deselect All" : "Select All" }}
-            </button>
-            <button
-              class="btn-primary"
-              @click="openDownloadConfirm"
-              :disabled="selectedCount === 0"
-            >
-              Download Selected ({{ selectedCount }})
-            </button>
-          </div>
-        </div>
-
         <div class="results-list">
+          <div class="results-header">
+            <div class="results-info">
+              <div class="resultsCount">
+                <span v-if="activeFilterCount > 0">
+                  {{ filteredResults.length }} of
+                  {{ searchResults.length }} papers
+                </span>
+                <span v-else> {{ searchResults.length }} papers found </span>
+                <span
+                  v-if="filteredPapersWithPdfs.length < filteredResults.length"
+                  class="pdf-hint"
+                >
+                  ({{ filteredPapersWithPdfs.length }} with PDFs)
+                </span>
+              </div>
+              <div class="results-sort">
+                <ArrowUpDown :size="14" />
+                <CustomSelect v-model="sortBy" :options="sortOptions" />
+              </div>
+            </div>
+            <div class="results-actions">
+              <button
+                class="btn-text"
+                @click="showFilters = !showFilters"
+                v-if="searchResults.length > 0"
+              >
+                {{ showFilters ? "Hide Filters" : "Show Filters" }}
+                <span v-if="activeFilterCount > 0" class="filter-badge">
+                  {{ activeFilterCount }}
+                </span>
+              </button>
+              <button class="btn-text" @click="toggleAllSelection">
+                {{ allSelected ? "Deselect All" : "Select All" }}
+              </button>
+              <button
+                class="btn-primary"
+                @click="openDownloadConfirm"
+                :disabled="selectedCount === 0"
+              >
+                Download Selected ({{ selectedCount }})
+              </button>
+            </div>
+          </div>
+
+          <div v-if="showFilters" class="filter-panel">
+            <div class="filter-panel-header">
+              <div class="section-title">Filter Results</div>
+              <button
+                v-if="activeFilterCount > 0"
+                class="btn-text"
+                @click="resetFilters"
+              >
+                Clear Filters
+              </button>
+            </div>
+            <div class="filter-grid">
+              <div class="form-row">
+                <label class="form-label">Engines</label>
+                <div v-if="resultEngines.length === 0" class="engine-empty">
+                  No engines in results
+                </div>
+                <div v-else class="engine-checkboxes">
+                  <div
+                    class="engine-card"
+                    :class="{
+                      selected: filterEngines.size === resultEngines.length,
+                    }"
+                    @click="toggleAllFilterEngines"
+                  >
+                    <span>All</span>
+                  </div>
+                  <div
+                    v-for="engine in resultEngines"
+                    :key="engine"
+                    class="engine-card"
+                    :class="{ selected: filterEngines.has(engine) }"
+                    @click="toggleFilterEngine(engine)"
+                  >
+                    <img
+                      v-if="getEngineIcon(engine)"
+                      :src="getEngineIcon(engine)"
+                      :alt="`${engine} icon`"
+                      class="engine-icon"
+                    />
+                    <span>{{ engine }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label class="form-label">PDF Availability</label>
+                <div class="engine-checkboxes">
+                  <div
+                    class="engine-card"
+                    :class="{ selected: filterPdfOnly === null }"
+                    @click="filterPdfOnly = null"
+                  >
+                    <span>All</span>
+                  </div>
+                  <div
+                    class="engine-card"
+                    :class="{ selected: filterPdfOnly === true }"
+                    @click="filterPdfOnly = true"
+                  >
+                    <span>With PDF</span>
+                  </div>
+                  <div
+                    class="engine-card"
+                    :class="{ selected: filterPdfOnly === false }"
+                    @click="filterPdfOnly = false"
+                  >
+                    <span>Without PDF</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label class="form-label">Year Range</label>
+                <div class="year-inputs">
+                  <input
+                    :value="filterYearRange?.[0]"
+                    @input="
+                      (e) => {
+                        if (!filterYearRange) filterYearRange = [0, 0];
+                        filterYearRange[0] = parseInt(
+                          (e.target as HTMLInputElement).value,
+                        );
+                      }
+                    "
+                    type="number"
+                    placeholder="From"
+                    class="form-input year-input"
+                  />
+                  <span class="year-separator">to</span>
+                  <input
+                    :value="filterYearRange?.[1]"
+                    @input="
+                      (e) => {
+                        if (!filterYearRange) filterYearRange = [0, 0];
+                        filterYearRange[1] = parseInt(
+                          (e.target as HTMLInputElement).value,
+                        );
+                      }
+                    "
+                    type="number"
+                    placeholder="To"
+                    class="form-input year-input"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label class="form-label">Min Citations</label>
+                <input
+                  v-model.number="filterMinCitations"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-row">
+                <label class="form-label">Keywords</label>
+                <input
+                  v-model="filterKeywords"
+                  type="text"
+                  placeholder="Search in title/abstract..."
+                  class="form-input"
+                />
+              </div>
+            </div>
+          </div>
+
           <div
-            v-for="result in searchResults"
-            :key="result.hash"
+            v-for="item in filteredResults"
+            :key="item.key"
             class="result-card"
             :class="{
-              selected: selectedResults.has(result.hash),
-              'no-pdf': !result.pdf_url,
+              selected: selectedResults.has(item.key),
+              'no-pdf': !item.result.pdf_url,
+              clickable: !!item.result.pdf_url,
             }"
+            @click="(e) => toggleSelection(item.key, !!item.result.pdf_url, e)"
           >
             <div class="result-header">
-              <input
-                type="checkbox"
-                :checked="selectedResults.has(result.hash)"
-                :disabled="!result.pdf_url"
-                @click="toggleSelection(result.hash, !!result.pdf_url)"
-                class="result-checkbox"
-              />
               <div class="result-main">
-                <div v-if="result.pdf_url" class="pdf-badge">PDF Available</div>
-                <div v-else class="no-pdf-badge">No PDF</div>
-                <h4 class="result-title">{{ result.title }}</h4>
+                <div class="result-badges">
+                  <div v-if="item.result.pdf_url" class="pdf-badge">
+                    PDF Available
+                  </div>
+                  <div v-else class="no-pdf-badge">No PDF</div>
+                  <span class="result-source">{{ item.result.source }}</span>
+                </div>
+                <h4 class="result-title">{{ item.result.title }}</h4>
                 <div class="result-meta">
-                  <span v-if="result.authors.length" class="result-authors">
-                    {{ formatAuthors(result.authors) }}
+                  <span
+                    v-if="item.result.authors.length"
+                    class="result-authors"
+                  >
+                    {{ formatAuthors(item.result.authors) }}
                   </span>
-                  <span v-if="result.year" class="result-year">
-                    {{ result.year }}
+                  <span v-if="item.result.year" class="result-year">
+                    {{ item.result.year }}
                   </span>
-                  <span v-if="result.citations" class="result-citations">
-                    {{ result.citations }} citations
+                  <span v-if="item.result.citations" class="result-citations">
+                    {{ item.result.citations }} citations
                   </span>
-                  <span class="result-source">{{ result.source }}</span>
                 </div>
               </div>
             </div>
 
             <div class="result-links">
               <a
-                v-if="result.doi"
-                :href="`https://doi.org/${result.doi}`"
+                v-if="item.result.doi"
+                :href="`https://doi.org/${item.result.doi}`"
                 target="_blank"
                 class="result-link"
               >
                 DOI <ExternalLink :size="12" />
               </a>
               <a
-                v-if="result.url"
-                :href="result.url"
+                v-if="item.result.url"
+                :href="item.result.url"
                 target="_blank"
                 class="result-link"
               >
@@ -477,27 +802,37 @@ function cancelDownload() {
             </div>
 
             <div
-              v-if="result.abstract"
+              v-if="item.result.abstract"
               class="result-abstract"
-              :class="{ expanded: expandedAbstracts.has(result.hash) }"
+              :class="{ expanded: expandedAbstracts.has(item.key) }"
             >
-              <button
-                class="abstract-toggle"
-                @click="toggleAbstract(result.hash)"
-              >
-                <span v-if="expandedAbstracts.has(result.hash)">
+              <button class="abstract-toggle" @click="toggleAbstract(item.key)">
+                <span v-if="expandedAbstracts.has(item.key)">
                   <ChevronUp :size="14" /> Hide Abstract
                 </span>
                 <span v-else> <ChevronDown :size="14" /> Show Abstract </span>
               </button>
-              <p
-                v-if="expandedAbstracts.has(result.hash)"
-                class="abstract-text"
-              >
-                {{ result.abstract }}
+              <p v-if="expandedAbstracts.has(item.key)" class="abstract-text">
+                {{ item.result.abstract }}
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div
+        v-if="
+          !isSearching &&
+          !isDownloading &&
+          hasSearched &&
+          searchResults.length === 0 &&
+          !searchError
+        "
+        class="empty-state"
+      >
+        <div class="empty-title">No results found</div>
+        <div class="empty-hint">
+          Try broader keywords or select more engines.
         </div>
       </div>
 
@@ -574,6 +909,7 @@ function cancelDownload() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
 }
 
 .search-input-row {
@@ -585,10 +921,15 @@ function cancelDownload() {
   flex: 1;
   display: flex;
   align-items: center;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
   border-radius: 8px;
   padding: 0 12px;
+}
+
+.search-input-wrapper:focus-within {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 2px var(--alpha-accent-10);
 }
 
 .search-icon {
@@ -608,6 +949,16 @@ function cancelDownload() {
 
 .search-input::placeholder {
   color: var(--text-secondary);
+}
+
+.search-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.search-btn {
+  min-width: 120px;
 }
 
 .btn-primary {
@@ -663,23 +1014,89 @@ function cancelDownload() {
 
 .search-options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   padding: 16px;
   background: var(--bg-panel);
   border-radius: 8px;
+  border: 1px solid var(--border-color);
 }
 
-.option-group {
+.search-options-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.advanced-toggle {
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.advanced-toggle:hover {
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+}
+
+.search-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.form-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.option-label {
+.form-label {
   font-size: 12px;
   font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg-input);
   color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-input:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 2px var(--alpha-accent-10);
+}
+
+.form-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.advanced-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
 }
 
 .engine-checkboxes {
@@ -688,13 +1105,40 @@ function cancelDownload() {
   gap: 8px;
 }
 
-.engine-checkbox {
-  display: flex;
+.engine-empty {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 6px 0;
+}
+
+.engine-card {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
   font-size: 12px;
   color: var(--text-primary);
   cursor: pointer;
+  transition: all 0.15s;
+  background: var(--bg-card);
+}
+
+.engine-card:hover {
+  border-color: var(--accent-bright);
+}
+
+.engine-card.selected {
+  border-color: var(--accent-color);
+  background: var(--bg-selected);
+}
+
+.engine-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  object-fit: contain;
 }
 
 .year-inputs {
@@ -704,13 +1148,7 @@ function cancelDownload() {
 }
 
 .year-input {
-  width: 80px;
-  padding: 6px 8px;
-  font-size: 12px;
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
+  width: 90px;
 }
 
 .year-separator {
@@ -718,24 +1156,11 @@ function cancelDownload() {
   color: var(--text-secondary);
 }
 
-.sort-select,
-.number-input {
-  padding: 6px 10px;
-  font-size: 12px;
-  background: var(--color-white);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-}
-
-.number-input.small {
-  width: 100px;
-}
-
 .deep-crawl-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .toggle-wrapper {
@@ -747,6 +1172,10 @@ function cancelDownload() {
 .toggle-label-text {
   font-size: 12px;
   color: var(--text-primary);
+}
+
+.deep-crawl-input {
+  width: 140px;
 }
 
 .error-banner {
@@ -764,6 +1193,7 @@ function cancelDownload() {
   gap: 12px;
   flex: 1;
   overflow: hidden;
+  width: 100%;
 }
 
 .results-header {
@@ -773,9 +1203,31 @@ function cancelDownload() {
   padding: 12px;
   background: var(--bg-panel);
   border-radius: 8px;
+  border: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
-.results-count {
+.results-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.results-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.results-sort .custom-select-wrapper {
+  min-width: 160px;
+}
+
+.resultsCount {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
@@ -792,13 +1244,49 @@ function cancelDownload() {
   gap: 8px;
 }
 
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--accent-color);
+  color: white;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.filter-panel {
+  padding: 16px;
+  background: var(--bg-panel);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.filter-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
 .results-list {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-right: 8px;
+  padding-right: 0;
 }
 
 .result-card {
@@ -811,7 +1299,7 @@ function cancelDownload() {
 
 .result-card.selected {
   border-color: var(--accent-color);
-  background: rgba(59, 130, 246, 0.05);
+  background: var(--bg-selected);
 }
 
 .result-card.no-pdf {
@@ -825,6 +1313,14 @@ function cancelDownload() {
   align-items: flex-start;
 }
 
+.result-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
 .pdf-badge {
   background: var(--color-success-50);
   color: var(--color-success-700);
@@ -832,7 +1328,6 @@ function cancelDownload() {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
-  margin-bottom: 6px;
 }
 
 .no-pdf-badge {
@@ -842,12 +1337,14 @@ function cancelDownload() {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
-  margin-bottom: 6px;
 }
 
-.result-checkbox {
-  margin-top: 4px;
-  flex-shrink: 0;
+.result-card.clickable {
+  cursor: pointer;
+}
+
+.result-card.clickable:hover {
+  border-color: var(--accent-bright);
 }
 
 .result-main {
@@ -1007,6 +1504,48 @@ function cancelDownload() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.empty-state {
+  padding: 32px 16px;
+  background: var(--bg-panel);
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.empty-hint {
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .search-input-row {
+    flex-direction: column;
+  }
+
+  .search-btn {
+    width: 100%;
+  }
+
+  .results-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .results-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 .confirm-text {

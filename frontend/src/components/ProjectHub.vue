@@ -974,8 +974,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
-});
+onUnmounted(() => {});
 </script>
 
 <template>
@@ -2428,7 +2427,6 @@ onUnmounted(() => {
   overflow-y: auto;
   position: relative;
 }
-
 </style>
 
 <style scoped>

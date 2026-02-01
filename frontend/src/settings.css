@@ -558,7 +558,9 @@
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.settings-container .radio-inline-option input[type="radio"]:not(:checked)::before {
+.settings-container
+  .radio-inline-option
+  input[type="radio"]:not(:checked)::before {
   content: "";
   position: absolute;
   top: 50%;

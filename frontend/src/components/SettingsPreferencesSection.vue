@@ -212,7 +212,9 @@ const emitDisplayChange = (
           </div>
           <div>
             <h4 class="section-title">Display</h4>
-            <p class="section-description">Customize how content is displayed</p>
+            <p class="section-description">
+              Customize how content is displayed
+            </p>
           </div>
         </div>
         <div class="section-content">
@@ -220,7 +222,9 @@ const emitDisplayChange = (
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Project Files Limit</label>
-              <p class="setting-hint">Items per page in sidebar (0 for unlimited)</p>
+              <p class="setting-hint">
+                Items per page in sidebar (0 for unlimited)
+              </p>
             </div>
             <div class="setting-control setting-control--sm">
               <input
@@ -237,7 +241,9 @@ const emitDisplayChange = (
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Pinned Notes Limit</label>
-              <p class="setting-hint">Notes per page in sidebar (0 for unlimited)</p>
+              <p class="setting-hint">
+                Notes per page in sidebar (0 for unlimited)
+              </p>
             </div>
             <div class="setting-control setting-control--sm">
               <input
@@ -254,7 +260,9 @@ const emitDisplayChange = (
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Chat List Limit</label>
-              <p class="setting-hint">Chats per page in sidebar (0 for unlimited)</p>
+              <p class="setting-hint">
+                Chats per page in sidebar (0 for unlimited)
+              </p>
             </div>
             <div class="setting-control setting-control--sm">
               <input

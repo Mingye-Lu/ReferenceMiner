@@ -1,15 +1,6 @@
 <script setup lang="ts">
 import type { BalanceInfo, UpdateCheck } from "../types";
-import {
-  ArrowUpRight,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Key,
-  Trash,
-  Trash2,
-  X,
-} from "lucide-vue-next";
+import { ArrowUpRight, Check, Key, Trash, Trash2, X } from "lucide-vue-next";
 import CustomSelect from "./CustomSelect.vue";
 
 interface ProviderOption {
@@ -79,10 +70,7 @@ defineProps<{
   onModelInput: (value: string) => void;
 }>();
 
-const onInput = (
-  event: Event,
-  handler: (value: string) => void,
-) => {
+const onInput = (event: Event, handler: (value: string) => void) => {
   const target = event.target as HTMLInputElement;
   handler(target.value);
 };
@@ -136,7 +124,9 @@ const onInput = (
                 <CustomSelect
                   :model-value="selectedProvider"
                   :options="providerOptions"
-                  @update:model-value="(value) => onSetProvider(value as string)"
+                  @update:model-value="
+                    (value) => onSetProvider(value as string)
+                  "
                 />
               </div>
             </div>
@@ -164,7 +154,9 @@ const onInput = (
                     <Check :size="14" />
                     Key configured
                   </span>
-                  <span class="masked-key">{{ currentProviderKey.maskedKey }}</span>
+                  <span class="masked-key">{{
+                    currentProviderKey.maskedKey
+                  }}</span>
                   <button
                     class="btn-link danger"
                     @click="onDeleteApiKey"
@@ -172,32 +164,6 @@ const onInput = (
                   >
                     Remove
                   </button>
-                </div>
-
-                <div class="api-input-row">
-                  <div class="input-group">
-                    <input
-                      :value="apiKeyInput"
-                      :type="showApiKey ? 'text' : 'password'"
-                      class="form-input"
-                      :placeholder="
-                        currentProviderKey.hasKey
-                          ? 'Enter new key to replace'
-                          : 'Enter your API key'
-                      "
-                      @input="(event) => onInput(event, onApiKeyInput)"
-                    />
-                    <button
-                      class="input-addon"
-                      @click="onToggleShowApiKey"
-                      type="button"
-                    >
-                      <component
-                        :is="showApiKey ? ChevronUp : ChevronDown"
-                        :size="16"
-                      />
-                    </button>
-                  </div>
                 </div>
 
                 <div class="api-input-row">
@@ -276,16 +242,21 @@ const onInput = (
                   {{ saveError }}
                 </div>
 
-                <div class="validation-result" v-if="validationStatus !== 'none'">
-                  <span v-if="validationStatus === 'valid'" class="status valid">
+                <div
+                  class="validation-result"
+                  v-if="validationStatus !== 'none'"
+                >
+                  <span
+                    v-if="validationStatus === 'valid'"
+                    class="status valid"
+                  >
                     <Check :size="14" />
                     {{ apiKeyStatusMessage }}
                   </span>
                   <span v-else class="status invalid">
                     <X :size="14" />
-                    Invalid: {{
-                      validationError || "API key verification failed"
-                    }}
+                    Invalid:
+                    {{ validationError || "API key verification failed" }}
                   </span>
                 </div>
 
@@ -305,8 +276,12 @@ const onInput = (
                       class="balance-item"
                     >
                       <div class="balance-line">
-                        <span class="balance-currency">{{ info.currency }}</span>
-                        <span class="balance-amount">{{ info.totalBalance }}</span>
+                        <span class="balance-currency">{{
+                          info.currency
+                        }}</span>
+                        <span class="balance-amount">{{
+                          info.totalBalance
+                        }}</span>
                       </div>
                       <div class="balance-meta">
                         Granted {{ info.grantedBalance }} · Topped up
@@ -341,7 +316,9 @@ const onInput = (
                   <CustomSelect
                     :model-value="modelInput"
                     :options="modelOptions"
-                    @update:model-value="(value) => onModelInput(value as string)"
+                    @update:model-value="
+                      (value) => onModelInput(value as string)
+                    "
                   />
                   <button
                     class="btn btn-outline"
@@ -373,9 +350,7 @@ const onInput = (
                     @click="onSaveLlmSettings"
                     :disabled="isSavingLlm"
                   >
-                    {{
-                      isSavingLlm ? "Saving..." : "Save Endpoint & Model"
-                    }}
+                    {{ isSavingLlm ? "Saving..." : "Save Endpoint & Model" }}
                   </button>
                 </div>
 
@@ -424,7 +399,9 @@ const onInput = (
             <div class="setting-control">
               <div class="update-actions">
                 <a
-                  v-if="updateInfo?.isUpdateAvailable && updateInfo?.latest?.url"
+                  v-if="
+                    updateInfo?.isUpdateAvailable && updateInfo?.latest?.url
+                  "
                   class="btn btn-primary-sm"
                   :href="updateInfo.latest.url"
                   target="_blank"
