@@ -40,16 +40,16 @@ class GoogleScholarCrawler(BaseCrawler):
             search_url = self._build_search_url(query)
             response = await self._fetch(search_url)
             soup = BeautifulSoup(response.text, "html.parser")
-            
+
             engine = SelectorEngine(soup)
             results = self._parse_results(engine, query)
-            
+
             successful = engine.get_successful_selectors()
             if successful:
                 logger.info(
                     f"[{self.name}] Successful selectors: {list(successful.keys())}"
                 )
-            
+
             logger.info(f"[{self.name}] Found {len(results)} results")
         except Exception as e:
             logger.error(f"[{self.name}] Search failed: {e}", exc_info=True)
@@ -79,7 +79,7 @@ class GoogleScholarCrawler(BaseCrawler):
         results: list[SearchResult] = []
 
         result_divs = engine.find_elements(GoogleScholarSelectors.RESULT_CONTAINER)
-        
+
         for div in result_divs:
             try:
                 result = self._parse_single_result(div, engine, query)
@@ -96,24 +96,26 @@ class GoogleScholarCrawler(BaseCrawler):
     ) -> Optional[SearchResult]:
         """Parse a single search result using selector engine."""
         result_engine = SelectorEngine(div)
-        
+
         title_element = result_engine.find_element(GoogleScholarSelectors.TITLE)
         if not title_element:
             return None
 
         title_link = result_engine.find_element(GoogleScholarSelectors.TITLE_LINK)
-        
+
         url = None
         pdf_url = None
-        
+
         if title_link:
             raw_title = title_link.get_text(strip=True)
             link_url = title_link.get("href", "")
-            
-            title = re.sub(r'^\[PDF\]\s*', '', raw_title).strip()
-            
+
+            title = re.sub(r"^\[PDF\]\s*", "", raw_title).strip()
+
             link_url_str = str(link_url) if link_url else ""
-            is_pdf_url = '.pdf' in link_url_str.lower() or '/pdf/' in link_url_str.lower()
+            is_pdf_url = (
+                ".pdf" in link_url_str.lower() or "/pdf/" in link_url_str.lower()
+            )
             if is_pdf_url:
                 pdf_url = link_url_str
                 url = self._transform_pdf_to_landing_page(link_url_str)
@@ -173,11 +175,11 @@ class GoogleScholarCrawler(BaseCrawler):
 
     def _transform_pdf_to_landing_page(self, pdf_url: str) -> Optional[str]:
         """Transform PDF URL to landing page URL."""
-        if 'arxiv.org/pdf/' in pdf_url:
-            arxiv_id = pdf_url.split('/pdf/')[-1].replace('.pdf', '')
+        if "arxiv.org/pdf/" in pdf_url:
+            arxiv_id = pdf_url.split("/pdf/")[-1].replace(".pdf", "")
             return f"https://arxiv.org/abs/{arxiv_id}"
-        
-        if 'biorxiv.org' in pdf_url or 'medrxiv.org' in pdf_url:
-            return pdf_url.replace('.full.pdf', '').replace('.pdf', '')
-        
+
+        if "biorxiv.org" in pdf_url or "medrxiv.org" in pdf_url:
+            return pdf_url.replace(".full.pdf", "").replace(".pdf", "")
+
         return pdf_url

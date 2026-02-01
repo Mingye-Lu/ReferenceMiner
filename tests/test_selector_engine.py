@@ -55,10 +55,10 @@ class TestSelectorEngine(unittest.TestCase):
                 ),
             ],
         )
-        
+
         engine = SelectorEngine(self.soup)
         element = engine.find_element(field_selector)
-        
+
         self.assertIsNotNone(element)
         classes = element.get("class", [])
         if isinstance(classes, str):
@@ -85,10 +85,10 @@ class TestSelectorEngine(unittest.TestCase):
                 ),
             ],
         )
-        
+
         engine = SelectorEngine(self.soup)
         elements = engine.find_elements(field_selector)
-        
+
         self.assertEqual(len(elements), 2)
 
     def test_find_elements_with_multiple_strategies(self):
@@ -108,10 +108,10 @@ class TestSelectorEngine(unittest.TestCase):
                 ),
             ],
         )
-        
+
         engine = SelectorEngine(self.soup)
         elements = engine.find_elements(field_selector)
-        
+
         self.assertGreaterEqual(len(elements), 1)
 
     def test_priority_ordering(self):
@@ -131,10 +131,10 @@ class TestSelectorEngine(unittest.TestCase):
                 ),
             ],
         )
-        
+
         engine = SelectorEngine(self.soup)
         element = engine.find_element(field_selector)
-        
+
         self.assertIsNotNone(element)
         classes = element.get("class", [])
         if isinstance(classes, str):
@@ -156,10 +156,10 @@ class TestSelectorEngine(unittest.TestCase):
                 ),
             ],
         )
-        
+
         engine = SelectorEngine(self.soup)
         engine.find_elements(field_selector)
-        
+
         successful = engine.get_successful_selectors()
         self.assertIn("test_field:css", successful)
         self.assertEqual(successful["test_field:css"], "div.gs_r")
@@ -177,10 +177,10 @@ class TestSelectorEngine(unittest.TestCase):
             ],
             required=True,
         )
-        
+
         engine = SelectorEngine(self.soup)
         element = engine.find_element(field_selector)
-        
+
         self.assertIsNone(element)
 
     def test_optional_field_not_found(self):
@@ -196,10 +196,10 @@ class TestSelectorEngine(unittest.TestCase):
             ],
             required=False,
         )
-        
+
         engine = SelectorEngine(self.soup)
         element = engine.find_element(field_selector)
-        
+
         self.assertIsNone(element)
 
     def test_xpath_selector(self):
@@ -214,10 +214,10 @@ class TestSelectorEngine(unittest.TestCase):
                 ),
             ],
         )
-        
+
         engine = SelectorEngine(self.soup)
         elements = engine.find_elements(field_selector)
-        
+
         self.assertEqual(len(elements), 2)
 
 

@@ -12,7 +12,12 @@ import httpx
 from bs4 import BeautifulSoup
 
 from refminer.crawler.models import SearchResult
-from refminer.crawler.selector_engine import FieldSelector, SelectorEngine, SelectorStrategy, SelectorType
+from refminer.crawler.selector_engine import (
+    FieldSelector,
+    SelectorEngine,
+    SelectorStrategy,
+    SelectorType,
+)
 
 logger = logging.getLogger(__name__)
 

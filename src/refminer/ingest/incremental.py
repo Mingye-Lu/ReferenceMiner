@@ -5,7 +5,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from refminer.ingest.extract import extract_document
 from refminer.ingest.bibliography import (
@@ -74,6 +74,7 @@ def ingest_single_file(
     root: Path | None = None,
     references_dir: Path | None = None,
     build_vectors: bool = True,
+    bibliography: dict[str, Any] | None = None,
 ) -> tuple[ManifestEntry, list[Chunk]]:
     """Process a single file: extract text, chunk, and return manifest entry + chunks."""
     ref_dir = references_dir or get_references_dir(root)
@@ -100,10 +101,13 @@ def ingest_single_file(
     entry.page_count = extracted.page_count
     entry.title = extracted.title
     if file_type == "pdf":
-        extracted_bib = extract_bibliography_from_pdf(
-            file_path, extracted.text_blocks, entry.title, file_path.name
-        )
-        entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
+        if bibliography:
+            entry.bibliography = bibliography
+        else:
+            extracted_bib = extract_bibliography_from_pdf(
+                file_path, extracted.text_blocks, entry.title, file_path.name
+            )
+            entry.bibliography = merge_bibliography(entry.bibliography, extracted_bib)
 
     chunks: list[Chunk] = []
     if extracted.text_blocks:
@@ -354,10 +358,16 @@ def full_ingest_single_file(
     references_dir: Path | None = None,
     index_dir: Path | None = None,
     build_vectors: bool = True,
+    bibliography: dict[str, Any] | None = None,
 ) -> ManifestEntry:
     """Complete single-file ingest: process, update all indexes, update registry."""
-    # 1. Process the file
-    entry, chunks = ingest_single_file(file_path, root, references_dir=references_dir)
+    # 1. Process file
+    entry, chunks = ingest_single_file(
+        file_path,
+        root,
+        references_dir=references_dir,
+        bibliography=bibliography,
+    )
 
     # 2. Update manifest
     append_to_manifest(entry, root, index_dir=index_dir)

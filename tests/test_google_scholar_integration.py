@@ -34,13 +34,11 @@ class TestGoogleScholarIntegration(unittest.TestCase):
         </div>
         """
         soup = BeautifulSoup(html, "html.parser")
-        
+
         result = self.crawler._parse_single_result(
-            soup.find("div", class_="gs_r"),
-            None,
-            SearchQuery(query="test")
+            soup.find("div", class_="gs_r"), None, SearchQuery(query="test")
         )
-        
+
         self.assertIsNotNone(result)
         self.assertEqual(result.title, "arxiv.org")
         self.assertEqual(result.url, "https://arxiv.org/abs/2412.19437")
@@ -58,17 +56,17 @@ class TestGoogleScholarIntegration(unittest.TestCase):
         </div>
         """
         soup = BeautifulSoup(html, "html.parser")
-        
+
         result = self.crawler._parse_single_result(
-            soup.find("div", class_="gs_r"),
-            None,
-            SearchQuery(query="test")
+            soup.find("div", class_="gs_r"), None, SearchQuery(query="test")
         )
-        
+
         self.assertIsNotNone(result)
         self.assertEqual(result.title, "bioRxiv")
         self.assertEqual(result.url, "https://biorxiv.org/content/10.1101/2024.123456")
-        self.assertEqual(result.pdf_url, "https://biorxiv.org/content/10.1101/2024.123456.full.pdf")
+        self.assertEqual(
+            result.pdf_url, "https://biorxiv.org/content/10.1101/2024.123456.full.pdf"
+        )
 
     def test_parse_regular_result(self):
         """Test parsing regular result without PDF in title."""
@@ -81,13 +79,11 @@ class TestGoogleScholarIntegration(unittest.TestCase):
         </div>
         """
         soup = BeautifulSoup(html, "html.parser")
-        
+
         result = self.crawler._parse_single_result(
-            soup.find("div", class_="gs_r"),
-            None,
-            SearchQuery(query="test")
+            soup.find("div", class_="gs_r"), None, SearchQuery(query="test")
         )
-        
+
         self.assertIsNotNone(result)
         self.assertEqual(result.title, "Regular Paper Title")
         self.assertEqual(result.url, "https://example.com/paper")
@@ -105,13 +101,11 @@ class TestGoogleScholarIntegration(unittest.TestCase):
         </div>
         """
         soup = BeautifulSoup(html, "html.parser")
-        
+
         result = self.crawler._parse_single_result(
-            soup.find("div", class_="gs_r"),
-            None,
-            SearchQuery(query="test")
+            soup.find("div", class_="gs_r"), None, SearchQuery(query="test")
         )
-        
+
         self.assertIsNotNone(result)
         self.assertEqual(result.title, "Paper Title")
         self.assertEqual(result.url, "https://example.com/paper")

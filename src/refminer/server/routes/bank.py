@@ -45,11 +45,16 @@ async def get_file_stats():
 
 @router.post("/upload/stream")
 async def upload_bank_stream_api(
-    file: UploadFile = File(...), replace_existing: bool = Form(False)
+    file: UploadFile = File(...),
+    replace_existing: bool = Form(False),
+    bibliography: str = Form(None),
 ):
     """Upload a file to the global reference bank."""
+    import json
+
+    bib_data = json.loads(bibliography) if bibliography else None
     return StreamingResponse(
-        stream_upload(None, file, replace_existing, False),
+        stream_upload(None, file, replace_existing, False, bib_data),
         media_type="text/event-stream",
     )
 

@@ -157,7 +157,9 @@ async def batch_download_stream(
             logger.info(f"[Crawler] Downloaded and ingested: {result.title}")
 
         except Exception as e:
-            logger.error(f"[Crawler] Failed to process {result.title}: {e}", exc_info=True)
+            logger.error(
+                f"[Crawler] Failed to process {result.title}: {e}", exc_info=True
+            )
             queue_store.update_job(
                 job_id,
                 status="failed",

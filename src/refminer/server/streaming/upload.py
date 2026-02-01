@@ -6,7 +6,7 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from fastapi import UploadFile
 
@@ -32,6 +32,7 @@ def stream_upload(
     file: UploadFile,
     replace_existing: bool = False,
     select_in_project: bool = True,
+    bibliography: dict[str, Any] | None = None,
 ) -> Iterator[str]:
     """Stream file upload with SSE progress events."""
     scope = "project" if project_id else "bank"
@@ -226,6 +227,7 @@ def stream_upload(
                         references_dir=references_dir,
                         index_dir=index_dir,
                         build_vectors=True,
+                        bibliography=bibliography,
                     )
                 else:
                     register_file(existing_rel_path, file_hash, registry)
@@ -238,6 +240,7 @@ def stream_upload(
                     references_dir=references_dir,
                     index_dir=index_dir,
                     build_vectors=True,
+                    bibliography=bibliography,
                 )
         except Exception as e:
             # Clean up on processing failure - but NEVER delete reused files

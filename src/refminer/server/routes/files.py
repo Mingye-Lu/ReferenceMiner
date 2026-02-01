@@ -88,11 +88,17 @@ async def get_status(project_id: str):
 
 @router.post("/api/projects/{project_id}/upload/stream")
 async def upload_file_stream_api(
-    project_id: str, file: UploadFile = File(...), replace_existing: bool = Form(False)
+    project_id: str,
+    file: UploadFile = File(...),
+    replace_existing: bool = Form(False),
+    bibliography: str = Form(None),
 ):
     """Upload a file with SSE progress events."""
+    import json
+
+    bib_data = json.loads(bibliography) if bibliography else None
     return StreamingResponse(
-        stream_upload(project_id, file, replace_existing, True),
+        stream_upload(project_id, file, replace_existing, True, bib_data),
         media_type="text/event-stream",
     )
 

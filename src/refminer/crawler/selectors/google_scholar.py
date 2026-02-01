@@ -12,7 +12,7 @@ from refminer.crawler.selector_engine import (
 
 class GoogleScholarSelectors:
     """Google Scholar selector configurations."""
-    
+
     RESULT_CONTAINER = FieldSelector(
         field_name="result_container",
         strategies=[
@@ -43,7 +43,7 @@ class GoogleScholarSelectors:
         ],
         required=True,
     )
-    
+
     TITLE = FieldSelector(
         field_name="title",
         strategies=[
@@ -74,7 +74,7 @@ class GoogleScholarSelectors:
         ],
         required=True,
     )
-    
+
     TITLE_LINK = FieldSelector(
         field_name="title_link",
         strategies=[
@@ -99,7 +99,7 @@ class GoogleScholarSelectors:
         ],
         required=False,
     )
-    
+
     AUTHORS_YEAR_JOURNAL = FieldSelector(
         field_name="authors_year_journal",
         strategies=[
@@ -130,7 +130,7 @@ class GoogleScholarSelectors:
         ],
         required=False,
     )
-    
+
     PDF_LINK = FieldSelector(
         field_name="pdf_link",
         strategies=[
