@@ -6,10 +6,7 @@ import CustomSelect from "./CustomSelect.vue";
 import googleScholarIcon from "../assets/google-scholar.svg";
 import pubmedIcon from "../assets/pubmed.svg";
 import semanticScholarIcon from "../assets/semantic-scholar.svg";
-import type {
-  CrawlerSearchResult,
-  CrawlerSearchQuery,
-} from "../types";
+import type { CrawlerSearchResult, CrawlerSearchQuery } from "../types";
 import {
   searchPapers,
   downloadPapersQueueStream,

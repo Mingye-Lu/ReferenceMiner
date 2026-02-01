@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, watch } from "vue";
 import BaseModal from "./BaseModal.vue";
+import FileQueueItem from "./FileQueueItem.vue";
+import BibliographyEditor from "./BibliographyEditor.vue";
 import { uploadFileStream, uploadFileToBankStream } from "../api/client";
-import type { UploadItem, ManifestEntry, UploadProgress } from "../types";
+import type {
+  UploadItem,
+  ManifestEntry,
+  UploadProgress,
+  Bibliography,
+} from "../types";
 import { useQueue } from "../composables/useQueue";
 
 const props = withDefaults(
@@ -25,6 +32,7 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const folderInput = ref<HTMLInputElement | null>(null);
 const isOpen = ref(false);
 const activeUploads = ref(0);
+const selectedFileId = ref<string | null>(null);
 const MAX_CONCURRENT_UPLOADS = 3;
 const lastTriggerPoint = ref<{ x: number; y: number } | null>(null);
 const { launchQueueEject } = useQueue();
@@ -40,6 +48,18 @@ const SUPPORTED_EXTENSIONS = [
   ".csv",
   ".xlsx",
 ];
+
+const selectedFile = computed(
+  () => uploads.value.find((u) => u.id === selectedFileId.value) || null,
+);
+
+const hasFilesWithBibliography = computed(() =>
+  uploads.value.some((u) => u.bibliography),
+);
+
+const hasFilesWithoutBibliography = computed(() =>
+  uploads.value.some((u) => !u.bibliography),
+);
 
 function isSupported(file: File): boolean {
   const ext = "." + file.name.split(".").pop()?.toLowerCase();
@@ -67,6 +87,7 @@ function addFiles(
       file,
       status: "pending",
       progress: 0,
+      bibliography: null,
     };
     uploads.value.push(item);
     if (origin) {
@@ -74,15 +95,14 @@ function addFiles(
     }
   }
 
-  // Start processing uploads with concurrency control
-  processQueue();
+  if (!selectedFileId.value && uploads.value.length > 0) {
+    selectedFileId.value = uploads.value[0].id;
+  }
 }
 
 async function processQueue() {
-  // Find pending uploads
   const pending = uploads.value.filter((u) => u.status === "pending");
 
-  // Start uploads up to the concurrent limit
   for (const item of pending) {
     if (activeUploads.value >= MAX_CONCURRENT_UPLOADS) {
       break;
@@ -103,7 +123,6 @@ function closeModal(value: boolean) {
 }
 
 async function processUpload(item: UploadItem, replace: boolean = false) {
-  // Find the item in the array for proper reactivity
   const updateItem = (updates: Partial<UploadItem>) => {
     const idx = uploads.value.findIndex((u) => u.id === item.id);
     if (idx !== -1) {
@@ -150,15 +169,20 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
       },
     };
 
-    // Call appropriate upload function based on mode
     const result =
       props.uploadMode === "bank"
-        ? await uploadFileToBankStream(item.file, handlers, replace)
+        ? await uploadFileToBankStream(
+            item.file,
+            handlers,
+            replace,
+            item.bibliography,
+          )
         : await uploadFileStream(
             props.projectId!,
             item.file,
             handlers,
             replace,
+            item.bibliography,
           );
 
     const currentItem = uploads.value.find((u) => u.id === item.id);
@@ -177,7 +201,6 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
     });
   } finally {
     activeUploads.value--;
-    // Process next item in queue
     processQueue();
   }
 }
@@ -193,7 +216,7 @@ function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   if (target.files) {
     addFiles(target.files, lastTriggerPoint.value);
-    target.value = ""; // Reset for re-selection
+    target.value = "";
   }
 }
 
@@ -203,6 +226,14 @@ function handleFolderSelect(event: Event) {
     addFiles(target.files, lastTriggerPoint.value);
     target.value = "";
   }
+}
+
+function selectFile(item: UploadItem) {
+  if (selectedFileId.value === item.id) {
+    selectedFileId.value = null;
+    return;
+  }
+  selectedFileId.value = item.id;
 }
 
 function replaceFile(item: UploadItem, event?: MouseEvent) {
@@ -218,6 +249,30 @@ function replaceFile(item: UploadItem, event?: MouseEvent) {
   }
 }
 
+function removeItem(item: UploadItem) {
+  const idx = uploads.value.findIndex((u) => u.id === item.id);
+  if (idx !== -1) {
+    uploads.value.splice(idx, 1);
+    if (selectedFileId.value === item.id) {
+      selectedFileId.value =
+        uploads.value.length > 0 ? uploads.value[0].id : null;
+    }
+  }
+}
+
+function clearCompleted() {
+  uploads.value = uploads.value.filter(
+    (u) => u.status !== "complete" && u.status !== "error",
+  );
+  if (
+    selectedFileId.value &&
+    !uploads.value.find((u) => u.id === selectedFileId.value)
+  ) {
+    selectedFileId.value =
+      uploads.value.length > 0 ? uploads.value[0].id : null;
+  }
+}
+
 function setTriggerPoint(event: MouseEvent) {
   if (!(event.currentTarget instanceof HTMLElement)) return;
   const rect = event.currentTarget.getBoundingClientRect();
@@ -227,35 +282,43 @@ function setTriggerPoint(event: MouseEvent) {
   };
 }
 
-function removeItem(item: UploadItem) {
-  const idx = uploads.value.findIndex((u) => u.id === item.id);
-  if (idx !== -1) uploads.value.splice(idx, 1);
-}
-
-function clearCompleted() {
-  uploads.value = uploads.value.filter(
-    (u) => u.status !== "complete" && u.status !== "error",
-  );
-}
-
-function getStatusLabel(status: string): string {
-  switch (status) {
-    case "pending":
-      return "Pending";
-    case "uploading":
-      return "Uploading...";
-    case "processing":
-      return "Processing...";
-    case "complete":
-      return "Complete";
-    case "error":
-      return "Error";
-    case "duplicate":
-      return "Duplicate";
-    default:
-      return status;
+function updateBibliography(bibliography: Bibliography | null) {
+  if (selectedFile.value) {
+    selectedFile.value.bibliography = bibliography;
   }
 }
+
+function startUploads() {
+  processQueue();
+  closeModal(false);
+}
+
+function handleKeyDown(event: KeyboardEvent) {
+  if (!isOpen.value) return;
+
+  const currentIndex = uploads.value.findIndex(
+    (u) => u.id === selectedFileId.value,
+  );
+
+  if (event.key === "ArrowDown" && currentIndex < uploads.value.length - 1) {
+    event.preventDefault();
+    selectedFileId.value = uploads.value[currentIndex + 1].id;
+  } else if (event.key === "ArrowUp" && currentIndex > 0) {
+    event.preventDefault();
+    selectedFileId.value = uploads.value[currentIndex - 1].id;
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    selectedFileId.value = null;
+  }
+}
+
+watch(isOpen, (value) => {
+  if (value) {
+    document.addEventListener("keydown", handleKeyDown);
+  } else {
+    document.removeEventListener("keydown", handleKeyDown);
+  }
+});
 </script>
 
 <template>
@@ -264,194 +327,195 @@ function getStatusLabel(status: string): string {
 
     <BaseModal
       :model-value="isOpen"
-      size="large"
+      size="xlarge"
       :title="
         uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project'
       "
       @update:model-value="closeModal"
     >
-      <div
-        class="drop-zone"
-        :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
-        @dragover.prevent="isDragOver = true"
-        @dragleave="isDragOver = false"
-        @drop.prevent="handleDrop"
-      >
-        <template v-if="uploads.length === 0">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" x2="12" y1="3" y2="15" />
-          </svg>
-          <p class="drop-text">Drop files here or click to browse</p>
-          <p class="drop-hint">
-            PDF, DOCX, TXT, MD, Images (PNG, JPG). Folder upload supported.
-          </p>
-          <input
-            type="file"
-            multiple
-            :accept="SUPPORTED_EXTENSIONS.join(',')"
-            @change="handleFileSelect"
-            ref="fileInput"
-            class="hidden-input"
-          />
-          <input
-            type="file"
-            webkitdirectory
-            directory
-            @change="handleFolderSelect"
-            ref="folderInput"
-            class="hidden-input"
-          />
-          <div class="upload-actions">
-            <button
-              class="btn-secondary"
-              @click="
-                setTriggerPoint($event);
-                fileInput?.click();
-              "
+      <div class="upload-modal-content">
+        <div
+          class="drop-zone"
+          :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
+          @dragover.prevent="isDragOver = true"
+          @dragleave="isDragOver = false"
+          @drop.prevent="handleDrop"
+        >
+          <template v-if="uploads.length === 0">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
             >
-              Select Files
-            </button>
-            <button
-              class="btn-secondary"
-              @click="
-                setTriggerPoint($event);
-                folderInput?.click();
-              "
-            >
-              Select Folder
-            </button>
-          </div>
-        </template>
-
-        <template v-else>
-          <div class="upload-queue">
-            <div
-              v-for="item in uploads"
-              :key="item.id"
-              class="upload-item"
-              :class="item.status"
-            >
-              <div class="item-info">
-                <span class="filename">{{ item.file.name }}</span>
-                <span class="status-badge" :class="item.status">{{
-                  getStatusLabel(item.status)
-                }}</span>
-                <button
-                  v-if="item.status === 'complete'"
-                  class="btn-icon"
-                  @click="removeItem(item)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-
-              <div
-                v-if="
-                  item.status === 'uploading' || item.status === 'processing'
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" x2="12" y1="3" y2="15" />
+            </svg>
+            <p class="drop-text">Drop files here or click to browse</p>
+            <p class="drop-hint">
+              PDF, DOCX, TXT, MD, Images (PNG, JPG). Folder upload supported.
+            </p>
+            <input
+              type="file"
+              multiple
+              :accept="SUPPORTED_EXTENSIONS.join(',')"
+              @change="handleFileSelect"
+              ref="fileInput"
+              class="hidden-input"
+            />
+            <input
+              type="file"
+              webkitdirectory
+              directory
+              @change="handleFolderSelect"
+              ref="folderInput"
+              class="hidden-input"
+            />
+            <div class="upload-actions">
+              <button
+                class="btn-secondary"
+                @click="
+                  setTriggerPoint($event);
+                  fileInput?.click();
                 "
-                class="progress-bar"
               >
-                <div
-                  class="progress-fill"
-                  :style="{ width: item.progress + '%' }"
-                ></div>
-              </div>
-
-              <div v-if="item.status === 'duplicate'" class="duplicate-info">
-                <span class="duplicate-text"
-                  >Same as: {{ item.duplicatePath }}</span
-                >
-                <button class="btn-small" @click="replaceFile(item, $event)">
-                  Replace
-                </button>
-                <button class="btn-small btn-ghost" @click="removeItem(item)">
-                  Skip
-                </button>
-              </div>
-
-              <div v-if="item.status === 'error'" class="error-info">
-                <span class="error-text">{{ item.error }}</span>
-                <button class="btn-small btn-ghost" @click="removeItem(item)">
-                  Dismiss
-                </button>
-              </div>
+                Select Files
+              </button>
+              <button
+                class="btn-secondary"
+                @click="
+                  setTriggerPoint($event);
+                  folderInput?.click();
+                "
+              >
+                Select Folder
+              </button>
             </div>
-          </div>
+          </template>
 
-          <div class="upload-actions">
-            <button
-              class="btn-secondary"
-              @click="
-                setTriggerPoint($event);
-                fileInput?.click();
-              "
-            >
-              Add More
-            </button>
-            <button
-              class="btn-secondary"
-              @click="
-                setTriggerPoint($event);
-                folderInput?.click();
-              "
-            >
-              Add Folder
-            </button>
-            <button
-              v-if="
-                uploads.some(
-                  (u) => u.status === 'complete' || u.status === 'error',
-                )
-              "
-              class="btn-secondary"
-              @click="clearCompleted"
-            >
-              Clear Done
-            </button>
-          </div>
-          <input
-            type="file"
-            multiple
-            :accept="SUPPORTED_EXTENSIONS.join(',')"
-            @change="handleFileSelect"
-            ref="fileInput"
-            class="hidden-input"
-          />
-          <input
-            type="file"
-            webkitdirectory
-            directory
-            @change="handleFolderSelect"
-            ref="folderInput"
-            class="hidden-input"
-          />
-        </template>
+          <template v-else>
+            <div class="upload-queue">
+              <FileQueueItem
+                v-for="item in uploads"
+                :key="item.id"
+                :item="item"
+                :is-selected="selectedFileId === item.id"
+                @select="selectFile(item)"
+                @remove="removeItem(item)"
+                @replace="replaceFile(item, $event)"
+              />
+            </div>
+
+            <div class="upload-actions">
+              <button
+                class="btn-secondary"
+                @click="
+                  setTriggerPoint($event);
+                  fileInput?.click();
+                "
+              >
+                Add More
+              </button>
+              <button
+                class="btn-secondary"
+                @click="
+                  setTriggerPoint($event);
+                  folderInput?.click();
+                "
+              >
+                Add Folder
+              </button>
+              <button
+                v-if="
+                  uploads.some(
+                    (u) => u.status === 'complete' || u.status === 'error',
+                  )
+                "
+                class="btn-secondary"
+                @click="clearCompleted"
+              >
+                Clear Done
+              </button>
+            </div>
+            <input
+              type="file"
+              multiple
+              :accept="SUPPORTED_EXTENSIONS.join(',')"
+              @change="handleFileSelect"
+              ref="fileInput"
+              class="hidden-input"
+            />
+            <input
+              type="file"
+              webkitdirectory
+              directory
+              @change="handleFolderSelect"
+              ref="folderInput"
+              class="hidden-input"
+            />
+          </template>
+        </div>
+
+        <div class="bibliography-panel">
+          <template v-if="selectedFile">
+            <BibliographyEditor
+              :model-value="selectedFile.bibliography ?? null"
+              :file="selectedFile.file"
+              compact
+              @update:model-value="updateBibliography"
+            />
+          </template>
+          <template v-else>
+            <div class="empty-state">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" x2="8" y1="13" y2="13" />
+                <line x1="16" x2="8" y1="17" y2="17" />
+                <polyline points="10 9 10 9 10 9" />
+              </svg>
+              <p class="empty-text">Select a file to edit bibliography</p>
+            </div>
+          </template>
+        </div>
       </div>
+
+      <template #footer>
+        <div class="footer-info">
+          <span v-if="hasFilesWithBibliography" class="info-badge has-bib">
+            {{ uploads.filter((u) => u.bibliography).length }} with bibliography
+          </span>
+          <span v-if="hasFilesWithoutBibliography" class="info-badge no-bib">
+            {{ uploads.filter((u) => !u.bibliography).length }} without
+          </span>
+        </div>
+        <button class="btn-secondary" @click="closeModal(false)">Cancel</button>
+        <button
+          class="btn-primary"
+          @click="startUploads"
+          :disabled="uploads.length === 0"
+        >
+          Upload {{ uploads.length }} file{{ uploads.length === 1 ? "" : "s" }}
+        </button>
+      </template>
     </BaseModal>
   </div>
 </template>
@@ -477,6 +541,13 @@ function getStatusLabel(status: string): string {
   opacity: 0.9;
 }
 
+.upload-modal-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  min-height: 400px;
+}
+
 .drop-zone {
   border: 2px dashed var(--border-color);
   border-radius: 12px;
@@ -484,8 +555,9 @@ function getStatusLabel(status: string): string {
   text-align: center;
   transition: all 0.2s;
   background: var(--bg-panel);
-  margin: -24px -20px;
-  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .drop-zone.dragover {
@@ -494,8 +566,9 @@ function getStatusLabel(status: string): string {
 }
 
 .drop-zone.has-items {
-  padding: 20px;
+  padding: 12px;
   text-align: left;
+  align-items: flex-start;
 }
 
 .drop-zone svg {
@@ -534,163 +607,95 @@ function getStatusLabel(status: string): string {
   border-color: var(--accent-bright);
 }
 
-.btn-small {
-  padding: 4px 10px;
-  font-size: 11px;
+.btn-primary {
   background: var(--accent-color);
   color: white;
+  padding: 8px 16px;
+  font-size: 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
-.btn-small:hover {
+.btn-primary:hover {
   opacity: 0.9;
 }
 
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-}
-
-.btn-ghost:hover {
-  background: var(--color-neutral-130);
-}
-
-.delete-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  transition: all 0.2s;
-}
-
-.delete-btn:hover {
-  background: var(--bg-icon-hover);
-  color: var(--color-red-600);
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .upload-queue {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
-  margin-bottom: 16px;
-}
-
-.upload-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-
-.upload-item.complete {
-  border-color: var(--color-success-600);
-  background: rgba(76, 175, 80, 0.1);
-}
-
-.upload-item.error {
-  border-color: var(--color-danger-400);
-  background: rgba(211, 47, 47, 0.1);
-}
-
-.upload-item.duplicate {
-  border-color: var(--color-warning-600);
-  background: rgba(255, 152, 0, 0.1);
-}
-
-.item-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-
-.filename {
-  font-size: 12px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-
-.status-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: var(--color-neutral-215);
-  color: var(--color-neutral-650);
-  flex-shrink: 0;
-}
-
-.status-badge.complete {
-  background: var(--color-success-50);
-  color: var(--color-success-700);
-}
-
-.status-badge.error {
-  background: var(--color-danger-50);
-  color: var(--color-danger-800);
-}
-
-.status-badge.duplicate {
-  background: var(--color-warning-100);
-  color: var(--color-warning-800);
-}
-
-.status-badge.uploading,
-.status-badge.processing {
-  background: var(--color-info-90);
-  color: var(--color-info-800);
-}
-
-.progress-bar {
-  height: 4px;
-  background: var(--color-neutral-240);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent-color);
-  transition: width 0.2s;
-}
-
-.duplicate-info,
-.error-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-}
-
-.duplicate-text {
-  color: var(--color-warning-800);
-  flex: 1;
-}
-
-.error-text {
-  color: var(--color-danger-800);
-  flex: 1;
+  margin-bottom: 12px;
 }
 
 .upload-actions {
   display: flex;
   gap: 8px;
   justify-content: center;
+  flex-wrap: wrap;
+}
+
+.bibliography-panel {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.empty-state svg {
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 13px;
+  margin: 0;
+}
+
+.footer-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-right: auto;
+}
+
+.info-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+
+.info-badge.has-bib {
+  background: var(--color-success-50);
+  color: var(--color-success-700);
+}
+
+.info-badge.no-bib {
+  background: var(--color-neutral-200);
+  color: var(--color-neutral-700);
+}
+
+.info-badge.pending {
+  background: var(--color-warning-100);
+  color: var(--color-warning-800);
 }
 </style>

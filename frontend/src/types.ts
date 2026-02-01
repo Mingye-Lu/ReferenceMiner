@@ -139,7 +139,12 @@ export type UploadStatus =
   | "duplicate";
 
 export type DeletePhase = "removing" | "rebuilding_index";
-export type QueuePhase = UploadPhase | DeletePhase | "scanning" | "resetting" | "downloading";
+export type QueuePhase =
+  | UploadPhase
+  | DeletePhase
+  | "scanning"
+  | "resetting"
+  | "downloading";
 export type QueueStatus = UploadStatus | "cancelled";
 export type QueueType = "upload" | "reprocess" | "delete" | "crawler_download";
 export type QueueScope = "bank" | "project";
@@ -184,6 +189,7 @@ export interface UploadItem {
   error?: string;
   duplicatePath?: string;
   result?: UploadResult;
+  bibliography?: Bibliography | null;
 }
 
 export interface UploadQueueItem {

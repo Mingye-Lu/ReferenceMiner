@@ -19,6 +19,7 @@ import type {
   UpdateCheck,
   ValidateResult,
   QueueJob,
+  Bibliography,
 } from "../types";
 import { getFileName } from "../utils";
 
@@ -503,10 +504,17 @@ export async function uploadFileStream(
   file: File,
   handlers: UploadEventHandler,
   replaceExisting: boolean = false,
+  bibliography?: Bibliography | null,
 ): Promise<UploadResult | null> {
   const formData = new FormData();
   formData.append("file", file, getFileName(file.name));
   formData.append("replace_existing", String(replaceExisting));
+  if (bibliography) {
+    formData.append(
+      "bibliography",
+      JSON.stringify(serializeBibliography(bibliography)),
+    );
+  }
 
   console.log("[upload] Starting upload for:", file.name);
 
@@ -618,10 +626,17 @@ export async function uploadFileToBankStream(
   file: File,
   handlers: UploadEventHandler,
   replaceExisting: boolean = false,
+  bibliography?: Bibliography | null,
 ): Promise<UploadResult | null> {
   const formData = new FormData();
   formData.append("file", file, getFileName(file.name));
   formData.append("replace_existing", String(replaceExisting));
+  if (bibliography) {
+    formData.append(
+      "bibliography",
+      JSON.stringify(serializeBibliography(bibliography)),
+    );
+  }
 
   console.log("[bank-upload] Starting upload for:", file.name);
 
