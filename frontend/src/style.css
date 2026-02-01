@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;600&display=swap");
+@import "./settings.css";
 
 :root {
   --font-main: "Manrope", system-ui, sans-serif;

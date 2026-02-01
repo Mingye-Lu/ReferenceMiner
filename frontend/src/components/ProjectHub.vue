@@ -41,7 +41,9 @@ import ConfirmationModal from "./ConfirmationModal.vue";
 import CustomSelect from "./CustomSelect.vue";
 import BankFileSelectorModal from "./BankFileSelectorModal.vue";
 import CrawlerSearchModal from "./CrawlerSearchModal.vue";
-import CrawlerSettingsTab from "./CrawlerSettingsTab.vue";
+import SettingsAdvancedSection from "./SettingsAdvancedSection.vue";
+import SettingsCrawlerSection from "./SettingsCrawlerSection.vue";
+import SettingsPreferencesSection from "./SettingsPreferencesSection.vue";
 import {
   Plus,
   Search,
@@ -54,14 +56,6 @@ import {
   RefreshCw,
   Globe,
   LayoutGrid,
-  Sun,
-  Monitor,
-  Key,
-  ArrowUpRight,
-  ChevronUp,
-  ChevronDown,
-  Check,
-  Trash,
 } from "lucide-vue-next";
 import { type Theme, getStoredTheme, setTheme } from "../utils/theme";
 import { getFileName } from "../utils";
@@ -875,6 +869,22 @@ function setProvider(provider: string) {
   llmSaveSuccess.value = "";
 }
 
+function toggleShowApiKey() {
+  showApiKey.value = !showApiKey.value;
+}
+
+function updateApiKeyInput(value: string) {
+  apiKeyInput.value = value;
+}
+
+function updateBaseUrlInput(value: string) {
+  baseUrlInput.value = value;
+}
+
+function updateModelInput(value: string) {
+  modelInput.value = value;
+}
+
 function syncLlmInputs(next: AppSettings | null) {
   if (!next) return;
   const provider = next.activeProvider || "deepseek";
@@ -964,7 +974,8 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {});
+onUnmounted(() => {
+});
 </script>
 
 <template>
@@ -1310,731 +1321,77 @@ onUnmounted(() => {});
         </aside>
 
         <main class="settings-content">
-          <!-- Preferences Section -->
-          <div
+          <SettingsPreferencesSection
             v-if="settingsSection === 'preferences'"
-            class="settings-section-container"
-          >
-            <div class="settings-header">
-              <h2 class="settings-section-title">Preferences</h2>
-              <p class="settings-section-desc">
-                Customize your experience with theme, keyboard shortcuts, and
-                display options.
-              </p>
-            </div>
+            :current-theme="currentTheme"
+            :theme-options="themeOptions"
+            :on-theme-change="setTheme"
+            :view-mode="viewMode"
+            :pdf-view-options="pdfViewOptions"
+            :on-view-mode-change="setViewMode"
+            :citation-copy-format="citationCopyFormat"
+            :citation-format-options="citationFormatOptions"
+            :is-saving-citation="isSavingCitation"
+            :on-citation-format-change="handleCitationFormatChange"
+            :files-per-page="filesPerPage"
+            :notes-per-page="notesPerPage"
+            :chats-per-page="chatsPerPage"
+            :on-display-setting-change="saveDisplaySetting"
+          />
 
-            <div class="start-settings-content">
-              <!-- Theme Card -->
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <Sun :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">Theme</h4>
-                    <p class="section-description">
-                      Choose your preferred color theme
-                    </p>
-                  </div>
-                </div>
-                <div class="section-content">
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Appearance</label>
-                      <p class="setting-hint">
-                        Select light, dark, or match your system settings
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--md">
-                      <CustomSelect
-                        :model-value="currentTheme"
-                        :options="themeOptions"
-                        @update:model-value="(value) => setTheme(value as Theme)"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- PDF View Mode -->
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <FileText :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">PDF Viewing</h4>
-                    <p class="section-description">
-                      Customize how you read documents
-                    </p>
-                  </div>
-                </div>
-                <div class="section-content">
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Default View Mode</label>
-                      <p class="setting-hint">
-                        Choose between single page or continuous scrolling
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--md">
-                      <CustomSelect
-                        :model-value="viewMode"
-                        :options="pdfViewOptions"
-                        @update:model-value="
-                          (value) => setViewMode(value as 'single' | 'continuous')
-                        "
-                      />
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Citation Format Card -->
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21"
-                      />
-                      <path
-                        d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 class="section-title">Citation Format</h4>
-                    <p class="section-description">
-                      Format for copying citations
-                    </p>
-                  </div>
-                </div>
-                <div class="section-content">
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">In-Text Citation Style</label>
-                      <p class="setting-hint">
-                        Replaces [C1] markers when copying responses
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--lg">
-                      <CustomSelect
-                        :model-value="citationCopyFormat"
-                        :options="citationFormatOptions"
-                        :disabled="isSavingCitation"
-                        @update:model-value="handleCitationFormatChange"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Submit Prompt Key Card -->
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <ArrowUpRight :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">Submit Prompt Key</h4>
-                    <p class="section-description">
-                      Choose how to submit your prompts
-                    </p>
-                  </div>
-                </div>
-                <div class="section-content">
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Send Message</label>
-                      <p class="setting-hint">
-                        Configure keyboard shortcut for sending messages
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--lg">
-                      <div class="radio-inline-group">
-                        <label class="radio-inline-option">
-                          <input
-                            type="radio"
-                            name="submitKey"
-                            value="enter"
-                            checked
-                          />
-                          <span>Enter</span>
-                        </label>
-                        <label class="radio-inline-option">
-                          <input type="radio" name="submitKey" value="ctrl-enter" />
-                          <span>Ctrl+Enter</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Display Card -->
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <Monitor :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">Display</h4>
-                    <p class="section-description">
-                      Customize how content is displayed
-                    </p>
-                  </div>
-                </div>
-                <div class="section-content">
-                  <!-- Files Limit -->
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Project Files Limit</label>
-                      <p class="setting-hint">
-                        Items per page in sidebar (0 for unlimited)
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--sm">
-                      <input
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :value="filesPerPage"
-                        @input="
-                          (e) =>
-                            saveDisplaySetting(
-                              'filesPerPage',
-                              parseInt((e.target as HTMLInputElement).value) ||
-                                0,
-                            )
-                        "
-                      />
-                    </div>
-                  </div>
-
-                  <!-- Notes Limit -->
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Pinned Notes Limit</label>
-                      <p class="setting-hint">
-                        Notes per page in sidebar (0 for unlimited)
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--sm">
-                      <input
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :value="notesPerPage"
-                        @input="
-                          (e) =>
-                            saveDisplaySetting(
-                              'notesPerPage',
-                              parseInt((e.target as HTMLInputElement).value) ||
-                                0,
-                            )
-                        "
-                      />
-                    </div>
-                  </div>
-
-                  <!-- Chats Limit -->
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Chat List Limit</label>
-                      <p class="setting-hint">
-                        Chats per page in sidebar (0 for unlimited)
-                      </p>
-                    </div>
-                    <div class="setting-control setting-control--sm">
-                      <input
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :value="chatsPerPage"
-                        @input="
-                          (e) =>
-                            saveDisplaySetting(
-                              'chatsPerPage',
-                              parseInt((e.target as HTMLInputElement).value) ||
-                                0,
-                            )
-                        "
-                      />
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <!-- Crawler Section -->
-          <div
+          <SettingsCrawlerSection
             v-else-if="settingsSection === 'crawler'"
-            class="settings-section-container"
-          >
-            <div class="settings-header">
-              <h2 class="settings-section-title">Web Crawler</h2>
-              <p class="settings-section-desc">
-                Configure search engines, download settings, and deep crawl
-                options.
-              </p>
-            </div>
+            :crawler-config="crawlerConfig"
+            :on-update="handleCrawlerConfigUpdate"
+          />
 
-            <CrawlerSettingsTab
-              v-if="crawlerConfig"
-              :config="crawlerConfig"
-              @update="handleCrawlerConfigUpdate"
-            />
-          </div>
-
-          <!-- Advanced Section -->
-          <div
+          <SettingsAdvancedSection
             v-else-if="settingsSection === 'advanced'"
-            class="settings-section-container"
-          >
-            <div class="settings-header">
-              <h2 class="settings-section-title">Advanced</h2>
-              <p class="settings-section-desc">
-                Manage API configuration and perform advanced operations.
-              </p>
-            </div>
-
-            <div v-if="isLoadingSettings" class="loading-settings">
-              Loading settings...
-            </div>
-
-            <div v-else class="start-settings-content">
-              <!-- API Configuration Section -->
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <Key :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">API Configuration</h4>
-                    <p class="section-description">
-                      Configure your provider, API key, and model for AI-powered
-                      answers
-                    </p>
-                  </div>
-                </div>
-
-                <div class="section-content">
-                  <div class="llm-setup-intro">
-                    <div class="llm-setup-title">Quick setup</div>
-                    <p class="form-hint">
-                      Choose a provider, add your API key, then load and save a
-                      model. Presets: ChatGPT, Gemini, Anthropic, DeepSeek.
-                    </p>
-                  </div>
-
-                  <div class="llm-setup-grid">
-                    <div class="llm-setup-step">
-                      <div class="step-badge">1</div>
-                      <div class="step-body">
-                        <div class="step-title">Provider preset</div>
-                        <p class="step-desc">
-                          ChatGPT, Gemini, Anthropic, DeepSeek, or a custom
-                          endpoint.
-                        </p>
-                        <CustomSelect
-                          :model-value="selectedProvider"
-                          :options="providerOptions"
-                          @update:model-value="
-                            (value) => setProvider(value as string)
-                          "
-                        />
-                      </div>
-                    </div>
-
-                    <div class="llm-setup-step">
-                      <div class="step-badge">2</div>
-                      <div class="step-body">
-                        <div class="step-title">API key</div>
-                        <p class="step-desc">
-                          Stored per provider. If empty, validation will use any
-                          stored key on the server.
-                        </p>
-                        <p v-if="currentProviderLink.url" class="form-hint">
-                          Get your key from
-                          <a
-                            :href="currentProviderLink.url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            >{{ currentProviderLink.label }}</a
-                          >
-                        </p>
-
-                        <div
-                          class="current-key"
-                          v-if="currentProviderKey.hasKey"
-                        >
-                          <span class="key-status valid">
-                            <Check :size="14" />
-                            Key configured
-                          </span>
-                          <span class="masked-key">{{
-                            currentProviderKey.maskedKey
-                          }}</span>
-                          <button
-                            class="btn-link danger"
-                            @click="handleDeleteApiKey"
-                            :disabled="isSaving"
-                          >
-                            Remove
-                          </button>
-                        </div>
-
-                        <div class="api-input-row">
-                          <div class="input-group">
-                            <input
-                              v-model="apiKeyInput"
-                              :type="showApiKey ? 'text' : 'password'"
-                              class="form-input"
-                              :placeholder="
-                                currentProviderKey.hasKey
-                                  ? 'Enter new key to replace'
-                                  : 'Enter your API key'
-                              "
-                            />
-                            <button
-                              class="input-addon"
-                              @click="showApiKey = !showApiKey"
-                              type="button"
-                            >
-                              <component
-                                :is="showApiKey ? ChevronUp : ChevronDown"
-                                :size="16"
-                              />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div class="api-input-row">
-                          <div class="input-group">
-                            <input
-                              v-model="apiKeyInput"
-                              :type="showApiKey ? 'text' : 'password'"
-                              class="form-input"
-                              :placeholder="
-                                currentProviderKey.hasKey
-                                  ? 'Enter new key to replace'
-                                  : 'Enter your API key'
-                              "
-                            />
-                            <button
-                              class="input-addon"
-                              @click="showApiKey = !showApiKey"
-                              type="button"
-                            >
-                              <svg
-                                v-if="showApiKey"
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                              >
-                                <path
-                                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
-                                />
-                                <line x1="1" x2="23" y1="1" y2="23" />
-                              </svg>
-                              <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                              >
-                                <path
-                                  d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                                />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                            </button>
-                          </div>
-                          <div class="api-actions">
-                            <button
-                              class="btn btn-outline"
-                              @click="handleValidate"
-                              :disabled="isValidating"
-                            >
-                              {{ isValidating ? "Validating..." : "Validate" }}
-                            </button>
-                            <button
-                              class="btn btn-primary-sm"
-                              @click="handleSave"
-                              :disabled="isSaving || !apiKeyInput"
-                            >
-                              {{ isSaving ? "Saving..." : "Save" }}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div v-if="saveError" class="error-message">
-                          {{ saveError }}
-                        </div>
-
-                        <div
-                          class="validation-result"
-                          v-if="validationStatus !== 'none'"
-                        >
-                          <span
-                            v-if="validationStatus === 'valid'"
-                            class="status valid"
-                          >
-                            <Check :size="14" />
-                            {{ apiKeyStatusMessage }}
-                          </span>
-                          <span v-else class="status invalid">
-                            <X :size="14" />
-                            Invalid:
-                            {{
-                              validationError || "API key verification failed"
-                            }}
-                          </span>
-                        </div>
-
-                        <div v-if="balanceInfos.length" class="balance-panel">
-                          <div class="balance-header">
-                            <span class="balance-title">Remaining balance</span>
-                            <span
-                              v-if="balanceAvailable === false"
-                              class="balance-warning"
-                              >Insufficient for API calls</span
-                            >
-                          </div>
-                          <div class="balance-list">
-                            <div
-                              v-for="info in balanceInfos"
-                              :key="info.currency"
-                              class="balance-item"
-                            >
-                              <div class="balance-line">
-                                <span class="balance-currency">{{
-                                  info.currency
-                                }}</span>
-                                <span class="balance-amount">{{
-                                  info.totalBalance
-                                }}</span>
-                              </div>
-                              <div class="balance-meta">
-                                Granted {{ info.grantedBalance }} · Topped up
-                                {{ info.toppedUpBalance }}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="llm-setup-step">
-                      <div class="step-badge">3</div>
-                      <div class="step-body">
-                        <div class="step-title">Endpoint & model</div>
-                        <p class="step-desc">
-                          Confirm the base URL, load models, then save your
-                          selection.
-                        </p>
-
-                        <label class="form-label">Base URL</label>
-                        <div class="input-group">
-                          <input
-                            v-model="baseUrlInput"
-                            class="form-input"
-                            placeholder="https://api.openai.com/v1"
-                          />
-                        </div>
-
-                        <label class="form-label">Model</label>
-                        <div
-                          v-if="modelOptions.length"
-                          class="model-select-row"
-                        >
-                          <CustomSelect
-                            :model-value="modelInput"
-                            :options="modelOptions"
-                            @update:model-value="
-                              (value) => (modelInput = value as string)
-                            "
-                          />
-                          <button
-                            class="btn btn-outline"
-                            @click="handleLoadModels"
-                            :disabled="isLoadingModels"
-                          >
-                            {{
-                              isLoadingModels ? "Loading..." : "Reload models"
-                            }}
-                          </button>
-                        </div>
-                        <div v-else class="input-group">
-                          <input
-                            v-model="modelInput"
-                            class="form-input"
-                            placeholder="gpt-4o-mini"
-                          />
-                        </div>
-
-                        <div class="llm-config-actions">
-                          <button
-                            class="btn btn-outline"
-                            @click="handleLoadModels"
-                            :disabled="isLoadingModels"
-                          >
-                            {{ isLoadingModels ? "Loading..." : "Load models" }}
-                          </button>
-                          <button
-                            class="btn btn-primary-sm"
-                            @click="handleSaveLlmSettings"
-                            :disabled="isSavingLlm"
-                          >
-                            {{
-                              isSavingLlm
-                                ? "Saving..."
-                                : "Save Endpoint & Model"
-                            }}
-                          </button>
-                        </div>
-
-                        <div v-if="llmSaveError" class="error-message">
-                          {{ llmSaveError }}
-                        </div>
-                        <div v-if="llmSaveSuccess" class="success-message">
-                          {{ llmSaveSuccess }}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="settings-card">
-                <div class="section-header">
-                  <div class="section-icon">
-                    <ArrowUpRight :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">Updates</h4>
-                    <p class="section-description">
-                      Version {{ currentVersionLabel }}
-                    </p>
-                  </div>
-                  <div class="section-header-actions">
-                    <span class="update-badge" :class="updateBadgeClass">{{
-                      updateBadgeText
-                    }}</span>
-                  </div>
-                </div>
-
-                <div class="section-content">
-                  <div class="setting-row">
-                    <div class="setting-info">
-                      <label class="setting-label">Check for Updates</label>
-                      <p class="setting-hint">
-                        <template v-if="updateInfo?.isUpdateAvailable">
-                          Version {{ updateInfo.latest?.version }} is available
-                        </template>
-                        <template v-else-if="lastCheckedLabel">
-                          Last checked {{ lastCheckedLabel }}
-                        </template>
-                        <template v-else>
-                          Check GitHub for new releases
-                        </template>
-                      </p>
-                    </div>
-                    <div class="setting-control">
-                      <div class="update-actions">
-                        <a
-                          v-if="
-                            updateInfo?.isUpdateAvailable &&
-                            updateInfo?.latest?.url
-                          "
-                          class="btn btn-primary-sm"
-                          :href="updateInfo.latest.url"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          >Download</a
-                        >
-                        <button
-                          class="btn btn-outline"
-                          @click="handleUpdateCheck"
-                          :disabled="isCheckingUpdate"
-                        >
-                          {{ isCheckingUpdate ? "Checking..." : "Check" }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-if="updateError" class="error-message">
-                    {{ updateError }}
-                  </div>
-                </div>
-              </section>
-
-              <!-- Danger Zone Section -->
-              <section class="settings-card danger-zone-card">
-                <div class="section-header">
-                  <div class="section-icon danger-icon">
-                    <Trash :size="16" />
-                  </div>
-                  <div>
-                    <h4 class="section-title">Danger Zone</h4>
-                    <p class="section-description">
-                      Destructive actions that cannot be undone
-                    </p>
-                  </div>
-                </div>
-
-                <div class="section-content">
-                  <p
-                    class="form-hint"
-                    style="font-weight: 700; margin-bottom: 1rem"
-                  >
-                    Clear all indexed chunks and chat sessions. Files will
-                    remain in the reference folder.
-                  </p>
-
-                  <div v-if="resetSuccess" class="success-message">
-                    {{ resetSuccess }}
-                  </div>
-                  <div v-if="resetError" class="error-message">
-                    {{ resetError }}
-                  </div>
-
-                  <button
-                    class="btn btn-danger-action"
-                    @click="handleResetClick"
-                    :disabled="isResetting"
-                  >
-                    <Trash2 :size="14" />
-                    {{ isResetting ? "Clearing..." : "Clear All Data" }}
-                  </button>
-                </div>
-              </section>
-            </div>
-          </div>
+            :is-loading-settings="isLoadingSettings"
+            :is-saving="isSaving"
+            :is-saving-llm="isSavingLlm"
+            :is-validating="isValidating"
+            :is-checking-update="isCheckingUpdate"
+            :is-resetting="isResetting"
+            :validation-status="validationStatus"
+            :validation-error="validationError"
+            :api-key-status-message="apiKeyStatusMessage"
+            :balance-infos="balanceInfos"
+            :balance-available="balanceAvailable"
+            :save-error="saveError"
+            :llm-save-error="llmSaveError"
+            :llm-save-success="llmSaveSuccess"
+            :reset-error="resetError"
+            :reset-success="resetSuccess"
+            :base-url-input="baseUrlInput"
+            :model-input="modelInput"
+            :update-info="updateInfo"
+            :update-error="updateError"
+            :current-version-label="currentVersionLabel"
+            :last-checked-label="lastCheckedLabel"
+            :update-badge-text="updateBadgeText"
+            :update-badge-class="updateBadgeClass"
+            :provider-options="providerOptions"
+            :selected-provider="selectedProvider"
+            :current-provider-link="currentProviderLink"
+            :current-provider-key="currentProviderKey"
+            :show-api-key="showApiKey"
+            :api-key-input="apiKeyInput"
+            :model-options="modelOptions"
+            :is-loading-models="isLoadingModels"
+            :on-set-provider="setProvider"
+            :on-validate="handleValidate"
+            :on-save-api-key="handleSave"
+            :on-delete-api-key="handleDeleteApiKey"
+            :on-load-models="handleLoadModels"
+            :on-save-llm-settings="handleSaveLlmSettings"
+            :on-update-check="handleUpdateCheck"
+            :on-reset-click="handleResetClick"
+            :on-toggle-show-api-key="toggleShowApiKey"
+            :on-api-key-input="updateApiKeyInput"
+            :on-base-url-input="updateBaseUrlInput"
+            :on-model-input="updateModelInput"
+          />
         </main>
       </div>
     </main>
@@ -3069,276 +2426,9 @@ onUnmounted(() => {});
   flex: 1;
   padding: 30px 60px 30px;
   overflow-y: auto;
+  position: relative;
 }
 
-.settings-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.settings-placeholder p {
-  margin: 8px 0;
-  font-size: 14px;
-}
-
-/* Settings Container Layout */
-.settings-container {
-  display: flex;
-  height: 100%;
-  gap: 0;
-}
-
-/* Settings Sidebar */
-.settings-sidebar {
-  width: 240px;
-  border-right: 1px solid var(--border-color);
-  background: var(--color-neutral-100);
-  padding: 24px 0;
-}
-
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 12px;
-}
-
-.settings-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-}
-
-.settings-nav-item:hover {
-  background: var(--color-neutral-150);
-  color: var(--text-primary);
-}
-
-.settings-nav-item.active {
-  background: var(--color-white);
-  color: var(--accent-color);
-  box-shadow: 0 1px 3px var(--alpha-black-10);
-}
-
-.settings-nav-item svg {
-  flex-shrink: 0;
-  color: currentColor;
-}
-
-/* Settings Section */
-.settings-section {
-  max-width: 800px;
-}
-
-.settings-section-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 8px 0;
-}
-
-.settings-section-desc {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0 0 32px 0;
-  line-height: 1.5;
-}
-
-/* Settings Group */
-.settings-group {
-  margin-bottom: 40px;
-  padding-bottom: 32px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.settings-group:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.settings-group-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 16px 0;
-}
-
-/* Settings Item */
-.settings-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 16px 0;
-}
-
-.settings-item-info {
-  flex: 1;
-}
-
-.settings-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.settings-desc {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.settings-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.settings-control :deep(.custom-select-wrapper) {
-  width: auto;
-  min-width: 200px;
-  max-width: 300px;
-}
-
-/* Settings Select */
-.settings-select {
-  padding: 8px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--color-white);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-/* Radio Group */
-.radio-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.radio-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.radio-label input[type="radio"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.radio-label:hover {
-  color: var(--accent-color);
-}
-
-/* Settings Badge */
-.settings-badge {
-  padding: 4px 8px;
-  background: var(--color-neutral-150);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-/* Danger Zone */
-.settings-group.danger-zone {
-  border-color: var(--color-red-200);
-  background: var(--color-red-50);
-  padding: 20px;
-  border-radius: 8px;
-}
-
-.settings-group.danger-zone .settings-group-title {
-  color: var(--color-red-700);
-}
-
-.btn-danger {
-  padding: 8px 16px;
-  background: var(--color-red-600);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-danger:hover {
-  background: var(--color-red-700);
-}
-
-.btn-secondary {
-  padding: 8px 16px;
-  background: var(--color-neutral-150);
-  color: var(--text-primary);
-  border: 1px solid var(--border-card);
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-bright);
-}
-
-.bank-file-item:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-bright);
-}
-
-/* Settings Responsive Layout */
-@media (max-width: 1050px) {
-  .settings-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .settings-item-info {
-    width: 100%;
-  }
-
-  .settings-control {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .settings-select {
-    width: 100%;
-    max-width: 300px;
-  }
-}
 </style>
 
 <style scoped>
