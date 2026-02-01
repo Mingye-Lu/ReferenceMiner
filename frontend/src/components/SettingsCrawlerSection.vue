@@ -16,9 +16,15 @@ const localConfig = ref<CrawlerConfig | null>(
 const isUpdatingFromProp = ref(false);
 
 const engineDescriptions: Record<string, string> = {
-  google_scholar: "Google Scholar - Web scraping (user responsibility for ToS)",
-  pubmed: "PubMed - NCBI E-utilities API",
-  semantic_scholar: "Semantic Scholar - Free API with citation data",
+  google_scholar: "Google Scholar - Broad academic search across all disciplines",
+  pubmed: "PubMed - Biomedical and life sciences literature database",
+  semantic_scholar: "Semantic Scholar - AI-powered search with citation analysis",
+  arxiv: "ArXiv - Preprint repository for computer science, physics, and mathematics",
+  crossref: "Crossref - Comprehensive metadata for scholarly works with DOIs",
+  openalex: "OpenAlex - Open scholarly catalog with 200M+ works and citation data",
+  core: "CORE - Open access research papers with full-text search",
+  europe_pmc: "Europe PMC - Life sciences literature with open access full text",
+  biorxiv_medrxiv: "bioRxiv/medRxiv - Biology and medical research preprints",
 };
 
 watch(

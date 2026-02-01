@@ -75,6 +75,24 @@ class CrawlerConfig(BaseModel):
             "semantic_scholar": EngineConfig(
                 enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
             ),
+            "arxiv": EngineConfig(
+                enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
+            ),
+            "crossref": EngineConfig(
+                enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
+            ),
+            "openalex": EngineConfig(
+                enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
+            ),
+            "core": EngineConfig(
+                enabled=False, rate_limit=5, api_key=None, timeout=30, max_retries=3
+            ),
+            "europe_pmc": EngineConfig(
+                enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
+            ),
+            "biorxiv_medrxiv": EngineConfig(
+                enabled=False, rate_limit=5, api_key=None, timeout=30, max_retries=3
+            ),
         },
         description="Per-engine configurations",
     )

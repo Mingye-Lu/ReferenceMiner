@@ -9,7 +9,13 @@ from typing import Optional
 
 from refminer.crawler.base import BaseCrawler
 from refminer.crawler.engines import (
+    ArXivCrawler,
+    BiorxivMedrxivCrawler,
+    CoreCrawler,
+    CrossrefCrawler,
+    EuropePmcCrawler,
     GoogleScholarCrawler,
+    OpenAlexCrawler,
     PubMedCrawler,
     SemanticScholarCrawler,
 )
@@ -35,6 +41,14 @@ class CrawlerManager:
             "pubmed": PubMedCrawler(self.config.get_engine_config("pubmed")),
             "semantic_scholar": SemanticScholarCrawler(
                 self.config.get_engine_config("semantic_scholar")
+            ),
+            "arxiv": ArXivCrawler(self.config.get_engine_config("arxiv")),
+            "crossref": CrossrefCrawler(self.config.get_engine_config("crossref")),
+            "openalex": OpenAlexCrawler(self.config.get_engine_config("openalex")),
+            "core": CoreCrawler(self.config.get_engine_config("core")),
+            "europe_pmc": EuropePmcCrawler(self.config.get_engine_config("europe_pmc")),
+            "biorxiv_medrxiv": BiorxivMedrxivCrawler(
+                self.config.get_engine_config("biorxiv_medrxiv")
             ),
         }
 

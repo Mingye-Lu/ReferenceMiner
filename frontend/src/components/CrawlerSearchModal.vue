@@ -6,6 +6,12 @@ import CustomSelect from "./CustomSelect.vue";
 import googleScholarIcon from "../assets/google-scholar.svg";
 import pubmedIcon from "../assets/pubmed.svg";
 import semanticScholarIcon from "../assets/semantic-scholar.svg";
+import arxivIcon from "../assets/arxiv.svg";
+import biorxivIcon from "../assets/biorxiv.svg";
+import coreIcon from "../assets/core.svg";
+import crossrefIcon from "../assets/crossref.svg";
+import europePmcIcon from "../assets/europe-pmc.svg";
+import openalexIcon from "../assets/openalex.svg";
 import type { CrawlerSearchResult, CrawlerSearchQuery } from "../types";
 import {
   searchPapers,
@@ -62,6 +68,12 @@ const engineIcons: Record<string, string> = {
   google_scholar: googleScholarIcon,
   pubmed: pubmedIcon,
   semantic_scholar: semanticScholarIcon,
+  arxiv: arxivIcon,
+  crossref: crossrefIcon,
+  openalex: openalexIcon,
+  core: coreIcon,
+  europe_pmc: europePmcIcon,
+  biorxiv_medrxiv: biorxivIcon,
 };
 
 const showFilters = ref(false);
