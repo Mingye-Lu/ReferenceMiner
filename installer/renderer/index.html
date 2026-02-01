@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,7 +10,11 @@
     <div class="shell">
       <aside class="brand-panel">
         <div class="brand-card">
-          <img src="../assets/icon.png" alt="ReferenceMiner" class="brand-logo" />
+          <img
+            src="../assets/icon.png"
+            alt="ReferenceMiner"
+            class="brand-logo"
+          />
           <div class="brand-text">
             <div class="brand-name">ReferenceMiner</div>
             <div class="brand-subtitle">Offline Installer</div>
@@ -48,7 +52,8 @@
         <section id="pane-1" class="pane active">
           <h1>Choose your install location</h1>
           <p class="lead">
-            This offline installer includes all components. Choose where ReferenceMiner will live.
+            This offline installer includes all components. Choose where
+            ReferenceMiner will live.
           </p>
           <div class="input-group">
             <label for="installDir">Install directory</label>
@@ -59,10 +64,16 @@
           </div>
           <div id="existingInstall" class="existing-install hidden">
             <div class="existing-title">Existing install detected</div>
-            <div class="existing-text">Choose repair or uninstall, or continue to overwrite.</div>
+            <div class="existing-text">
+              Choose repair or uninstall, or continue to overwrite.
+            </div>
             <div class="existing-actions">
-              <button id="repairInstall" class="secondary-button">Repair</button>
-              <button id="uninstallInstall" class="secondary-button danger">Uninstall</button>
+              <button id="repairInstall" class="secondary-button">
+                Repair
+              </button>
+              <button id="uninstallInstall" class="secondary-button danger">
+                Uninstall
+              </button>
             </div>
           </div>
           <div class="actions">
@@ -72,7 +83,9 @@
 
         <section id="pane-2" class="pane">
           <h1>Set your preferences</h1>
-          <p class="lead">Pick how ReferenceMiner should integrate with Windows.</p>
+          <p class="lead">
+            Pick how ReferenceMiner should integrate with Windows.
+          </p>
           <div class="options-grid">
             <label class="option-card">
               <input id="optDesktop" type="checkbox" checked />
@@ -87,7 +100,9 @@
             <label class="option-card">
               <input id="optLaunch" type="checkbox" checked />
               <span class="option-title">Launch after install</span>
-              <span class="option-text">Open ReferenceMiner when setup finishes.</span>
+              <span class="option-text"
+                >Open ReferenceMiner when setup finishes.</span
+              >
             </label>
           </div>
           <div class="actions">
@@ -98,12 +113,16 @@
 
         <section id="pane-3" class="pane">
           <h1>Installing ReferenceMiner</h1>
-          <p class="lead">Copying offline payload and registering system shortcuts.</p>
+          <p class="lead">
+            Copying offline payload and registering system shortcuts.
+          </p>
           <div class="progress-wrap">
             <div class="progress-bar">
               <div id="progressFill" class="progress-fill"></div>
             </div>
-            <div id="progressLabel" class="progress-label">Waiting to start...</div>
+            <div id="progressLabel" class="progress-label">
+              Waiting to start...
+            </div>
           </div>
           <div class="log-box" id="logBox"></div>
           <div class="actions">
@@ -113,7 +132,10 @@
 
         <section id="pane-4" class="pane">
           <h1>All done</h1>
-          <p class="lead">ReferenceMiner is ready. You can launch it now or close the installer.</p>
+          <p class="lead">
+            ReferenceMiner is ready. You can launch it now or close the
+            installer.
+          </p>
           <div class="finish-card">
             <div class="finish-row">
               <div class="finish-label">Install location</div>
@@ -126,7 +148,9 @@
           </div>
           <div class="actions">
             <button id="finishClose" class="secondary-button">Close</button>
-            <button id="finishLaunch" class="primary-button">Launch ReferenceMiner</button>
+            <button id="finishLaunch" class="primary-button">
+              Launch ReferenceMiner
+            </button>
           </div>
         </section>
       </main>

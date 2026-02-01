@@ -44,11 +44,15 @@ class DeepCrawler:
         if not (fetch_references or fetch_citations):
             return all_results
 
-        logger.info(f"[DeepCrawler] Starting deep crawl with {len(initial_results)} seeds")
+        logger.info(
+            f"[DeepCrawler] Starting deep crawl with {len(initial_results)} seeds"
+        )
 
         for result in initial_results:
             if len(all_results) >= self.max_papers:
-                logger.info(f"[DeepCrawler] Reached max papers limit: {self.max_papers}")
+                logger.info(
+                    f"[DeepCrawler] Reached max papers limit: {self.max_papers}"
+                )
                 break
 
             if fetch_references:
@@ -77,12 +81,12 @@ class DeepCrawler:
                     if len(all_results) >= self.max_papers:
                         break
 
-        logger.info(f"[DeepCrawler] Deep crawl complete: {len(all_results)} total papers")
+        logger.info(
+            f"[DeepCrawler] Deep crawl complete: {len(all_results)} total papers"
+        )
         return all_results
 
-    async def _fetch_references(
-        self, result: SearchResult
-    ) -> list[SearchResult]:
+    async def _fetch_references(self, result: SearchResult) -> list[SearchResult]:
         """Fetch papers cited by this paper using Semantic Scholar."""
         if not result.doi:
             return []
@@ -133,9 +137,7 @@ class DeepCrawler:
             logger.error(f"[DeepCrawler] Failed to fetch references: {e}")
             return []
 
-    async def _fetch_citations(
-        self, result: SearchResult
-    ) -> list[SearchResult]:
+    async def _fetch_citations(self, result: SearchResult) -> list[SearchResult]:
         """Fetch papers that cite this paper using Semantic Scholar."""
         if not result.doi:
             return []

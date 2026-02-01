@@ -10,7 +10,12 @@ from typing import Any, Optional
 
 import httpx
 
-from refminer.crawler.models import CrawlerConfig, EngineConfig, SearchQuery, SearchResult
+from refminer.crawler.models import (
+    CrawlerConfig,
+    EngineConfig,
+    SearchQuery,
+    SearchResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +106,9 @@ class BaseCrawler(abc.ABC):
         for attempt in range(self.config.max_retries):
             try:
                 if method.upper() == "GET":
-                    response = await client.get(url, params=params, headers=request_headers)
+                    response = await client.get(
+                        url, params=params, headers=request_headers
+                    )
                 elif method.upper() == "POST":
                     response = await client.post(
                         url, params=params, json=data, headers=request_headers
@@ -117,13 +124,15 @@ class BaseCrawler(abc.ABC):
                     f"[{self.name}] HTTP error on attempt {attempt + 1}: {e.response.status_code}"
                 )
                 if e.response.status_code in {429, 503, 504}:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
                 else:
                     break
             except (httpx.RequestError, asyncio.TimeoutError) as e:
                 last_error = e
-                logger.warning(f"[{self.name}] Request error on attempt {attempt + 1}: {e}")
-                await asyncio.sleep(2 ** attempt)
+                logger.warning(
+                    f"[{self.name}] Request error on attempt {attempt + 1}: {e}"
+                )
+                await asyncio.sleep(2**attempt)
 
         raise RuntimeError(f"Failed to fetch {url}: {last_error}") from last_error
 

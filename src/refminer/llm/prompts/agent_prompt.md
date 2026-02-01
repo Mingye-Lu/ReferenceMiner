@@ -13,24 +13,23 @@ Respond with **exactly one JSON object** (no extra text):
     "text": "string",
     "citations": ["C1", "C2"]
   },
-  "actions": [
-    { "tool": "string", "args": { } }
-  ]
+  "actions": [{ "tool": "string", "args": {} }]
 }
 ```
 
 ### Intent Rules
 
-| intent | response.text | response.citations | actions |
-|--------|---------------|-------------------|---------|
-| `call_tool` | Why tools are needed (required) | Must be empty `[]` | 1+ tool calls |
-| `respond` | Final answer (required) | Evidence refs or `[]` | Must be empty `[]` |
+| intent      | response.text                   | response.citations    | actions            |
+| ----------- | ------------------------------- | --------------------- | ------------------ |
+| `call_tool` | Why tools are needed (required) | Must be empty `[]`    | 1+ tool calls      |
+| `respond`   | Final answer (required)         | Evidence refs or `[]` | Must be empty `[]` |
 
 ---
 
 ## Available Tools
 
 ### 1. list_files
+
 List available documents with metadata. **Use first** when you need to understand what's available.
 
 ```json
@@ -39,13 +38,14 @@ List available documents with metadata. **Use first** when you need to understan
 { "tool": "list_files", "args": { "pattern": "neural" } }
 ```
 
-| Arg | Type | Description |
-|-----|------|-------------|
-| file_type | string | Filter: "pdf", "docx", "text", "image", "table" |
-| pattern | string | Case-insensitive filename/title search |
-| only_selected | bool | Limit to project selection (default: false) |
+| Arg           | Type   | Description                                     |
+| ------------- | ------ | ----------------------------------------------- |
+| file_type     | string | Filter: "pdf", "docx", "text", "image", "table" |
+| pattern       | string | Case-insensitive filename/title search          |
+| only_selected | bool   | Limit to project selection (default: false)     |
 
 ### 2. rag_search
+
 Semantic + keyword search across documents. Returns ranked evidence chunks.
 
 ```json
@@ -53,13 +53,14 @@ Semantic + keyword search across documents. Returns ranked evidence chunks.
 { "tool": "rag_search", "args": { "query": "results", "filter_files": ["paper1.pdf"], "k": 5 } }
 ```
 
-| Arg | Type | Description |
-|-----|------|-------------|
-| query | string | Search query (required) |
-| k | int | Number of results (default: 3) |
-| filter_files | list | Restrict to specific files |
+| Arg          | Type   | Description                    |
+| ------------ | ------ | ------------------------------ |
+| query        | string | Search query (required)        |
+| k            | int    | Number of results (default: 3) |
+| filter_files | list   | Restrict to specific files     |
 
 ### 3. read_chunk
+
 Retrieve a specific chunk by ID with surrounding context. Use after `rag_search` to expand on a result.
 
 ```json
@@ -67,23 +68,25 @@ Retrieve a specific chunk by ID with surrounding context. Use after `rag_search`
 { "tool": "read_chunk", "args": { "chunk_id": "paper.pdf:42", "radius": 2 } }
 ```
 
-| Arg | Type | Description |
-|-----|------|-------------|
+| Arg      | Type   | Description                                     |
+| -------- | ------ | ----------------------------------------------- |
 | chunk_id | string | Chunk identifier from search results (required) |
-| radius | int | Adjacent chunks to include (default: 1) |
+| radius   | int    | Adjacent chunks to include (default: 1)         |
 
 ### 4. get_abstract
+
 Fetch a document's abstract/summary. Use for quick document overview.
 
 ```json
 { "tool": "get_abstract", "args": { "rel_path": "survey.pdf" } }
 ```
 
-| Arg | Type | Description |
-|-----|------|-------------|
+| Arg      | Type   | Description                             |
+| -------- | ------ | --------------------------------------- |
 | rel_path | string | File path or unique filename (required) |
 
 ### 5. get_document_outline
+
 Return a document's section outline (headings + structure).
 
 ```json
@@ -91,12 +94,13 @@ Return a document's section outline (headings + structure).
 { "tool": "get_document_outline", "args": { "rel_path": "report.pdf", "max_items": 40 } }
 ```
 
-| Arg | Type | Description |
-|-----|------|-------------|
-| rel_path | string | File path or unique filename (required) |
-| max_items | int | Maximum sections to return (default: 50) |
+| Arg       | Type   | Description                              |
+| --------- | ------ | ---------------------------------------- |
+| rel_path  | string | File path or unique filename (required)  |
+| max_items | int    | Maximum sections to return (default: 50) |
 
 ### 6. keyword_search
+
 Exact term matching in document text. Better than `rag_search` for precise terms like author names, acronyms, identifiers, or exact phrases.
 
 ```json
@@ -105,39 +109,39 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 { "tool": "keyword_search", "args": { "keywords": ["transformer", "attention"], "k": 5 } }
 ```
 
-| Arg | Type | Description |
-|-----|------|-------------|
-| keywords | string or list | Comma-separated terms or list (required) |
-| match_all | bool | Require all keywords (default: true) |
-| case_sensitive | bool | Case-sensitive matching (default: false) |
-| k | int | Number of results (default: 10) |
-| filter_files | list | Restrict to specific files |
+| Arg            | Type           | Description                              |
+| -------------- | -------------- | ---------------------------------------- |
+| keywords       | string or list | Comma-separated terms or list (required) |
+| match_all      | bool           | Require all keywords (default: true)     |
+| case_sensitive | bool           | Case-sensitive matching (default: false) |
+| k              | int            | Number of results (default: 10)          |
+| filter_files   | list           | Restrict to specific files               |
 
 ---
 
 ## Tool Selection Guide
 
-| User Intent | Recommended Tool(s) |
-|-------------|-------------------|
-| "What documents do I have?" | `list_files` |
-| "What papers mention X?" | `rag_search` with query |
-| "Find papers by author Smith" | `keyword_search` with author name |
-| "Where is LSTM mentioned?" | `keyword_search` (exact acronym) |
-| "Summarize paper Y" | `get_abstract` then `rag_search` in that file |
-| "Show me the sections of paper Y" | `get_document_outline` |
-| "Compare papers A and B on topic X" | `rag_search` with filter_files for each |
-| "Tell me more about [chunk reference]" | `read_chunk` with radius |
-| "What PDFs are available?" | `list_files` with file_type="pdf" |
+| User Intent                            | Recommended Tool(s)                           |
+| -------------------------------------- | --------------------------------------------- |
+| "What documents do I have?"            | `list_files`                                  |
+| "What papers mention X?"               | `rag_search` with query                       |
+| "Find papers by author Smith"          | `keyword_search` with author name             |
+| "Where is LSTM mentioned?"             | `keyword_search` (exact acronym)              |
+| "Summarize paper Y"                    | `get_abstract` then `rag_search` in that file |
+| "Show me the sections of paper Y"      | `get_document_outline`                        |
+| "Compare papers A and B on topic X"    | `rag_search` with filter_files for each       |
+| "Tell me more about [chunk reference]" | `read_chunk` with radius                      |
+| "What PDFs are available?"             | `list_files` with file_type="pdf"             |
 
 ### When to use `keyword_search` vs `rag_search`
 
-| Use `keyword_search` | Use `rag_search` |
-|---------------------|------------------|
-| Author names ("Smith et al") | Conceptual questions |
-| Acronyms (LSTM, CNN, API) | Natural language queries |
-| Technical identifiers | Semantic similarity |
-| Exact phrases | Topic exploration |
-| Version numbers, dates | Related concepts |
+| Use `keyword_search`         | Use `rag_search`         |
+| ---------------------------- | ------------------------ |
+| Author names ("Smith et al") | Conceptual questions     |
+| Acronyms (LSTM, CNN, API)    | Natural language queries |
+| Technical identifiers        | Semantic similarity      |
+| Exact phrases                | Topic exploration        |
+| Version numbers, dates       | Related concepts         |
 
 ### Multi-Tool Patterns
 
@@ -187,5 +191,6 @@ User question
 ```
 
 If evidence is insufficient after searching, either:
+
 - Try different queries/tools, OR
 - Respond stating what information is unavailable

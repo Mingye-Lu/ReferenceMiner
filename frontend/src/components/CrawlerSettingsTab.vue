@@ -2,6 +2,8 @@
 import { ref, watch } from "vue";
 import type { CrawlerConfig } from "../types";
 import { updateCrawlerConfig } from "../api/client";
+import { Settings, Globe, Check } from "lucide-vue-next";
+import BaseToggle from "./BaseToggle.vue";
 
 const props = defineProps<{
   config: CrawlerConfig;
@@ -12,9 +14,9 @@ const emit = defineEmits<{
 }>();
 
 const localConfig = ref<CrawlerConfig>({ ...props.config });
-const isSaving = ref(false);
-const saveError = ref<string | null>(null);
 const saveSuccess = ref(false);
+const saveError = ref<string | null>(null);
+const isUpdatingFromProp = ref(false);
 
 const engineDescriptions: Record<string, string> = {
   google_scholar: "Google Scholar - Web scraping (user responsibility for ToS)",
@@ -25,211 +27,211 @@ const engineDescriptions: Record<string, string> = {
 watch(
   () => props.config,
   (newConfig) => {
+    isUpdatingFromProp.value = true;
     localConfig.value = { ...newConfig };
+    // Reset flag after Vue processes the change
+    setTimeout(() => {
+      isUpdatingFromProp.value = false;
+    }, 0);
   },
-  { deep: true }
+  { deep: true },
 );
 
-async function handleSave() {
-  isSaving.value = true;
-  saveError.value = null;
-  saveSuccess.value = false;
+// Auto-save on any config change (only from user interaction)
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+watch(
+  localConfig,
+  async (newConfig) => {
+    // Skip if change came from prop update
+    if (isUpdatingFromProp.value) return;
 
+    // Debounce saves to avoid too many API calls
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      await autoSave(newConfig);
+    }, 300);
+  },
+  { deep: true },
+);
+
+async function autoSave(config: CrawlerConfig) {
+  saveError.value = null;
   try {
-    const saved = await updateCrawlerConfig(localConfig.value);
+    const saved = await updateCrawlerConfig(config);
     emit("update", saved);
-    saveSuccess.value = true;
-    setTimeout(() => {
-      saveSuccess.value = false;
-    }, 3000);
+    showSaveSuccess();
   } catch (e: any) {
     saveError.value = e.message || "Failed to save settings";
-  } finally {
-    isSaving.value = false;
   }
 }
 
-function resetToDefaults() {
-  localConfig.value = {
-    enabled: true,
-    auto_download: false,
-    max_results_per_engine: 20,
-    timeout_seconds: 30,
-    engines: {
-      google_scholar: {
-        enabled: true,
-        rate_limit: 5,
-        timeout: 30,
-      },
-      pubmed: {
-        enabled: true,
-        rate_limit: 10,
-        timeout: 30,
-      },
-      semantic_scholar: {
-        enabled: true,
-        rate_limit: 10,
-        timeout: 30,
-      },
-    },
-  };
+function showSaveSuccess() {
+  saveSuccess.value = true;
+  setTimeout(() => {
+    saveSuccess.value = false;
+  }, 2000);
 }
 </script>
 
 <template>
   <div class="crawler-settings">
+    <!-- Save Indicator -->
+    <Transition name="fade">
+      <div v-if="saveSuccess" class="save-indicator visible">
+        <Check :size="14" />
+        Saved
+      </div>
+    </Transition>
+    <Transition name="fade">
+      <div v-if="saveError" class="save-indicator visible error">
+        {{ saveError }}
+      </div>
+    </Transition>
+
     <!-- Global Settings -->
-    <section class="settings-section">
-      <h3 class="section-title">Global Settings</h3>
-      
-      <div class="setting-row">
-        <div class="setting-info">
-          <label class="setting-label">Enable Crawler</label>
-          <p class="setting-hint">
-            Enable or disable the web crawler functionality
-          </p>
+    <section class="settings-card">
+      <div class="section-header">
+        <div class="section-icon">
+          <Settings :size="16" />
         </div>
-        <div class="setting-control">
-          <input
-            type="checkbox"
-            v-model="localConfig.enabled"
-            class="toggle-checkbox"
-          />
+        <div>
+          <h4 class="section-title">Global Settings</h4>
+          <p class="section-description">
+            Configure crawler behavior and limits
+          </p>
         </div>
       </div>
 
-      <div class="setting-row">
-        <div class="setting-info">
-          <label class="setting-label">Auto-Download</label>
-          <p class="setting-hint">
-            Automatically trigger download flow after search (still requires confirmation)
-          </p>
+      <div class="section-content">
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Enable Crawler</label>
+            <p class="setting-hint">
+              Enable or disable the web crawler functionality
+            </p>
+          </div>
+          <div class="setting-control">
+            <BaseToggle v-model="localConfig.enabled" />
+          </div>
         </div>
-        <div class="setting-control">
-          <input
-            type="checkbox"
-            v-model="localConfig.auto_download"
-            class="toggle-checkbox"
-          />
-        </div>
-      </div>
 
-      <div class="setting-row">
-        <div class="setting-info">
-          <label class="setting-label">Max Results per Engine</label>
-          <p class="setting-hint">
-            Maximum number of results to fetch from each engine
-          </p>
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Auto-Download</label>
+            <p class="setting-hint">
+              Automatically trigger download flow after search (still requires
+              confirmation)
+            </p>
+          </div>
+          <div class="setting-control">
+            <BaseToggle v-model="localConfig.auto_download" />
+          </div>
         </div>
-        <div class="setting-control">
-          <input
-            type="number"
-            v-model.number="localConfig.max_results_per_engine"
-            min="5"
-            max="100"
-            class="number-input"
-          />
-        </div>
-      </div>
 
-      <div class="setting-row">
-        <div class="setting-info">
-          <label class="setting-label">Global Timeout (seconds)</label>
-          <p class="setting-hint">
-            Default timeout for all crawler operations
-          </p>
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Max Results per Engine</label>
+            <p class="setting-hint">
+              Maximum number of results to fetch from each engine
+            </p>
+          </div>
+          <div class="setting-control setting-control--sm">
+            <input
+              type="number"
+              v-model.number="localConfig.max_results_per_engine"
+              min="5"
+              max="100"
+              class="form-input"
+            />
+          </div>
         </div>
-        <div class="setting-control">
-          <input
-            type="number"
-            v-model.number="localConfig.timeout_seconds"
-            min="5"
-            max="120"
-            class="number-input"
-          />
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="setting-label">Global Timeout (seconds)</label>
+            <p class="setting-hint">Default timeout for all crawler operations</p>
+          </div>
+          <div class="setting-control setting-control--sm">
+            <input
+              type="number"
+              v-model.number="localConfig.timeout_seconds"
+              min="5"
+              max="120"
+              class="form-input"
+            />
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Engine Settings -->
-    <section class="settings-section">
-      <h3 class="section-title">Engine Settings</h3>
-      
-      <div
-        v-for="(engineConfig, engineName) in localConfig.engines"
-        :key="engineName"
-        class="engine-card"
-      >
-        <div class="engine-header">
-          <h4 class="engine-name">{{ engineName }}</h4>
-          <p class="engine-desc">{{ engineDescriptions[engineName] || "" }}</p>
+    <section class="settings-card">
+      <div class="section-header">
+        <div class="section-icon">
+          <Globe :size="16" />
         </div>
+        <div>
+          <h4 class="section-title">Engine Settings</h4>
+          <p class="section-description">Configure individual search engines</p>
+        </div>
+      </div>
 
-        <div class="engine-controls">
-          <div class="setting-row compact">
-            <div class="setting-info">
-              <label class="setting-label">Enabled</label>
-            </div>
-            <div class="setting-control">
-              <input
-                type="checkbox"
-                v-model="engineConfig.enabled"
-                class="toggle-checkbox"
-              />
-            </div>
+      <div class="section-content">
+        <div
+          v-for="(engineConfig, engineName) in localConfig.engines"
+          :key="engineName"
+          class="settings-card-nested"
+        >
+          <div class="nested-header">
+            <h4 class="nested-title">{{ engineName }}</h4>
+            <p class="nested-desc">
+              {{ engineDescriptions[engineName] || "" }}
+            </p>
           </div>
 
-          <div class="setting-row compact">
-            <div class="setting-info">
-              <label class="setting-label">Rate Limit (req/min)</label>
+          <div class="nested-controls">
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Enabled</label>
+              </div>
+              <div class="setting-control">
+                <BaseToggle v-model="engineConfig.enabled" />
+              </div>
             </div>
-            <div class="setting-control">
-              <input
-                type="number"
-                v-model.number="engineConfig.rate_limit"
-                min="1"
-                max="60"
-                class="number-input small"
-              />
-            </div>
-          </div>
 
-          <div class="setting-row compact">
-            <div class="setting-info">
-              <label class="setting-label">Timeout (seconds)</label>
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Rate Limit (req/min)</label>
+              </div>
+              <div class="setting-control setting-control--sm">
+                <input
+                  type="number"
+                  v-model.number="engineConfig.rate_limit"
+                  min="1"
+                  max="60"
+                  class="form-input"
+                />
+              </div>
             </div>
-            <div class="setting-control">
-              <input
-                type="number"
-                v-model.number="engineConfig.timeout"
-                min="5"
-                max="120"
-                class="number-input small"
-              />
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Timeout (seconds)</label>
+              </div>
+              <div class="setting-control setting-control--sm">
+                <input
+                  type="number"
+                  v-model.number="engineConfig.timeout"
+                  min="5"
+                  max="120"
+                  class="form-input"
+                />
+              </div>
             </div>
           </div>
         </div>
       </div>
     </section>
-
-    <!-- Save Actions -->
-    <div class="save-actions">
-      <div v-if="saveError" class="error-message">
-        {{ saveError }}
-      </div>
-      <div v-if="saveSuccess" class="success-message">
-        Settings saved successfully
-      </div>
-      <div class="action-buttons">
-        <button class="btn-secondary" @click="resetToDefaults">
-          Reset to Defaults
-        </button>
-        <button class="btn-primary" @click="handleSave" :disabled="isSaving">
-          <span v-if="isSaving">Saving...</span>
-          <span v-else>Save Settings</span>
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -238,204 +240,47 @@ function resetToDefaults() {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-.settings-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 16px 0;
-}
-
-.setting-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.setting-row:last-child {
-  border-bottom: none;
-}
-
-.setting-row.compact {
-  padding: 8px 0;
-}
-
-.setting-info {
-  flex: 1;
-}
-
-.setting-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.setting-hint {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.setting-control {
-  display: flex;
-  align-items: center;
-}
-
-.toggle-checkbox {
-  width: 40px;
-  height: 24px;
-  background: var(--color-neutral-240);
-  border-radius: 12px;
-  appearance: none;
-  cursor: pointer;
   position: relative;
-  transition: background 0.2s;
 }
 
-.toggle-checkbox:checked {
-  background: var(--accent-color);
+/* Floating save indicator - top right of settings content */
+.crawler-settings > .save-indicator {
+  position: fixed;
+  top: 180px;
+  right: 80px;
+  z-index: 100;
+  box-shadow: 0 2px 8px var(--alpha-black-10);
 }
 
-.toggle-checkbox::before {
-  content: "";
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  background: white;
-  border-radius: 50%;
-  top: 2px;
-  left: 2px;
-  transition: transform 0.2s;
+/* Nested card spacing */
+.settings-card-nested + .settings-card-nested {
+  margin-top: 12px;
 }
 
-.toggle-checkbox:checked::before {
-  transform: translateX(16px);
-}
-
-.number-input {
-  width: 100px;
-  padding: 6px 10px;
-  font-size: 13px;
+/* Form input styling for number inputs */
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
   background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
   color: var(--text-primary);
 }
 
-.number-input.small {
-  width: 80px;
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
 }
 
-.engine-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-.engine-header {
-  margin-bottom: 12px;
-}
-
-.engine-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 4px 0;
-}
-
-.engine-desc {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.engine-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.save-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.error-message {
-  align-self: stretch;
-  padding: 10px 14px;
-  background: rgba(211, 47, 47, 0.1);
-  border: 1px solid var(--color-danger-400);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--color-danger-800);
-}
-
-.success-message {
-  align-self: stretch;
-  padding: 10px 14px;
-  background: rgba(76, 175, 80, 0.1);
-  border: 1px solid var(--color-success-600);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--color-success-700);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-primary {
-  padding: 8px 20px;
-  font-size: 13px;
-  font-weight: 500;
-  background: var(--accent-color);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  padding: 8px 20px;
-  font-size: 13px;
-  font-weight: 500;
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-bright);
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

@@ -79,8 +79,12 @@ class PDFDownloader:
                 return output_path
 
             if "text/html" in content_type:
-                logger.info(f"[PDFDownloader] HTML response, trying to extract PDF link...")
-                extracted_pdf = await self._extract_pdf_from_html(response.text, pdf_url)
+                logger.info(
+                    f"[PDFDownloader] HTML response, trying to extract PDF link..."
+                )
+                extracted_pdf = await self._extract_pdf_from_html(
+                    response.text, pdf_url
+                )
                 if extracted_pdf:
                     pdf_response = await client.get(extracted_pdf)
                     pdf_response.raise_for_status()
@@ -88,9 +92,7 @@ class PDFDownloader:
                     logger.info(f"[PDFDownloader] Downloaded (extracted): {filename}")
                     return output_path
 
-            logger.warning(
-                f"[PDFDownloader] Unexpected content type: {content_type}"
-            )
+            logger.warning(f"[PDFDownloader] Unexpected content type: {content_type}")
             return None
 
         except Exception as e:
@@ -146,9 +148,7 @@ class PDFDownloader:
             logger.debug(f"[PDFDownloader] Failed to resolve DOI: {e}")
             return None
 
-    async def _extract_pdf_from_html(
-        self, html: str, base_url: str
-    ) -> Optional[str]:
+    async def _extract_pdf_from_html(self, html: str, base_url: str) -> Optional[str]:
         """Extract PDF URL from HTML content."""
         try:
             soup = BeautifulSoup(html, "html.parser")
@@ -216,9 +216,7 @@ class PDFDownloader:
         sanitized = sanitized[:200]
         return sanitized or "untitled"
 
-    async def check_duplicate(
-        self, result: SearchResult
-    ) -> Optional[Path]:
+    async def check_duplicate(self, result: SearchResult) -> Optional[Path]:
         """Check if a PDF already exists for this result.
 
         Args:

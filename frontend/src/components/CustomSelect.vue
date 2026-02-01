@@ -87,7 +87,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .custom-select-wrapper {
   position: relative;
-  width: auto;
+  width: 100%;
+  min-width: 120px;
 }
 
 .custom-select-trigger {
@@ -100,7 +101,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  min-width: 200px;
+  width: 100%;
 }
 
 .custom-select-trigger:hover {

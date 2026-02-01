@@ -1,94 +1,110 @@
 <script setup lang="ts">
-import { ref, inject, watch, nextTick, computed, onMounted, onUnmounted, type Ref } from "vue"
-import type { EvidenceChunk, ManifestEntry, HighlightGroup } from "../types"
-import PdfPreview from "./PdfPreview.vue"
-import { getFileUrl } from "../api/client"
+import {
+  ref,
+  inject,
+  watch,
+  nextTick,
+  computed,
+  onMounted,
+  onUnmounted,
+  type Ref,
+} from "vue";
+import type { EvidenceChunk, ManifestEntry, HighlightGroup } from "../types";
+import PdfPreview from "./PdfPreview.vue";
+import { getFileUrl } from "../api/client";
 
 const props = defineProps<{
-  tab: "reader" | "notebook"
-  evidence: EvidenceChunk | null
-  relatedEvidence?: EvidenceChunk[]
-  highlightNoteId: string | null
-  isOpen?: boolean
-}>()
+  tab: "reader" | "notebook";
+  evidence: EvidenceChunk | null;
+  relatedEvidence?: EvidenceChunk[];
+  highlightNoteId: string | null;
+  isOpen?: boolean;
+}>();
 
-defineEmits<{ (event: 'close'): void }>()
+defineEmits<{ (event: "close"): void }>();
 
 // Resizable drawer logic
-const MIN_WIDTH = 400
-const MAX_WIDTH = 1200
-const DEFAULT_WIDTH = 500
+const MIN_WIDTH = 400;
+const MAX_WIDTH = 1200;
+const DEFAULT_WIDTH = 500;
 
-const drawerWidth = ref(DEFAULT_WIDTH)
-const isResizing = ref(false)
+const drawerWidth = ref(DEFAULT_WIDTH);
+const isResizing = ref(false);
 
 function loadSavedWidth() {
-  const saved = localStorage.getItem('drawerWidth')
+  const saved = localStorage.getItem("drawerWidth");
   if (saved) {
-    const width = parseInt(saved, 10)
+    const width = parseInt(saved, 10);
     if (width >= MIN_WIDTH && width <= MAX_WIDTH) {
-      drawerWidth.value = width
+      drawerWidth.value = width;
     }
   }
 }
 
 function saveWidth() {
-  localStorage.setItem('drawerWidth', drawerWidth.value.toString())
+  localStorage.setItem("drawerWidth", drawerWidth.value.toString());
 }
 
 function startResize(e: MouseEvent) {
-  e.preventDefault()
-  isResizing.value = true
-  document.addEventListener('mousemove', onResize)
-  document.addEventListener('mouseup', stopResize)
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
+  e.preventDefault();
+  isResizing.value = true;
+  document.addEventListener("mousemove", onResize);
+  document.addEventListener("mouseup", stopResize);
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
 }
 
 function onResize(e: MouseEvent) {
-  if (!isResizing.value) return
-  const newWidth = window.innerWidth - e.clientX - 8 // 8px is the right margin
-  drawerWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth))
+  if (!isResizing.value) return;
+  const newWidth = window.innerWidth - e.clientX - 8; // 8px is the right margin
+  drawerWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
 }
 
 function stopResize() {
-  isResizing.value = false
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-  saveWidth()
+  isResizing.value = false;
+  document.removeEventListener("mousemove", onResize);
+  document.removeEventListener("mouseup", stopResize);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+  saveWidth();
 }
 
 onMounted(() => {
-  loadSavedWidth()
-})
+  loadSavedWidth();
+});
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
-})
+  document.removeEventListener("mousemove", onResize);
+  document.removeEventListener("mouseup", stopResize);
+});
 
-const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")!
-const isPinned = inject<(id: string) => boolean>("isPinned")!
-const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
-const manifest = inject<Ref<ManifestEntry[]>>("manifest")!
-const currentProject = inject<Ref<{ id: string } | null> | undefined>("currentProject", undefined)
-const projectId = computed(() => currentProject?.value?.id || "default")
+const togglePin = inject<(item: EvidenceChunk) => void>("togglePin")!;
+const isPinned = inject<(id: string) => boolean>("isPinned")!;
+const pinnedEvidenceMap =
+  inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!;
+const manifest = inject<Ref<ManifestEntry[]>>("manifest")!;
+const currentProject = inject<Ref<{ id: string } | null> | undefined>(
+  "currentProject",
+  undefined,
+);
+const projectId = computed(() => currentProject?.value?.id || "default");
 
-const currentTab = ref(props.tab)
-watch(() => props.tab, (v) => currentTab.value = v)
+const currentTab = ref(props.tab);
+watch(
+  () => props.tab,
+  (v) => (currentTab.value = v),
+);
 
 // Notebook Logic
-const notebookList = ref<EvidenceChunk[]>([])
+const notebookList = ref<EvidenceChunk[]>([]);
 // [新增] 暂存被移除的 ID，防止列表抖动
-const pendingRemovals = ref(new Set<string>())
+const pendingRemovals = ref(new Set<string>());
 
 function refreshNotebook() {
   if (pinnedEvidenceMap.value) {
     // 重新加载时，清除 pending 状态
-    pendingRemovals.value.clear()
-    notebookList.value = Array.from(pinnedEvidenceMap.value.values())
+    pendingRemovals.value.clear();
+    notebookList.value = Array.from(pinnedEvidenceMap.value.values());
   }
 }
 
@@ -96,148 +112,208 @@ function refreshNotebook() {
 function handleNotebookUnpin(item: EvidenceChunk) {
   if (pendingRemovals.value.has(item.chunkId)) {
     // 撤销待移除状态
-    pendingRemovals.value.delete(item.chunkId)
+    pendingRemovals.value.delete(item.chunkId);
   } else {
     // 标记为待移除 (视觉变灰)
-    pendingRemovals.value.add(item.chunkId)
+    pendingRemovals.value.add(item.chunkId);
   }
   // 全局状态移除/恢复 (影响其他地方的状态)
-  togglePin(item)
+  togglePin(item);
 }
 
 watch(currentTab, (val) => {
-  if (val === 'notebook') refreshNotebook()
-})
+  if (val === "notebook") refreshNotebook();
+});
 
 // [NEW] Refresh notebook when drawer closes to clean up pending removals
-watch(() => props.isOpen, (val) => {
-  if (val === false) {
-    refreshNotebook()
-  }
-})
+watch(
+  () => props.isOpen,
+  (val) => {
+    if (val === false) {
+      refreshNotebook();
+    }
+  },
+);
 
 // 监听全局 Map 变化
-watch(pinnedEvidenceMap, (newMap) => {
-  // 如果是新增的，加入列表
-  for (const [id, item] of newMap.entries()) {
-    if (!notebookList.value.find(i => i.chunkId === id)) {
-      notebookList.value.unshift(item)
+watch(
+  pinnedEvidenceMap,
+  (newMap) => {
+    // 如果是新增的，加入列表
+    for (const [id, item] of newMap.entries()) {
+      if (!notebookList.value.find((i) => i.chunkId === id)) {
+        notebookList.value.unshift(item);
+      }
     }
-  }
 
-  // 如果是移除的，只有在不在 pendingRemovals 里才移除
-  // (意味着是在外部 Reference Card 点击的取消)
-  if (currentTab.value === 'notebook') {
-    notebookList.value = notebookList.value.filter(item => {
-      // 如果还在全局 map 里，保留
-      if (newMap.has(item.chunkId)) return true
-      // 如果不在全局 map，但在 pendingRemovals，保留显示（直到刷新）
-      if (pendingRemovals.value.has(item.chunkId)) return true
-      // 否则移除
-      return false
-    })
-  }
-}, { deep: true })
+    // 如果是移除的，只有在不在 pendingRemovals 里才移除
+    // (意味着是在外部 Reference Card 点击的取消)
+    if (currentTab.value === "notebook") {
+      notebookList.value = notebookList.value.filter((item) => {
+        // 如果还在全局 map 里，保留
+        if (newMap.has(item.chunkId)) return true;
+        // 如果不在全局 map，但在 pendingRemovals，保留显示（直到刷新）
+        if (pendingRemovals.value.has(item.chunkId)) return true;
+        // 否则移除
+        return false;
+      });
+    }
+  },
+  { deep: true },
+);
 
-const contentRef = ref<HTMLElement | null>(null)
-const pdfProgress = ref(0)
+const contentRef = ref<HTMLElement | null>(null);
+const pdfProgress = ref(0);
 
 const handleProgress = (percent: number) => {
-  pdfProgress.value = percent
-}
+  pdfProgress.value = percent;
+};
 
 const previewFile = computed<ManifestEntry | null>(() => {
-  if (!props.evidence) return null
-  const entry = manifest.value.find(f => f.relPath === props.evidence?.path)
-  if (entry) return entry
-  return { relPath: props.evidence.path, fileType: "text" } as ManifestEntry
-})
+  if (!props.evidence) return null;
+  const entry = manifest.value.find((f) => f.relPath === props.evidence?.path);
+  if (entry) return entry;
+  return { relPath: props.evidence.path, fileType: "text" } as ManifestEntry;
+});
 const previewFileUrl = computed(() => {
-  if (!previewFile.value) return ""
-  return getFileUrl(projectId.value, previewFile.value.relPath)
-})
+  if (!previewFile.value) return "";
+  return getFileUrl(projectId.value, previewFile.value.relPath);
+});
 const previewHighlightGroups = computed<HighlightGroup[] | undefined>(() => {
-  if (!props.evidence) return undefined
+  if (!props.evidence) return undefined;
 
   // If we have related evidence (from same message context), use that
   if (props.relatedEvidence && props.relatedEvidence.length > 0) {
     return props.relatedEvidence
-      .filter(e => e.bbox && e.bbox.length > 0)
-      .map(e => ({
+      .filter((e) => e.bbox && e.bbox.length > 0)
+      .map((e) => ({
         id: e.chunkId,
-        boxes: e.bbox || []
-      }))
+        boxes: e.bbox || [],
+      }));
   }
 
   // Fallback to single evidence
-  if (!props.evidence?.bbox || props.evidence.bbox.length === 0) return undefined
-  return [{ id: props.evidence.chunkId, boxes: props.evidence.bbox || [] }]
-})
+  if (!props.evidence?.bbox || props.evidence.bbox.length === 0)
+    return undefined;
+  return [{ id: props.evidence.chunkId, boxes: props.evidence.bbox || [] }];
+});
 const canRenderPdfPreview = computed(() => {
-  return previewFile.value?.fileType === "pdf"
-})
-watch(() => props.evidence, (newVal) => {
-  if (newVal) {
-    currentTab.value = 'reader'
-    nextTick(() => {
-      // [修正] 简单定位到顶部
-      if (contentRef.value) contentRef.value.scrollTop = 0
-    })
-  }
-})
+  return previewFile.value?.fileType === "pdf";
+});
+watch(
+  () => props.evidence,
+  (newVal) => {
+    if (newVal) {
+      currentTab.value = "reader";
+      nextTick(() => {
+        // [修正] 简单定位到顶部
+        if (contentRef.value) contentRef.value.scrollTop = 0;
+      });
+    }
+  },
+);
 
 // [新增] Notebook 定位高亮
-watch(() => props.highlightNoteId, (id) => {
-  if (id && currentTab.value === 'notebook') {
-    nextTick(() => {
-      const el = document.getElementById(`note-${id}`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        el.classList.add('flash-highlight')
-        setTimeout(() => el.classList.remove('flash-highlight'), 2000)
-      }
-    })
-  }
-})
+watch(
+  () => props.highlightNoteId,
+  (id) => {
+    if (id && currentTab.value === "notebook") {
+      nextTick(() => {
+        const el = document.getElementById(`note-${id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("flash-highlight");
+          setTimeout(() => el.classList.remove("flash-highlight"), 2000);
+        }
+      });
+    }
+  },
+);
 
 function handlePin() {
-  if (props.evidence) togglePin(props.evidence)
+  if (props.evidence) togglePin(props.evidence);
 }
-
 </script>
 
 <template>
-  <div class="drawer-panel" :style="{ width: drawerWidth + 'px' }" :class="{ resizing: isResizing }">
+  <div
+    class="drawer-panel"
+    :style="{ width: drawerWidth + 'px' }"
+    :class="{ resizing: isResizing }"
+  >
     <!-- Resize Handle -->
     <div class="resize-handle" @mousedown="startResize">
       <div class="resize-line"></div>
     </div>
     <div class="drawer-header">
       <div class="drawer-tabs">
-        <div class="tab-btn" :class="{ active: currentTab === 'reader' }" @click="currentTab = 'reader'">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="margin-right:4px">
+        <div
+          class="tab-btn"
+          :class="{ active: currentTab === 'reader' }"
+          @click="currentTab = 'reader'"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="margin-right: 4px"
+          >
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
           </svg>
           Reader
         </div>
-        <div class="tab-btn" :class="{ active: currentTab === 'notebook' }" @click="currentTab = 'notebook'">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="margin-right:4px">
+        <div
+          class="tab-btn"
+          :class="{ active: currentTab === 'notebook' }"
+          @click="currentTab = 'notebook'"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="margin-right: 4px"
+          >
             <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
           </svg>
-          Notebook <span v-if="notebookList.length" class="badge">{{ notebookList.length }}</span>
+          Notebook
+          <span v-if="notebookList.length" class="badge">{{
+            notebookList.length
+          }}</span>
         </div>
       </div>
 
       <div class="header-actions">
         <!-- Notebook Refresh (Clean up removed items) -->
-        <button v-if="currentTab === 'notebook'" class="icon-btn" title="Refresh List" @click="refreshNotebook">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          v-if="currentTab === 'notebook'"
+          class="icon-btn"
+          title="Refresh List"
+          @click="refreshNotebook"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
             <path d="M3 3v5h5" />
             <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
@@ -245,8 +321,17 @@ function handlePin() {
           </svg>
         </button>
         <button class="close-btn" @click="$emit('close')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M18 6 6 18" />
             <path d="M6 6 18 18" />
           </svg>
@@ -257,41 +342,86 @@ function handlePin() {
     <!-- READER TAB -->
     <div class="drawer-content" v-if="currentTab === 'reader'" ref="contentRef">
       <div v-if="props.evidence" class="reader-container">
-
         <!-- Sticky Floating Actions (Top Right Overlay) -->
         <div class="sticky-actions">
-          <button class="pill-btn" :class="{ active: isPinned(props.evidence.chunkId) }" @click="handlePin"
-            title="Pin to Notebook">
-            <svg v-if="isPinned(props.evidence.chunkId)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-              viewBox="0 0 24 24" fill="currentColor" stroke="none">
-              <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
+          <button
+            class="pill-btn"
+            :class="{ active: isPinned(props.evidence.chunkId) }"
+            @click="handlePin"
+            title="Pin to Notebook"
+          >
+            <svg
+              v-if="isPinned(props.evidence.chunkId)"
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              stroke="none"
+            >
+              <path
+                d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z"
+              />
             </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z"
+              />
             </svg>
-            {{ isPinned(props.evidence.chunkId) ? 'Saved' : 'Save' }}
+            {{ isPinned(props.evidence.chunkId) ? "Saved" : "Save" }}
           </button>
         </div>
 
         <div class="doc-header">
-          <div class="doc-title">{{ props.evidence.path.split('/').pop() }}</div>
+          <div class="doc-title">
+            {{ props.evidence.path.split("/").pop() }}
+          </div>
           <div class="doc-meta-row">
-            <span class="meta-tag" v-if="props.evidence.page">Page {{ props.evidence.page }}</span>
-            <span class="meta-tag">Score: {{ props.evidence.score.toFixed(2) }}</span>
+            <span class="meta-tag" v-if="props.evidence.page"
+              >Page {{ props.evidence.page }}</span
+            >
+            <span class="meta-tag"
+              >Score: {{ props.evidence.score.toFixed(2) }}</span
+            >
           </div>
           <div class="doc-path">{{ props.evidence.path }}</div>
         </div>
 
         <div v-if="canRenderPdfPreview" class="reader-preview">
-          <PdfPreview :file-url="previewFileUrl" :highlight-groups="previewHighlightGroups"
-            :initial-page="props.evidence?.page ?? undefined" @progress="handleProgress"
-            :style="{ '--pdf-progress': pdfProgress + '%' }" class="reader-pdf" />
+          <PdfPreview
+            :file-url="previewFileUrl"
+            :highlight-groups="previewHighlightGroups"
+            :initial-page="props.evidence?.page ?? undefined"
+            @progress="handleProgress"
+            :style="{ '--pdf-progress': pdfProgress + '%' }"
+            class="reader-pdf"
+          />
         </div>
       </div>
       <div v-else class="empty-state">
-        <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          class="empty-icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <path d="m15 18-6-6 6-6" />
         </svg>
         <p>Select a source to view.</p>
@@ -304,20 +434,50 @@ function handlePin() {
         <p>Notebook is empty.</p>
       </div>
       <div v-else class="notebook-list">
-        <div v-for="item in notebookList" :key="item.chunkId" :id="`note-${item.chunkId}`" class="note-item"
-          :class="{ 'pending-removal': pendingRemovals.has(item.chunkId) }">
+        <div
+          v-for="item in notebookList"
+          :key="item.chunkId"
+          :id="`note-${item.chunkId}`"
+          class="note-item"
+          :class="{ 'pending-removal': pendingRemovals.has(item.chunkId) }"
+        >
           <div class="note-header">
-            <span class="note-source">{{ item.path.split('/').pop() }}</span>
-            <button class="unpin-btn" @click="handleNotebookUnpin(item)" title="Toggle Pin">
+            <span class="note-source">{{ item.path.split("/").pop() }}</span>
+            <button
+              class="unpin-btn"
+              @click="handleNotebookUnpin(item)"
+              title="Toggle Pin"
+            >
               <!-- 显示实心或空心图标 -->
-              <svg v-if="!pendingRemovals.has(item.chunkId)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
+              <svg
+                v-if="!pendingRemovals.has(item.chunkId)"
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="none"
+              >
+                <path
+                  d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z"
+                />
               </svg>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                style="opacity:0.5">
-                <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
+              <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="opacity: 0.5"
+              >
+                <path
+                  d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z"
+                />
               </svg>
             </button>
           </div>
@@ -358,7 +518,9 @@ function handlePin() {
   background: var(--color-neutral-300);
   border-radius: 2px;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
 }
 
 .drawer-panel.resizing {

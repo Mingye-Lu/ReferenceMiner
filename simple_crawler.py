@@ -18,11 +18,18 @@ from refminer.crawler import CrawlerManager, DeepCrawler, PDFDownloader, SearchQ
 # Fix encoding for Windows
 if sys.platform == "win32":
     import io
+
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 
-async def crawl_target(target: str, max_results: int = 10, download: bool = False, deep: bool = False, max_papers: int = 50):
+async def crawl_target(
+    target: str,
+    max_results: int = 10,
+    download: bool = False,
+    deep: bool = False,
+    max_papers: int = 50,
+):
     """Crawl web for target."""
     print(f"🔍 Searching for: {target}")
     print(f"📊 Max results per engine: {max_results}")
@@ -137,7 +144,9 @@ async def crawl_target(target: str, max_results: int = 10, download: bool = Fals
 
             results = expanded
 
-            for i, result in enumerate(results[len(results) - new_papers :], len(results) - new_papers + 1):
+            for i, result in enumerate(
+                results[len(results) - new_papers :], len(results) - new_papers + 1
+            ):
                 print(f"\n{i}. {result.title}")
                 print(f"   {'─'*58}")
 
@@ -191,65 +200,52 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "target",
-        help="Search query (e.g., 'machine learning papers')"
-    )
+    parser.add_argument("target", help="Search query (e.g., 'machine learning papers')")
 
     parser.add_argument(
         "--max-results",
         type=int,
         default=10,
-        help="Maximum results per engine (default: 10)"
+        help="Maximum results per engine (default: 10)",
     )
 
     parser.add_argument(
         "--engines",
         nargs="+",
         choices=["google_scholar", "pubmed", "semantic_scholar"],
-        help="Specific engines to use (default: all enabled)"
+        help="Specific engines to use (default: all enabled)",
+    )
+
+    parser.add_argument("--year-from", type=int, help="Minimum publication year")
+
+    parser.add_argument("--year-to", type=int, help="Maximum publication year")
+
+    parser.add_argument(
+        "--download", action="store_true", help="Download PDFs to references/ directory"
     )
 
     parser.add_argument(
-        "--year-from",
-        type=int,
-        help="Minimum publication year"
-    )
-
-    parser.add_argument(
-        "--year-to",
-        type=int,
-        help="Maximum publication year"
-    )
-
-    parser.add_argument(
-        "--download",
-        action="store_true",
-        help="Download PDFs to references/ directory"
-    )
-
-    parser.add_argument(
-        "--deep",
-        action="store_true",
-        help="Enable deep crawl (citation expansion)"
+        "--deep", action="store_true", help="Enable deep crawl (citation expansion)"
     )
 
     parser.add_argument(
         "--max-papers",
         type=int,
         default=50,
-        help="Maximum total papers for deep crawl (default: 50)"
+        help="Maximum total papers for deep crawl (default: 50)",
     )
 
     args = parser.parse_args()
 
-    asyncio.run(crawl_target(
-        args.target,
-        max_results=args.max_results,
-        download=args.download,
-        deep=args.deep,
-        max_papers=args.max_papers,
-    ))
+    asyncio.run(
+        crawl_target(
+            args.target,
+            max_results=args.max_results,
+            download=args.download,
+            deep=args.deep,
+            max_papers=args.max_papers,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -1,347 +1,373 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue"
-import BaseModal from "./BaseModal.vue"
-import FilePreviewModal from "./FilePreviewModal.vue"
-import CustomSelect from "./CustomSelect.vue"
-import { fetchBankManifest, fetchFileStats } from "../api/client"
-import type { ManifestEntry, BibliographyAuthor } from "../types"
-import { getFileName } from "../utils"
-import { Search, X, FileText, Loader2 } from "lucide-vue-next"
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import BaseModal from "./BaseModal.vue";
+import FilePreviewModal from "./FilePreviewModal.vue";
+import CustomSelect from "./CustomSelect.vue";
+import { fetchBankManifest, fetchFileStats } from "../api/client";
+import type { ManifestEntry, BibliographyAuthor } from "../types";
+import { getFileName } from "../utils";
+import { Search, X, FileText, Loader2 } from "lucide-vue-next";
 
 const props = defineProps<{
-  modelValue: boolean
-  projectId?: string
-  selectedFiles: Set<string>
-}>()
+  modelValue: boolean;
+  projectId?: string;
+  selectedFiles: Set<string>;
+}>();
 
 const emit = defineEmits<{
-  (e: "update:modelValue", value: boolean): void
-  (e: "confirm", files: string[]): void
-  (e: "close"): void
-}>()
+  (e: "update:modelValue", value: boolean): void;
+  (e: "confirm", files: string[]): void;
+  (e: "close"): void;
+}>();
 
-const bankFiles = ref<ManifestEntry[]>([])
-const fileStats = ref<Record<string, { usage_count: number; last_used: number }>>({})
-const loading = ref(true)
-const searchQuery = ref("")
-const localSelected = ref<Set<string>>(new Set())
-const showPreview = ref(false)
-const previewFile = ref<ManifestEntry | null>(null)
+const bankFiles = ref<ManifestEntry[]>([]);
+const fileStats = ref<
+  Record<string, { usage_count: number; last_used: number }>
+>({});
+const loading = ref(true);
+const searchQuery = ref("");
+const localSelected = ref<Set<string>>(new Set());
+const showPreview = ref(false);
+const previewFile = ref<ManifestEntry | null>(null);
 
 // Phase 2: Filter state
 const filters = ref({
   fileTypes: new Set<string>(),
   years: new Set<string>(),
   language: null as string | null,
-  inProject: null as boolean | null
-})
-const sortBy = ref<'usage' | 'name' | 'year' | 'added'>('usage')
-const sortOrder = ref<'asc' | 'desc'>('desc')
+  inProject: null as boolean | null,
+});
+const sortBy = ref<"usage" | "name" | "year" | "added">("usage");
+const sortOrder = ref<"asc" | "desc">("desc");
 
 const sortOptions = [
-  { value: 'usage', label: 'Usage' },
-  { value: 'name', label: 'Name' },
-  { value: 'year', label: 'Year' },
-  { value: 'added', label: 'Date Added' }
-]
+  { value: "usage", label: "Usage" },
+  { value: "name", label: "Name" },
+  { value: "year", label: "Year" },
+  { value: "added", label: "Date Added" },
+];
 
 // Phase 5: Keyboard navigation state
-const focusedIndex = ref(-1)
+const focusedIndex = ref(-1);
 
 // Phase 1: Helper functions for metadata display
-function formatAuthors(authors: BibliographyAuthor[] | string | undefined): string {
-  if (!authors) return ''
-  if (typeof authors === 'string') return authors
-  const names = authors.map(a => {
-    if (a.literal) return a.literal
-    if (a.family && a.given) return `${a.given} ${a.family}`
-    return a.family || a.given || ''
-  }).filter(Boolean)
-  if (names.length === 0) return ''
-  if (names.length <= 2) return names.join(' & ')
-  return `${names[0]} et al.`
+function formatAuthors(
+  authors: BibliographyAuthor[] | string | undefined,
+): string {
+  if (!authors) return "";
+  if (typeof authors === "string") return authors;
+  const names = authors
+    .map((a) => {
+      if (a.literal) return a.literal;
+      if (a.family && a.given) return `${a.given} ${a.family}`;
+      return a.family || a.given || "";
+    })
+    .filter(Boolean);
+  if (names.length === 0) return "";
+  if (names.length <= 2) return names.join(" & ");
+  return `${names[0]} et al.`;
 }
 
 function truncate(str: string | undefined | null, len: number): string {
-  if (!str || str.length <= len) return str || ''
-  return str.slice(0, len) + '...'
+  if (!str || str.length <= len) return str || "";
+  return str.slice(0, len) + "...";
 }
 
 // Phase 2: Computed available filters
 const availableTypes = computed(() => {
-  const types = new Set(bankFiles.value.map(f => f.fileType))
-  return Array.from(types).sort()
-})
+  const types = new Set(bankFiles.value.map((f) => f.fileType));
+  return Array.from(types).sort();
+});
 
 const availableYears = computed(() => {
-  const years = new Set<string>()
-  bankFiles.value.forEach(f => {
-    if (f.bibliography?.year) years.add(f.bibliography.year.toString())
-  })
-  return Array.from(years).sort().reverse().slice(0, 5)
-})
+  const years = new Set<string>();
+  bankFiles.value.forEach((f) => {
+    if (f.bibliography?.year) years.add(f.bibliography.year.toString());
+  });
+  return Array.from(years).sort().reverse().slice(0, 5);
+});
 
 const hasActiveFilters = computed(() => {
-  return filters.value.fileTypes.size > 0 ||
+  return (
+    filters.value.fileTypes.size > 0 ||
     filters.value.years.size > 0 ||
     filters.value.language !== null ||
     filters.value.inProject !== null
-})
+  );
+});
 
-function toggleFilter(filterKey: 'fileTypes' | 'years', value: string) {
-  const filterSet = filters.value[filterKey]
+function toggleFilter(filterKey: "fileTypes" | "years", value: string) {
+  const filterSet = filters.value[filterKey];
   if (filterSet.has(value)) {
-    filterSet.delete(value)
+    filterSet.delete(value);
   } else {
-    filterSet.add(value)
+    filterSet.add(value);
   }
-  filters.value[filterKey] = new Set(filterSet)
+  filters.value[filterKey] = new Set(filterSet);
 }
 
 function clearAllFilters() {
-  filters.value.fileTypes.clear()
-  filters.value.years.clear()
-  filters.value.language = null
-  filters.value.inProject = null
-  filters.value = { ...filters.value }
+  filters.value.fileTypes.clear();
+  filters.value.years.clear();
+  filters.value.language = null;
+  filters.value.inProject = null;
+  filters.value = { ...filters.value };
 }
 
 const filteredFiles = computed(() => {
-  let files = bankFiles.value
+  let files = bankFiles.value;
 
   // Text search (title, authors, filename)
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase()
-    files = files.filter(f => {
-      const name = getFileName(f.relPath).toLowerCase()
-      const title = (f.bibliography?.title || '').toLowerCase()
-      const authors = formatAuthors(f.bibliography?.authors).toLowerCase()
-      return name.includes(query) || title.includes(query) || authors.includes(query)
-    })
+    const query = searchQuery.value.toLowerCase();
+    files = files.filter((f) => {
+      const name = getFileName(f.relPath).toLowerCase();
+      const title = (f.bibliography?.title || "").toLowerCase();
+      const authors = formatAuthors(f.bibliography?.authors).toLowerCase();
+      return (
+        name.includes(query) || title.includes(query) || authors.includes(query)
+      );
+    });
   }
 
   // File type filter
   if (filters.value.fileTypes.size > 0) {
-    files = files.filter(f => filters.value.fileTypes.has(f.fileType))
+    files = files.filter((f) => filters.value.fileTypes.has(f.fileType));
   }
 
   // Year filter
   if (filters.value.years.size > 0) {
-    files = files.filter(f => {
-      const year = f.bibliography?.year?.toString()
-      return year && filters.value.years.has(year)
-    })
+    files = files.filter((f) => {
+      const year = f.bibliography?.year?.toString();
+      return year && filters.value.years.has(year);
+    });
   }
 
   // Language filter
   if (filters.value.language) {
-    files = files.filter(f => f.bibliography?.language === filters.value.language)
+    files = files.filter(
+      (f) => f.bibliography?.language === filters.value.language,
+    );
   }
 
   // In-project filter
   if (filters.value.inProject !== null) {
-    files = files.filter(f =>
-      filters.value.inProject ? props.selectedFiles.has(f.relPath) : !props.selectedFiles.has(f.relPath)
-    )
+    files = files.filter((f) =>
+      filters.value.inProject
+        ? props.selectedFiles.has(f.relPath)
+        : !props.selectedFiles.has(f.relPath),
+    );
   }
 
-  return sortFiles(files)
-})
+  return sortFiles(files);
+});
 
 function sortFiles(files: ManifestEntry[]): ManifestEntry[] {
   return [...files].sort((a, b) => {
-    const multiplier = sortOrder.value === 'asc' ? 1 : -1
+    const multiplier = sortOrder.value === "asc" ? 1 : -1;
 
     switch (sortBy.value) {
-      case 'usage': {
-        const usageA = fileStats.value[a.relPath]?.usage_count || 0
-        const usageB = fileStats.value[b.relPath]?.usage_count || 0
-        if (usageA !== usageB) return (usageB - usageA) * multiplier
+      case "usage": {
+        const usageA = fileStats.value[a.relPath]?.usage_count || 0;
+        const usageB = fileStats.value[b.relPath]?.usage_count || 0;
+        if (usageA !== usageB) return (usageB - usageA) * multiplier;
 
-        const timeA = fileStats.value[a.relPath]?.last_used || 0
-        const timeB = fileStats.value[b.relPath]?.last_used || 0
-        if (timeA !== timeB) return (timeB - timeA) * multiplier
-        break
+        const timeA = fileStats.value[a.relPath]?.last_used || 0;
+        const timeB = fileStats.value[b.relPath]?.last_used || 0;
+        if (timeA !== timeB) return (timeB - timeA) * multiplier;
+        break;
       }
-      case 'name':
-        return getFileName(a.relPath).localeCompare(getFileName(b.relPath)) * multiplier
-      case 'year': {
-        const yearA = a.bibliography?.year || 0
-        const yearB = b.bibliography?.year || 0
-        if (yearA !== yearB) return (yearB - yearA) * multiplier
-        break
+      case "name":
+        return (
+          getFileName(a.relPath).localeCompare(getFileName(b.relPath)) *
+          multiplier
+        );
+      case "year": {
+        const yearA = a.bibliography?.year || 0;
+        const yearB = b.bibliography?.year || 0;
+        if (yearA !== yearB) return (yearB - yearA) * multiplier;
+        break;
       }
-      case 'added': {
-        const timeA = fileStats.value[a.relPath]?.last_used || 0
-        const timeB = fileStats.value[b.relPath]?.last_used || 0
-        return (timeB - timeA) * multiplier
+      case "added": {
+        const timeA = fileStats.value[a.relPath]?.last_used || 0;
+        const timeB = fileStats.value[b.relPath]?.last_used || 0;
+        return (timeB - timeA) * multiplier;
       }
     }
 
     // Default fallback: sort by file type then name
     if (a.fileType !== b.fileType) {
-      return a.fileType.localeCompare(b.fileType)
+      return a.fileType.localeCompare(b.fileType);
     }
-    return getFileName(a.relPath).localeCompare(getFileName(b.relPath))
-  })
+    return getFileName(a.relPath).localeCompare(getFileName(b.relPath));
+  });
 }
 
 function displayName(path: string) {
-  return getFileName(path)
+  return getFileName(path);
 }
 
 function toggleSelection(filePath: string) {
   if (localSelected.value.has(filePath)) {
-    localSelected.value.delete(filePath)
+    localSelected.value.delete(filePath);
   } else {
-    localSelected.value.add(filePath)
+    localSelected.value.add(filePath);
   }
 
-  localSelected.value = new Set(localSelected.value)
+  localSelected.value = new Set(localSelected.value);
 }
 
 function selectAll() {
   if (localSelected.value.size === filteredFiles.value.length) {
-    localSelected.value.clear()
+    localSelected.value.clear();
   } else {
-    localSelected.value = new Set(filteredFiles.value.map(f => f.relPath))
+    localSelected.value = new Set(filteredFiles.value.map((f) => f.relPath));
   }
 }
 
 function clearSelection() {
-  localSelected.value = new Set()
+  localSelected.value = new Set();
 }
 
 // Phase 5: Keyboard navigation
 function handleKeydown(e: KeyboardEvent) {
   // Only handle when modal is open
-  if (!props.modelValue) return
+  if (!props.modelValue) return;
 
   // Don't handle if focused on an input
-  const target = e.target as HTMLElement
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+  const target = e.target as HTMLElement;
+  if (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  ) {
     // Allow slash to focus search even from inputs (except when already in search)
-    if (e.key === '/' && !target.classList.contains('search-input')) {
-      e.preventDefault()
-      document.querySelector<HTMLInputElement>('.search-input')?.focus()
+    if (e.key === "/" && !target.classList.contains("search-input")) {
+      e.preventDefault();
+      document.querySelector<HTMLInputElement>(".search-input")?.focus();
     }
-    return
+    return;
   }
 
-  const files = filteredFiles.value
+  const files = filteredFiles.value;
 
   switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault()
-      focusedIndex.value = Math.min(focusedIndex.value + 1, files.length - 1)
-      scrollToFocused()
-      break
-    case 'ArrowUp':
-      e.preventDefault()
-      focusedIndex.value = Math.max(focusedIndex.value - 1, 0)
-      scrollToFocused()
-      break
-    case ' ':
-      e.preventDefault()
+    case "ArrowDown":
+      e.preventDefault();
+      focusedIndex.value = Math.min(focusedIndex.value + 1, files.length - 1);
+      scrollToFocused();
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      focusedIndex.value = Math.max(focusedIndex.value - 1, 0);
+      scrollToFocused();
+      break;
+    case " ":
+      e.preventDefault();
       if (focusedIndex.value >= 0 && focusedIndex.value < files.length) {
-        toggleSelection(files[focusedIndex.value].relPath)
+        toggleSelection(files[focusedIndex.value].relPath);
       }
-      break
-    case 'Enter':
-      e.preventDefault()
+      break;
+    case "Enter":
+      e.preventDefault();
       if (focusedIndex.value >= 0 && focusedIndex.value < files.length) {
-        previewFile.value = files[focusedIndex.value]
-        showPreview.value = true
+        previewFile.value = files[focusedIndex.value];
+        showPreview.value = true;
       }
-      break
-    case '/':
-      e.preventDefault()
-      document.querySelector<HTMLInputElement>('.search-input')?.focus()
-      break
-    case 'Escape':
+      break;
+    case "/":
+      e.preventDefault();
+      document.querySelector<HTMLInputElement>(".search-input")?.focus();
+      break;
+    case "Escape":
       if (showPreview.value) {
-        showPreview.value = false
+        showPreview.value = false;
       }
-      break
+      break;
   }
 }
 
 function scrollToFocused() {
-  const el = document.querySelector(`[data-index="${focusedIndex.value}"]`)
-  el?.scrollIntoView({ block: 'nearest' })
+  const el = document.querySelector(`[data-index="${focusedIndex.value}"]`);
+  el?.scrollIntoView({ block: "nearest" });
 }
 
 // Reset focused index when filtered files change
 watch(filteredFiles, () => {
-  focusedIndex.value = -1
-})
+  focusedIndex.value = -1;
+});
 
 function handlePreview(file: ManifestEntry, e: Event) {
-  e.stopPropagation()
-  previewFile.value = file
-  showPreview.value = true
+  e.stopPropagation();
+  previewFile.value = file;
+  showPreview.value = true;
 }
 
 function closePreview() {
-  showPreview.value = false
-  previewFile.value = null
+  showPreview.value = false;
+  previewFile.value = null;
 }
 
 function handleConfirm() {
-  emit("confirm", Array.from(localSelected.value))
-  emit("update:modelValue", false)
+  emit("confirm", Array.from(localSelected.value));
+  emit("update:modelValue", false);
 }
 
 function handleClose() {
-  emit("update:modelValue", false)
-  emit("close")
+  emit("update:modelValue", false);
+  emit("close");
 }
 
 function handleBeforeLeave(el: Element) {
-  const element = el as HTMLElement
-  const parent = element.parentElement
-  if (!parent) return
+  const element = el as HTMLElement;
+  const parent = element.parentElement;
+  if (!parent) return;
 
-  const rect = element.getBoundingClientRect()
-  const parentRect = parent.getBoundingClientRect()
-  element.style.position = "absolute"
-  element.style.top = `${rect.top - parentRect.top}px`
-  element.style.left = `${rect.left - parentRect.left}px`
-  element.style.width = `${rect.width}px`
+  const rect = element.getBoundingClientRect();
+  const parentRect = parent.getBoundingClientRect();
+  element.style.position = "absolute";
+  element.style.top = `${rect.top - parentRect.top}px`;
+  element.style.left = `${rect.left - parentRect.left}px`;
+  element.style.width = `${rect.width}px`;
 }
 
 async function loadData() {
   try {
-    loading.value = true
+    loading.value = true;
     const [manifest, stats] = await Promise.all([
       fetchBankManifest(),
-      fetchFileStats()
-    ])
-    bankFiles.value = manifest
-    fileStats.value = stats
+      fetchFileStats(),
+    ]);
+    bankFiles.value = manifest;
+    fileStats.value = stats;
 
     // Initialize selection from props
-    localSelected.value = new Set(props.selectedFiles)
+    localSelected.value = new Set(props.selectedFiles);
   } catch (e) {
-    console.error("Failed to load bank data", e)
+    console.error("Failed to load bank data", e);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 onMounted(() => {
-  loadData()
-  document.addEventListener('keydown', handleKeydown)
-})
+  loadData();
+  document.addEventListener("keydown", handleKeydown);
+});
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-})
+  document.removeEventListener("keydown", handleKeydown);
+});
 </script>
 
 <template>
-  <BaseModal :model-value="modelValue" title="Manage Project Files" size="xlarge" @update:model-value="handleClose"
-    :hide-header="true">
+  <BaseModal
+    :model-value="modelValue"
+    title="Manage Project Files"
+    size="xlarge"
+    @update:model-value="handleClose"
+    :hide-header="true"
+  >
     <!-- Custom Header with Search -->
     <div class="custom-modal-layout">
       <div class="modal-header-custom">
@@ -355,38 +381,64 @@ onUnmounted(() => {
       <div class="search-section">
         <div class="search-input-wrapper">
           <Search :size="16" class="search-icon" />
-          <input v-model="searchQuery" type="text" placeholder="Search by title, author, or filename..."
-            class="search-input" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search by title, author, or filename..."
+            class="search-input"
+          />
         </div>
 
         <!-- Filter Chips -->
         <div class="filter-chips" v-if="bankFiles.length > 0">
           <!-- File Type Chips -->
-          <button v-for="type in availableTypes" :key="type" class="filter-chip"
-            :class="{ active: filters.fileTypes.has(type) }" @click="toggleFilter('fileTypes', type)">
+          <button
+            v-for="type in availableTypes"
+            :key="type"
+            class="filter-chip"
+            :class="{ active: filters.fileTypes.has(type) }"
+            @click="toggleFilter('fileTypes', type)"
+          >
             {{ type.toUpperCase() }}
           </button>
 
           <!-- Year Chips -->
-          <button v-for="year in availableYears" :key="year" class="filter-chip"
-            :class="{ active: filters.years.has(year) }" @click="toggleFilter('years', year)">
+          <button
+            v-for="year in availableYears"
+            :key="year"
+            class="filter-chip"
+            :class="{ active: filters.years.has(year) }"
+            @click="toggleFilter('years', year)"
+          >
             {{ year }}
           </button>
 
           <!-- Language Toggle -->
-          <button class="filter-chip" :class="{ active: filters.language === 'zh' }"
-            @click="filters.language = filters.language === 'zh' ? null : 'zh'">
+          <button
+            class="filter-chip"
+            :class="{ active: filters.language === 'zh' }"
+            @click="filters.language = filters.language === 'zh' ? null : 'zh'"
+          >
             中文
           </button>
 
           <!-- In-Project Toggle -->
-          <button class="filter-chip" :class="{ active: filters.inProject === true }"
-            @click="filters.inProject = filters.inProject === true ? null : true">
+          <button
+            class="filter-chip"
+            :class="{ active: filters.inProject === true }"
+            @click="
+              filters.inProject = filters.inProject === true ? null : true
+            "
+          >
             In Project
           </button>
 
           <!-- Clear All Filters -->
-          <button v-if="hasActiveFilters" class="filter-chip clear-filters" @click="clearAllFilters">
+          <button
+            v-if="hasActiveFilters"
+            class="filter-chip clear-filters"
+            @click="clearAllFilters"
+          >
             <X :size="12" />
             Clear
           </button>
@@ -396,7 +448,11 @@ onUnmounted(() => {
         <div class="controls-row">
           <div class="sort-controls">
             <span>Sort:</span>
-            <CustomSelect v-model="sortBy" :options="sortOptions" class="sort-select" />
+            <CustomSelect
+              v-model="sortBy"
+              :options="sortOptions"
+              class="sort-select"
+            />
           </div>
           <div class="selection-info">
             <span>{{ filteredFiles.length }} files</span>
@@ -417,33 +473,71 @@ onUnmounted(() => {
           <p v-else>No files in Reference Bank</p>
         </div>
 
-        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
-          <div v-for="(file, index) in filteredFiles" :key="file.relPath" :data-index="index" class="file-card" :class="{
-            selected: localSelected.has(file.relPath),
-            focused: focusedIndex === index
-          }" @click="toggleSelection(file.relPath)">
+        <TransitionGroup
+          v-else
+          name="file-list"
+          tag="div"
+          class="file-grid"
+          @before-leave="handleBeforeLeave"
+        >
+          <div
+            v-for="(file, index) in filteredFiles"
+            :key="file.relPath"
+            :data-index="index"
+            class="file-card"
+            :class="{
+              selected: localSelected.has(file.relPath),
+              focused: focusedIndex === index,
+            }"
+            @click="toggleSelection(file.relPath)"
+          >
             <div class="file-icon">
               <FileText :size="20" />
             </div>
             <div class="file-info">
-              <div class="file-name" :title="displayName(file.relPath)">{{ displayName(file.relPath) }}</div>
-              <div class="file-title" v-if="file.bibliography?.title" :title="file.bibliography.title">
+              <div class="file-name" :title="displayName(file.relPath)">
+                {{ displayName(file.relPath) }}
+              </div>
+              <div
+                class="file-title"
+                v-if="file.bibliography?.title"
+                :title="file.bibliography.title"
+              >
                 {{ truncate(file.bibliography.title, 50) }}
               </div>
-              <div class="file-authors" v-if="file.bibliography?.authors || file.bibliography?.year">
+              <div
+                class="file-authors"
+                v-if="file.bibliography?.authors || file.bibliography?.year"
+              >
                 {{ formatAuthors(file.bibliography?.authors) }}
-                <span v-if="formatAuthors(file.bibliography?.authors) && file.bibliography?.year"> · </span>
+                <span
+                  v-if="
+                    formatAuthors(file.bibliography?.authors) &&
+                    file.bibliography?.year
+                  "
+                >
+                  ·
+                </span>
                 {{ file.bibliography?.year }}
               </div>
               <div class="file-meta">
-                {{ file.fileType }} · {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
-                <span v-if="fileStats[file.relPath]?.usage_count" class="usage-badge">
-                  {{ fileStats[file.relPath].usage_count }} project{{ fileStats[file.relPath].usage_count > 1 ? 's' : ''
+                {{ file.fileType }} ·
+                {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
+                <span
+                  v-if="fileStats[file.relPath]?.usage_count"
+                  class="usage-badge"
+                >
+                  {{ fileStats[file.relPath].usage_count }} project{{
+                    fileStats[file.relPath].usage_count > 1 ? "s" : ""
                   }}
                 </span>
               </div>
             </div>
-            <button class="preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
+            <button
+              class="preview-btn"
+              @click="(e) => handlePreview(file, e)"
+              title="Preview"
+            >
               <Search :size="14" />
             </button>
           </div>
@@ -456,11 +550,13 @@ onUnmounted(() => {
           <span class="selection-count">{{ localSelected.size }} selected</span>
           <div class="action-buttons">
             <button @click="selectAll" class="action-btn">
-              {{ localSelected.size === filteredFiles.length ? 'Deselect All' : 'Select All Visible' }}
+              {{
+                localSelected.size === filteredFiles.length
+                  ? "Deselect All"
+                  : "Select All Visible"
+              }}
             </button>
-            <button @click="clearSelection" class="action-btn">
-              Clear
-            </button>
+            <button @click="clearSelection" class="action-btn">Clear</button>
           </div>
         </div>
       </Transition>
@@ -469,14 +565,23 @@ onUnmounted(() => {
       <div class="modal-footer-custom">
         <button class="btn-secondary" @click="handleClose">Cancel</button>
         <button class="btn-primary" @click="handleConfirm" :disabled="loading">
-          <Loader2 v-if="loading" class="spin" :size="16" style="margin-right:6px" />
+          <Loader2
+            v-if="loading"
+            class="spin"
+            :size="16"
+            style="margin-right: 6px"
+          />
           Update
         </button>
       </div>
     </div>
 
     <!-- Preview Modal -->
-    <FilePreviewModal v-model="showPreview" :file="previewFile" @close="closePreview" />
+    <FilePreviewModal
+      v-model="showPreview"
+      :file="previewFile"
+      @close="closePreview"
+    />
   </BaseModal>
 </template>
 
@@ -832,7 +937,6 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-
 [data-theme="dark"] .usage-badge {
   background: var(--color-neutral-150);
   color: var(--text-secondary);
@@ -950,7 +1054,9 @@ onUnmounted(() => {
 /* Slide-up transition for quick actions bar */
 .slide-up-enter-active,
 .slide-up-leave-active {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .slide-up-enter-from,

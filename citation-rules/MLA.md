@@ -4,30 +4,30 @@
 
 **1.1 Page Layout**
 
-* One-inch margins on **all sides** (top, bottom, left, right).([Lone Star College Library Guides][2])
-* Use an **easily readable font** (e.g., **12 pt Times New Roman**).([Lane Community College Library Guides][3])
-* **Double-space** all text, including block quotations, notes, and Works Cited list.([Lane Community College Library Guides][3])
-* **Do not justify** the right margin; leave text left-aligned (ragged right).([Widener University Library Guides][4])
+- One-inch margins on **all sides** (top, bottom, left, right).([Lone Star College Library Guides][2])
+- Use an **easily readable font** (e.g., **12 pt Times New Roman**).([Lane Community College Library Guides][3])
+- **Double-space** all text, including block quotations, notes, and Works Cited list.([Lane Community College Library Guides][3])
+- **Do not justify** the right margin; leave text left-aligned (ragged right).([Widener University Library Guides][4])
 
 **1.2 Paragraphs and Indentation**
 
-* **First line of each paragraph**: indent ½ inch from left margin.([Lane Community College Library Guides][3])
-* **Block quotes** (long quotes of 4+ lines): indent entire quote ½ inch from left margin.([Widener University Library Guides][4])
+- **First line of each paragraph**: indent ½ inch from left margin.([Lane Community College Library Guides][3])
+- **Block quotes** (long quotes of 4+ lines): indent entire quote ½ inch from left margin.([Widener University Library Guides][4])
 
 **1.3 Headers and Page Numbers**
 
-* Include a **running header** in the top right of every page: **Last Name + page number**.([Lone Star College Library Guides][2])
+- Include a **running header** in the top right of every page: **Last Name + page number**.([Lone Star College Library Guides][2])
 
 **1.4 First Page (No Title Page by Default)**
 
-* MLA does **not require a separate title page** unless specifically requested.([Lone Star College Library Guides][2])
-* On the **first page**, in upper left corner, list **(double-spaced)**:
-
+- MLA does **not require a separate title page** unless specifically requested.([Lone Star College Library Guides][2])
+- On the **first page**, in upper left corner, list **(double-spaced)**:
   1. Your Name
   2. Instructor’s Name
   3. Course Name/Number
   4. Date (Day Month Year; e.g., 22 January 2026)([Lone Star College Library Guides][2])
-* **Title**: center on next line after heading; do not italicize, bold, underline, or use all caps.([Lone Star College Library Guides][2])
+
+- **Title**: center on next line after heading; do not italicize, bold, underline, or use all caps.([Lone Star College Library Guides][2])
 
 ---
 
@@ -37,34 +37,31 @@ MLA uses **parenthetical (author–page) citations** linked directly to full ref
 
 **2.1 Basic Parenthetical Format**
 
-* Put author’s **last name and page number** (no comma) in parentheses:
-
-  * Example: (Smith 37).([Towson University Library Guides][5])
+- Put author’s **last name and page number** (no comma) in parentheses:
+  - Example: (Smith 37).([Towson University Library Guides][5])
 
 **2.2 Placement**
 
-* Citation goes **directly after** the quoted or paraphrased material and **before the period** (for normal quotes; block quotes place the citation after the final punctuation).([Purdue Owl][6])
+- Citation goes **directly after** the quoted or paraphrased material and **before the period** (for normal quotes; block quotes place the citation after the final punctuation).([Purdue Owl][6])
 
 **2.3 Author Named in Prose**
 
-* If the author’s name appears in the sentence, include **only the page number** in parentheses:
-
-  * Example: Smith argues this point (37).([Purdue Owl][6])
+- If the author’s name appears in the sentence, include **only the page number** in parentheses:
+  - Example: Smith argues this point (37).([Purdue Owl][6])
 
 **2.4 Multiple Authors**
 
-* Two authors: list both (e.g., **(Moore and Patel 48–50)**).
-* Three or more authors: use **et al.** after the first author’s name (e.g., **(Moore et al. 59)**).([scribbr.com][7])
+- Two authors: list both (e.g., **(Moore and Patel 48–50)**).
+- Three or more authors: use **et al.** after the first author’s name (e.g., **(Moore et al. 59)**).([scribbr.com][7])
 
 **2.5 No Page Numbers**
 
-* If no page numbers are available, include only author’s name (or title if no author).([Penn State Libraries Guides][8])
+- If no page numbers are available, include only author’s name (or title if no author).([Penn State Libraries Guides][8])
 
 **2.6 Multiple Citations or Sources**
 
-* If citing multiple sources in one place, separate with **semicolons**:
-
-  * (Garcia 64; Davies 14).([scribbr.com][7])
+- If citing multiple sources in one place, separate with **semicolons**:
+  - (Garcia 64; Davies 14).([scribbr.com][7])
 
 ---
 
@@ -72,14 +69,14 @@ MLA uses **parenthetical (author–page) citations** linked directly to full ref
 
 **3.1 General Rules**
 
-* The Works Cited list begins on a **separate page** at the end of the paper.([Golden West College LibGuides][9])
-* Title the page **Works Cited**, centered at top of page.([Golden West College LibGuides][9])
-* Double-space all entries; **do not add extra space** between items.([Golden West College LibGuides][9])
-* Use a **hanging indent**: first line flush left; subsequent lines indented ½ inch.([Golden West College LibGuides][9])
+- The Works Cited list begins on a **separate page** at the end of the paper.([Golden West College LibGuides][9])
+- Title the page **Works Cited**, centered at top of page.([Golden West College LibGuides][9])
+- Double-space all entries; **do not add extra space** between items.([Golden West College LibGuides][9])
+- Use a **hanging indent**: first line flush left; subsequent lines indented ½ inch.([Golden West College LibGuides][9])
 
 **3.2 Alphabetical Order**
 
-* List entries **alphabetically by author’s last name** (or title if no author).([Golden West College LibGuides][9])
+- List entries **alphabetically by author’s last name** (or title if no author).([Golden West College LibGuides][9])
 
 **3.3 Core Elements of a Citation**
 In general, MLA entries are built from **core elements** in this order:
@@ -100,9 +97,9 @@ In general, MLA entries are built from **core elements** in this order:
 
 **4.1 Titles in Text and Works Cited**
 
-* **Title Case**: Capitalize major words (nouns, pronouns, verbs, adjectives, adverbs).([scribbr.com][7])
-* **Italics** for self-contained works (books, movies, journals).([scribbr.com][7])
-* **Quotation Marks** for shorter works contained in larger works (articles, poems, chapters).([scribbr.com][7])
+- **Title Case**: Capitalize major words (nouns, pronouns, verbs, adjectives, adverbs).([scribbr.com][7])
+- **Italics** for self-contained works (books, movies, journals).([scribbr.com][7])
+- **Quotation Marks** for shorter works contained in larger works (articles, poems, chapters).([scribbr.com][7])
 
 ---
 
@@ -110,17 +107,17 @@ In general, MLA entries are built from **core elements** in this order:
 
 **5.1 Footnotes/Endnotes**
 
-* MLA allows **optional notes** for explanatory content not suitable for the main text or citation details.([Purdue Owl][1])
+- MLA allows **optional notes** for explanatory content not suitable for the main text or citation details.([Purdue Owl][1])
 
 **5.2 URLs and Access Dates**
 
-* URLs may be included for online sources; access dates are optional but can be added if instructor requires them.([Purdue Owl][1])
+- URLs may be included for online sources; access dates are optional but can be added if instructor requires them.([Purdue Owl][1])
 
 ---
 
 # **6. Avoiding Plagiarism**
 
-* Every source cited in text **must correspond** to a Works Cited entry, and vice versa.([Towson University Library Guides][5])
+- Every source cited in text **must correspond** to a Works Cited entry, and vice versa.([Towson University Library Guides][5])
 
 ---
 

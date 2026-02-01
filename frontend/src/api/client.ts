@@ -407,13 +407,17 @@ export async function streamQueueJobs(
   if (params?.scope) search.set("scope", params.scope);
   if (params?.projectId) search.set("project_id", params.projectId);
   const query = search.toString();
-  const url = query ? `${API_BASE}/api/queue/stream?${query}` : `${API_BASE}/api/queue/stream`;
+  const url = query
+    ? `${API_BASE}/api/queue/stream?${query}`
+    : `${API_BASE}/api/queue/stream`;
 
   console.log("[queue-stream] connecting to", url);
   const response = await fetch(url, { signal });
   if (!response.ok || !response.body) {
     const detail = await response.text();
-    const error = new Error(`API ${response.status}: ${detail || "Queue stream failed"}`);
+    const error = new Error(
+      `API ${response.status}: ${detail || "Queue stream failed"}`,
+    );
     onError?.(error);
     throw error;
   }
@@ -456,7 +460,14 @@ export async function streamQueueJobs(
           try {
             const payload = JSON.parse(data);
             const mapped = mapQueueJob(payload);
-            console.log("[queue-stream] job event:", mapped.id.slice(0, 8), "status:", mapped.status, "phase:", mapped.phase);
+            console.log(
+              "[queue-stream] job event:",
+              mapped.id.slice(0, 8),
+              "status:",
+              mapped.status,
+              "phase:",
+              mapped.phase,
+            );
             onJob(mapped);
           } catch (e) {
             console.error("[queue-stream] parse error:", e);
@@ -816,7 +827,10 @@ export async function checkDuplicate(
 
 export function getFileUrl(_projectId: string, relPath: string): string {
   // Encode each segment to handle special characters while preserving directory structure
-  const encodedPath = relPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+  const encodedPath = relPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 
   // In development, bypass Vite proxy for files to avoid timeouts/limits with large files
   if (import.meta.env.DEV) {
@@ -1279,10 +1293,7 @@ export async function deleteFileStream(
 
   if (!response.ok || !response.body) {
     const detail = await response.text();
-    handlers.onError?.(
-      "DELETE_FAILED",
-      detail || "Delete request failed",
-    );
+    handlers.onError?.("DELETE_FAILED", detail || "Delete request failed");
     return;
   }
 
@@ -1597,7 +1608,7 @@ export async function fetchCrawlerConfig(): Promise<CrawlerConfig> {
 }
 
 export async function updateCrawlerConfig(
-  config: CrawlerConfig
+  config: CrawlerConfig,
 ): Promise<CrawlerConfig> {
   const data = await fetchJson<CrawlerConfig>("/api/crawler/config", {
     method: "POST",
@@ -1608,7 +1619,7 @@ export async function updateCrawlerConfig(
 }
 
 export async function searchPapers(
-  query: CrawlerSearchQuery
+  query: CrawlerSearchQuery,
 ): Promise<CrawlerSearchResult[]> {
   const data = await fetchJson<CrawlerSearchResult[]>("/api/crawler/search", {
     method: "POST",
@@ -1623,7 +1634,7 @@ export type CrawlerDownloadEventHandler = {
   onProgress?: (
     current: number,
     total: number,
-    result: CrawlerDownloadResult
+    result: CrawlerDownloadResult,
   ) => void;
   onComplete?: (results: CrawlerDownloadResult[]) => void;
   onError?: (error: string) => void;
@@ -1632,13 +1643,16 @@ export type CrawlerDownloadEventHandler = {
 export async function downloadPapersStream(
   results: CrawlerSearchResult[],
   overwrite: boolean,
-  handlers: CrawlerDownloadEventHandler
+  handlers: CrawlerDownloadEventHandler,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/crawler/batch-download/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ results, overwrite }),
-  });
+  const response = await fetch(
+    `${API_BASE}/api/crawler/batch-download/stream`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ results, overwrite }),
+    },
+  );
 
   if (!response.ok || !response.body) {
     const detail = await response.text();
@@ -1692,9 +1706,7 @@ export async function downloadPapersStream(
           } else if (event === "complete") {
             handlers.onComplete?.(downloadResults);
           } else if (event === "error") {
-            handlers.onError?.(
-              payload.message ?? "Download failed"
-            );
+            handlers.onError?.(payload.message ?? "Download failed");
           }
         } catch (e) {
           console.error("[crawler-download] Parse error:", e);

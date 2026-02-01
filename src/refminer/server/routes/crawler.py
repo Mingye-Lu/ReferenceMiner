@@ -115,6 +115,7 @@ async def batch_download_stream(
 
     async def _run_download():
         try:
+
             def progress_callback(i: int, total: int, title: str) -> None:
                 queue_store.update_job(
                     job["id"],

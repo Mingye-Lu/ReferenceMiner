@@ -1,211 +1,249 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, inject, type Ref, computed, onMounted } from "vue"
-import MessageItem from "./MessageItem.vue"
-import { streamAsk } from "../api/client"
-import type { ChatMessage, EvidenceChunk, Project } from "../types"
+import {
+  ref,
+  nextTick,
+  watch,
+  inject,
+  type Ref,
+  computed,
+  onMounted,
+} from "vue";
+import MessageItem from "./MessageItem.vue";
+import { streamAsk } from "../api/client";
+import type { ChatMessage, EvidenceChunk, Project } from "../types";
 
 const props = defineProps<{
-  history: ChatMessage[],
-  highlightId?: string | null
-}>()
-defineEmits<{ (event: 'update:history', val: ChatMessage[]): void }>()
+  history: ChatMessage[];
+  highlightId?: string | null;
+}>();
+defineEmits<{ (event: "update:history", val: ChatMessage[]): void }>();
 
-const draftInput = ref("")
-const isLoading = ref(false)
-const scrollAnchor = ref<HTMLElement | null>(null)
-const scrollContainer = ref<HTMLElement | null>(null)
-const userScrolledUp = ref(false)
+const draftInput = ref("");
+const isLoading = ref(false);
+const scrollAnchor = ref<HTMLElement | null>(null);
+const scrollContainer = ref<HTMLElement | null>(null);
+const userScrolledUp = ref(false);
 
-const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!
-const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!
-const pinnedEvidenceMap = inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!
-const currentProject = inject<Ref<Project | null>>("currentProject")!
-const projectId = computed(() => currentProject.value?.id || "default")
+const selectedFiles = inject<Ref<Set<string>>>("selectedFiles")!;
+const selectedNotes = inject<Ref<Set<string>>>("selectedNotes")!;
+const pinnedEvidenceMap =
+  inject<Ref<Map<string, EvidenceChunk>>>("pinnedEvidenceMap")!;
+const currentProject = inject<Ref<Project | null>>("currentProject")!;
+const projectId = computed(() => currentProject.value?.id || "default");
 
-const isNoteMode = ref(false)
-const submitPromptKey = ref<'enter' | 'ctrl-enter'>('enter')
+const isNoteMode = ref(false);
+const submitPromptKey = ref<"enter" | "ctrl-enter">("enter");
 const submitHintText = computed(() => {
-  return submitPromptKey.value === 'enter' ? 'Enter to send' : 'Ctrl+Enter to send'
-})
+  return submitPromptKey.value === "enter"
+    ? "Enter to send"
+    : "Ctrl+Enter to send";
+});
 function toggleNoteMode() {
-  isNoteMode.value = !isNoteMode.value
+  isNoteMode.value = !isNoteMode.value;
 }
 
 function handleScroll() {
-  if (!scrollContainer.value) return
-  const { scrollTop, scrollHeight, clientHeight } = scrollContainer.value
+  if (!scrollContainer.value) return;
+  const { scrollTop, scrollHeight, clientHeight } = scrollContainer.value;
   if (scrollHeight - scrollTop - clientHeight > 50) {
-    userScrolledUp.value = true
+    userScrolledUp.value = true;
   } else {
-    userScrolledUp.value = false
+    userScrolledUp.value = false;
   }
 }
 
 function scrollToBottom() {
   if (!userScrolledUp.value) {
-    nextTick(() => scrollAnchor.value?.scrollIntoView({ behavior: "auto" }))
+    nextTick(() => scrollAnchor.value?.scrollIntoView({ behavior: "auto" }));
   }
 }
 
-watch(() => props.history.length, () => {
-  userScrolledUp.value = false
-  nextTick(() => scrollAnchor.value?.scrollIntoView({ behavior: "smooth" }))
-})
+watch(
+  () => props.history.length,
+  () => {
+    userScrolledUp.value = false;
+    nextTick(() => scrollAnchor.value?.scrollIntoView({ behavior: "smooth" }));
+  },
+);
 
-
-watch(() => props.highlightId, (newId) => {
-  if (newId) {
-    nextTick(() => {
-      const el = document.getElementById(`msg-${newId}`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        el.classList.add('flash-highlight')
-        setTimeout(() => el.classList.remove('flash-highlight'), 2000)
-      }
-    })
-  }
-})
+watch(
+  () => props.highlightId,
+  (newId) => {
+    if (newId) {
+      nextTick(() => {
+        const el = document.getElementById(`msg-${newId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("flash-highlight");
+          setTimeout(() => el.classList.remove("flash-highlight"), 2000);
+        }
+      });
+    }
+  },
+);
 
 async function sendMessage(event?: KeyboardEvent) {
   // Handle keyboard shortcuts based on user preference
   if (event) {
-    if (submitPromptKey.value === 'enter') {
+    if (submitPromptKey.value === "enter") {
       // Enter mode: only Enter sends (with no modifiers), Shift+Enter for new line
       if (event.shiftKey) {
-        return // Allow new line with Shift+Enter
+        return; // Allow new line with Shift+Enter
       }
       if (event.ctrlKey || event.metaKey || event.altKey) {
-        return // Don't send with Ctrl/Cmd/Alt+Enter
+        return; // Don't send with Ctrl/Cmd/Alt+Enter
       }
       // Prevent default to avoid new line when sending
-      event.preventDefault()
+      event.preventDefault();
     } else {
       // Ctrl+Enter mode: only Ctrl+Enter sends, Enter or Shift+Enter for new line
       if (!event.ctrlKey && !event.metaKey) {
-        return // Allow new line with Enter or Shift+Enter
+        return; // Allow new line with Enter or Shift+Enter
       }
       // Prevent default to avoid new line when sending
-      event.preventDefault()
+      event.preventDefault();
     }
   }
-  if (!draftInput.value.trim() || isLoading.value) return
-  const question = draftInput.value
-  draftInput.value = ""
+  if (!draftInput.value.trim() || isLoading.value) return;
+  const question = draftInput.value;
+  draftInput.value = "";
 
-  userScrolledUp.value = false
+  userScrolledUp.value = false;
 
-  const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: question, timestamp: Date.now() }
-  props.history.push(userMsg)
+  const userMsg: ChatMessage = {
+    id: Date.now().toString(),
+    role: "user",
+    content: question,
+    timestamp: Date.now(),
+  };
+  props.history.push(userMsg);
 
-  const aiMsgId = (Date.now() + 1).toString()
+  const aiMsgId = (Date.now() + 1).toString();
   const aiMsg: ChatMessage = {
-    id: aiMsgId, role: "ai", content: "", timestamp: Date.now(),
-    timeline: [], sources: [], keywords: [], isStreaming: true
-  }
-  props.history.push(aiMsg)
-  isLoading.value = true
+    id: aiMsgId,
+    role: "ai",
+    content: "",
+    timestamp: Date.now(),
+    timeline: [],
+    sources: [],
+    keywords: [],
+    isStreaming: true,
+  };
+  props.history.push(aiMsg);
+  isLoading.value = true;
 
   try {
-    const context = Array.from(selectedFiles.value)
+    const context = Array.from(selectedFiles.value);
 
     // Get history before the current question (exclude the last 2 messages: current user + ai)
-    const previousHistory = props.history.slice(0, -2)
+    const previousHistory = props.history.slice(0, -2);
 
-    let notes: EvidenceChunk[] = []
+    let notes: EvidenceChunk[] = [];
     if (isNoteMode.value) {
       if (selectedNotes.value.size > 0) {
-        notes = Array.from(pinnedEvidenceMap.value.values())
-          .filter(n => selectedNotes.value.has(n.chunkId))
+        notes = Array.from(pinnedEvidenceMap.value.values()).filter((n) =>
+          selectedNotes.value.has(n.chunkId),
+        );
       } else {
-        notes = Array.from(pinnedEvidenceMap.value.values())
+        notes = Array.from(pinnedEvidenceMap.value.values());
       }
     }
 
-    await streamAsk(projectId.value, question, (event, payload) => {
-      const currentAiMsg = props.history.find(m => m.id === aiMsgId)
-      if (!currentAiMsg) return
+    await streamAsk(
+      projectId.value,
+      question,
+      (event, payload) => {
+        const currentAiMsg = props.history.find((m) => m.id === aiMsgId);
+        if (!currentAiMsg) return;
 
-      if (event === "step") {
-        currentAiMsg.timeline?.push({
-          phase: payload.step,
-          message: payload.title,
-          startTime: payload.timestamp * 1000,
-          details: payload.details || payload.plan || ""
-        })
-        if (payload.keywords) currentAiMsg.keywords = payload.keywords
-      }
-      if (event === "step_update") {
-        const timeline = currentAiMsg.timeline || []
-        for (let i = timeline.length - 1; i >= 0; i--) {
-          if (timeline[i].phase === payload.step) {
-            if (payload.title) timeline[i].message = payload.title
-            if (payload.details || payload.plan) {
-              timeline[i].details = payload.details || payload.plan
+        if (event === "step") {
+          currentAiMsg.timeline?.push({
+            phase: payload.step,
+            message: payload.title,
+            startTime: payload.timestamp * 1000,
+            details: payload.details || payload.plan || "",
+          });
+          if (payload.keywords) currentAiMsg.keywords = payload.keywords;
+        }
+        if (event === "step_update") {
+          const timeline = currentAiMsg.timeline || [];
+          for (let i = timeline.length - 1; i >= 0; i--) {
+            if (timeline[i].phase === payload.step) {
+              if (payload.title) timeline[i].message = payload.title;
+              if (payload.details || payload.plan) {
+                timeline[i].details = payload.details || payload.plan;
+              }
+              if (payload.endTime) {
+                timeline[i].endTime = payload.endTime;
+              }
+              break;
             }
-            if (payload.endTime) {
-              timeline[i].endTime = payload.endTime
-            }
-            break
           }
         }
-      }
-      if (event === "evidence") {
-        currentAiMsg.sources = (payload || []).map((item: any) => ({
-          chunkId: item.chunk_id ?? item.chunkId,
-          path: item.path ?? item.rel_path,
-          page: item.page,
-          section: item.section,
-          text: item.text,
-          score: item.score,
-          bbox: item.bbox ?? null
-        }))
-      }
-      if (event === "answer_delta") {
-        currentAiMsg.content += (payload.delta || "")
-        scrollToBottom()
-      }
-      if (event === "error") {
-        currentAiMsg.content += `\n\n> **Error:** ${payload.message || "An error occurred"}`
-        currentAiMsg.isStreaming = false
-        scrollToBottom()
-      }
-      if (event === "answer_done" || event === "done") {
-        currentAiMsg.isStreaming = false
-      }
-    }, context, isNoteMode.value, notes, previousHistory)
+        if (event === "evidence") {
+          currentAiMsg.sources = (payload || []).map((item: any) => ({
+            chunkId: item.chunk_id ?? item.chunkId,
+            path: item.path ?? item.rel_path,
+            page: item.page,
+            section: item.section,
+            text: item.text,
+            score: item.score,
+            bbox: item.bbox ?? null,
+          }));
+        }
+        if (event === "answer_delta") {
+          currentAiMsg.content += payload.delta || "";
+          scrollToBottom();
+        }
+        if (event === "error") {
+          currentAiMsg.content += `\n\n> **Error:** ${payload.message || "An error occurred"}`;
+          currentAiMsg.isStreaming = false;
+          scrollToBottom();
+        }
+        if (event === "answer_done" || event === "done") {
+          currentAiMsg.isStreaming = false;
+        }
+      },
+      context,
+      isNoteMode.value,
+      notes,
+      previousHistory,
+    );
   } catch (e) {
-    const currentAiMsg = props.history.find(m => m.id === aiMsgId)
+    const currentAiMsg = props.history.find((m) => m.id === aiMsgId);
     if (currentAiMsg) {
-      currentAiMsg.content += "\n\n**Error:** Analysis failed."
-      currentAiMsg.isStreaming = false
+      currentAiMsg.content += "\n\n**Error:** Analysis failed.";
+      currentAiMsg.isStreaming = false;
     }
-  } finally { isLoading.value = false }
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 // Load submit prompt key preference
 onMounted(() => {
-  const saved = localStorage.getItem('submitPromptKey')
-  if (saved === 'enter' || saved === 'ctrl-enter') {
-    submitPromptKey.value = saved
+  const saved = localStorage.getItem("submitPromptKey");
+  if (saved === "enter" || saved === "ctrl-enter") {
+    submitPromptKey.value = saved;
   }
 
   // Listen for custom event from SidePanel
   const handleSettingChange = ((e: CustomEvent) => {
-    if (e.detail.key === 'submitPromptKey') {
-      const value = e.detail.value
-      if (value === 'enter' || value === 'ctrl-enter') {
-        submitPromptKey.value = value
+    if (e.detail.key === "submitPromptKey") {
+      const value = e.detail.value;
+      if (value === "enter" || value === "ctrl-enter") {
+        submitPromptKey.value = value;
       }
     }
-  }) as EventListener
+  }) as EventListener;
 
-  window.addEventListener('settingChanged', handleSettingChange)
+  window.addEventListener("settingChanged", handleSettingChange);
 
   // Cleanup
   return () => {
-    window.removeEventListener('settingChanged', handleSettingChange)
-  }
-})
+    window.removeEventListener("settingChanged", handleSettingChange);
+  };
+});
 </script>
 
 <template>
@@ -213,9 +251,18 @@ onMounted(() => {
 
   <div class="chat-scroll-area" ref="scrollContainer" @scroll="handleScroll">
     <div v-if="history.length === 0" class="empty-welcome">
-      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
-        stroke="var(--color-neutral-250)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-        style="margin-bottom:16px">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="48"
+        height="48"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--color-neutral-250)"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        style="margin-bottom: 16px"
+      >
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
       </svg>
@@ -224,51 +271,104 @@ onMounted(() => {
     </div>
 
     <div class="chat-container">
-      <MessageItem v-for="msg in history" :key="msg.id" :id="'msg-' + msg.id" :message="msg" />
+      <MessageItem
+        v-for="msg in history"
+        :key="msg.id"
+        :id="'msg-' + msg.id"
+        :message="msg"
+      />
     </div>
-    <div ref="scrollAnchor" style="height: 1px;"></div>
+    <div ref="scrollAnchor" style="height: 1px"></div>
   </div>
 
   <div class="input-area-wrapper">
     <div class="context-bar">
-      <div class="note-chip" :class="{ active: isNoteMode }" @click="toggleNoteMode">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          style="margin-right: 4px;">
+      <div
+        class="note-chip"
+        :class="{ active: isNoteMode }"
+        @click="toggleNoteMode"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="margin-right: 4px"
+        >
           <path
-            d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
-          </path>
+            d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+          ></path>
         </svg>
-        Use Notes ({{ selectedNotes.size > 0 ? selectedNotes.size + '/' : '' }}{{ pinnedEvidenceMap.size }})
+        Use Notes ({{ selectedNotes.size > 0 ? selectedNotes.size + "/" : ""
+        }}{{ pinnedEvidenceMap.size }})
       </div>
       <div class="context-divider"></div>
       <div class="context-label">Context:</div>
       <div class="context-scroll">
         <div v-if="selectedFiles.size === 0" class="file-chip placeholder">
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <circle cx="12" cy="12" r="10" />
             <line x1="2" x2="22" y1="12" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            <path
+              d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+            />
           </svg>
           All files
         </div>
         <div v-else v-for="file in selectedFiles" :key="file" class="file-chip">
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
+            />
             <polyline points="14 2 14 8 20 8" />
           </svg>
-          {{ file.split('/').pop() }}
+          {{ file.split("/").pop() }}
         </div>
       </div>
     </div>
 
     <div class="input-box">
-      <textarea v-model="draftInput" placeholder="Ask a question..." @keydown.enter="sendMessage"></textarea>
+      <textarea
+        v-model="draftInput"
+        placeholder="Ask a question..."
+        @keydown.enter="sendMessage"
+      ></textarea>
       <div class="input-footer">
-        <span style="font-size: 11px; color: var(--color-neutral-450);">{{ submitHintText }}</span>
-        <button class="btn-primary" :disabled="!draftInput || isLoading" @click="sendMessage()">Run Analysis</button>
+        <span style="font-size: 11px; color: var(--color-neutral-450)">{{
+          submitHintText
+        }}</span>
+        <button
+          class="btn-primary"
+          :disabled="!draftInput || isLoading"
+          @click="sendMessage()"
+        >
+          Run Analysis
+        </button>
       </div>
     </div>
   </div>
@@ -486,7 +586,6 @@ onMounted(() => {
   background: transparent;
   color: var(--text-primary);
 }
-
 
 .input-footer {
   display: flex;

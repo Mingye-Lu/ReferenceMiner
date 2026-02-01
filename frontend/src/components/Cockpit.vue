@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref, reactive, provide, onMounted, onUnmounted, computed, watch, nextTick } from "vue"
-import SidePanel from "./SidePanel.vue"
-import ChatWindow from "./ChatWindow.vue"
-import RightDrawer from "./RightDrawer.vue"
-import FilePreviewModal from "./FilePreviewModal.vue"
-import ConfirmationModal from "./ConfirmationModal.vue"
-import CommandPalette from "./CommandPalette.vue"
+import {
+  ref,
+  reactive,
+  provide,
+  onMounted,
+  onUnmounted,
+  computed,
+  watch,
+  nextTick,
+} from "vue";
+import SidePanel from "./SidePanel.vue";
+import ChatWindow from "./ChatWindow.vue";
+import RightDrawer from "./RightDrawer.vue";
+import FilePreviewModal from "./FilePreviewModal.vue";
+import ConfirmationModal from "./ConfirmationModal.vue";
+import CommandPalette from "./CommandPalette.vue";
 import {
   fetchBankManifest,
   fetchProjectFiles,
@@ -17,198 +26,212 @@ import {
   createChatSession,
   updateChatSession,
   deleteChatSession,
-  getSettings
-} from "../api/client"
-import type { ChatMessage, EvidenceChunk, ManifestEntry, ChatSession, Project, BoundingBox, HighlightGroup, CitationCopyFormat } from "../types"
-import { useRouter } from "vue-router"
-import { Home, Search, PanelRight } from "lucide-vue-next"
+  getSettings,
+} from "../api/client";
+import type {
+  ChatMessage,
+  EvidenceChunk,
+  ManifestEntry,
+  ChatSession,
+  Project,
+  BoundingBox,
+  HighlightGroup,
+  CitationCopyFormat,
+} from "../types";
+import { useRouter } from "vue-router";
+import { Home, Search, PanelRight } from "lucide-vue-next";
 
 const props = defineProps<{
-  id: string
-}>()
+  id: string;
+}>();
 
-const router = useRouter()
-const project = ref<Project | null>(null)
+const router = useRouter();
+const project = ref<Project | null>(null);
 
 // UI state
-const isDrawerOpen = ref(false)
-const drawerTab = ref<"reader" | "notebook">("reader")
-const activeEvidence = ref<EvidenceChunk | null>(null)
-const activeRelatedEvidence = ref<EvidenceChunk[]>([])
-const showPreviewModal = ref(false)
-const previewFile = ref<ManifestEntry | null>(null)
-const previewHighlightGroups = ref<HighlightGroup[]>()
-const targetNoteId = ref<string | null>(null)
-const highlightedPaths = ref<Set<string>>(new Set())
-const showDeleteModal = ref(false)
-const pendingDeleteChatId = ref<string | null>(null)
+const isDrawerOpen = ref(false);
+const drawerTab = ref<"reader" | "notebook">("reader");
+const activeEvidence = ref<EvidenceChunk | null>(null);
+const activeRelatedEvidence = ref<EvidenceChunk[]>([]);
+const showPreviewModal = ref(false);
+const previewFile = ref<ManifestEntry | null>(null);
+const previewHighlightGroups = ref<HighlightGroup[]>();
+const targetNoteId = ref<string | null>(null);
+const highlightedPaths = ref<Set<string>>(new Set());
+const showDeleteModal = ref(false);
+const pendingDeleteChatId = ref<string | null>(null);
 
 // Data state
-const manifest = ref<ManifestEntry[]>([])
+const manifest = ref<ManifestEntry[]>([]);
 // Project Files: files belonging to this project
-const projectFiles = ref<Set<string>>(new Set())
+const projectFiles = ref<Set<string>>(new Set());
 // Selected Files: files selected for AI context
-const selectedFiles = ref<Set<string>>(new Set())
-const selectedNotes = ref<Set<string>>(new Set())
+const selectedFiles = ref<Set<string>>(new Set());
+const selectedNotes = ref<Set<string>>(new Set());
 // Citation format for copy functionality
-const citationFormat = ref<CitationCopyFormat>("apa")
+const citationFormat = ref<CitationCopyFormat>("apa");
 
 // Search State
-const isSearchOpen = ref(false)
-const highlightMessageId = ref<string | null>(null)
+const isSearchOpen = ref(false);
+const highlightMessageId = ref<string | null>(null);
 
 // Chat + history store (supports switching)
-const currentChatId = ref<string | null>(null)
-const chatStore = reactive<Record<string, ChatMessage[]>>({})
-const chatSessions = ref<ChatSession[]>([])
-const isLoadingChats = ref(true)
-const savePending = ref(false)
-const saveDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const currentChatId = ref<string | null>(null);
+const chatStore = reactive<Record<string, ChatMessage[]>>({});
+const chatSessions = ref<ChatSession[]>([]);
+const isLoadingChats = ref(true);
+const savePending = ref(false);
+const saveDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
 const chatHistory = computed({
-  get: () => currentChatId.value ? (chatStore[currentChatId.value] || []) : [],
+  get: () => (currentChatId.value ? chatStore[currentChatId.value] || [] : []),
   set: (val: ChatMessage[]) => {
     if (currentChatId.value) {
-      chatStore[currentChatId.value] = val
-      debouncedSaveSession()
+      chatStore[currentChatId.value] = val;
+      debouncedSaveSession();
     }
-  }
-})
+  },
+});
 
 // Global pinning (notebook)
-const pinnedEvidenceMap = ref(new Map<string, EvidenceChunk>())
+const pinnedEvidenceMap = ref(new Map<string, EvidenceChunk>());
 
 function togglePin(item: EvidenceChunk) {
-  const map = pinnedEvidenceMap.value
+  const map = pinnedEvidenceMap.value;
   if (map.has(item.chunkId)) {
-    map.delete(item.chunkId)
+    map.delete(item.chunkId);
   } else {
-    map.set(item.chunkId, item)
+    map.set(item.chunkId, item);
   }
 }
 
 function isPinned(id: string) {
-  return pinnedEvidenceMap.value.has(id)
+  return pinnedEvidenceMap.value.has(id);
 }
 
 // Actions
 function toggleDrawer(open?: boolean) {
-  isDrawerOpen.value = open ?? !isDrawerOpen.value
+  isDrawerOpen.value = open ?? !isDrawerOpen.value;
 }
 
 function openEvidence(item: EvidenceChunk, related: EvidenceChunk[] = []) {
-  activeEvidence.value = item
-  activeRelatedEvidence.value = related
-  drawerTab.value = "reader"
-  isDrawerOpen.value = true
+  activeEvidence.value = item;
+  activeRelatedEvidence.value = related;
+  drawerTab.value = "reader";
+  isDrawerOpen.value = true;
 }
 
 function openNoteLocation(noteId: string) {
-  drawerTab.value = "notebook"
-  targetNoteId.value = noteId
-  isDrawerOpen.value = true
-  setTimeout(() => { targetNoteId.value = null }, 500)
+  drawerTab.value = "notebook";
+  targetNoteId.value = noteId;
+  isDrawerOpen.value = true;
+  setTimeout(() => {
+    targetNoteId.value = null;
+  }, 500);
 }
 
 function setHighlightedPaths(paths: string[]) {
-  highlightedPaths.value = new Set(paths)
+  highlightedPaths.value = new Set(paths);
 }
 
 // Debounced save to avoid too many API calls
 function debouncedSaveSession() {
   if (saveDebounceTimer.value) {
-    clearTimeout(saveDebounceTimer.value)
+    clearTimeout(saveDebounceTimer.value);
   }
-  savePending.value = true
+  savePending.value = true;
   saveDebounceTimer.value = setTimeout(async () => {
-    await saveCurrentSession()
-    savePending.value = false
-  }, 1000)
+    await saveCurrentSession();
+    savePending.value = false;
+  }, 1000);
 }
 
 async function saveCurrentSession() {
-  if (!currentChatId.value) return
-  const messages = chatStore[currentChatId.value]
-  if (!messages) return
+  if (!currentChatId.value) return;
+  const messages = chatStore[currentChatId.value];
+  if (!messages) return;
 
   try {
-    await updateChatSession(props.id, currentChatId.value, { messages })
+    await updateChatSession(props.id, currentChatId.value, { messages });
     // Update local session metadata
-    const session = chatSessions.value.find(s => s.id === currentChatId.value)
+    const session = chatSessions.value.find(
+      (s) => s.id === currentChatId.value,
+    );
     if (session && messages.length > 0) {
-      session.messageCount = messages.length
-      session.lastActive = messages[messages.length - 1].timestamp
-      session.preview = messages[messages.length - 1].content.slice(0, 50)
+      session.messageCount = messages.length;
+      session.lastActive = messages[messages.length - 1].timestamp;
+      session.preview = messages[messages.length - 1].content.slice(0, 50);
     }
   } catch (e) {
-    console.error("Failed to save session:", e)
+    console.error("Failed to save session:", e);
   }
 }
 
 async function handleNewChat() {
   try {
-    const session = await createChatSession(props.id, "New Chat")
-    chatStore[session.id] = []
-    chatSessions.value.unshift(session)
-    currentChatId.value = session.id
+    const session = await createChatSession(props.id, "New Chat");
+    chatStore[session.id] = [];
+    chatSessions.value.unshift(session);
+    currentChatId.value = session.id;
   } catch (e) {
-    console.error("Failed to create chat session:", e)
+    console.error("Failed to create chat session:", e);
   }
 }
 
 function requestDeleteChat(id: string) {
-  pendingDeleteChatId.value = id
-  showDeleteModal.value = true
+  pendingDeleteChatId.value = id;
+  showDeleteModal.value = true;
 }
 
 function cancelDeleteChat() {
-  showDeleteModal.value = false
-  pendingDeleteChatId.value = null
+  showDeleteModal.value = false;
+  pendingDeleteChatId.value = null;
 }
 
 async function confirmDeleteChat() {
   if (pendingDeleteChatId.value) {
-    const id = pendingDeleteChatId.value
+    const id = pendingDeleteChatId.value;
     try {
-      await deleteChatSession(props.id, id)
-      const idx = chatSessions.value.findIndex(s => s.id === id)
-      if (idx !== -1) chatSessions.value.splice(idx, 1)
-      delete chatStore[id]
+      await deleteChatSession(props.id, id);
+      const idx = chatSessions.value.findIndex((s) => s.id === id);
+      if (idx !== -1) chatSessions.value.splice(idx, 1);
+      delete chatStore[id];
       if (currentChatId.value === id) {
         if (chatSessions.value.length > 0) {
-          currentChatId.value = chatSessions.value[0].id
+          currentChatId.value = chatSessions.value[0].id;
           // Load messages for the new current session
-          await loadSessionMessages(currentChatId.value)
+          await loadSessionMessages(currentChatId.value);
         } else {
-          await handleNewChat()
+          await handleNewChat();
         }
       }
     } catch (e) {
-      console.error("Failed to delete chat session:", e)
+      console.error("Failed to delete chat session:", e);
     }
   }
-  cancelDeleteChat()
+  cancelDeleteChat();
 }
 
 function openPreview(file: ManifestEntry, highlights?: BoundingBox[]) {
-  previewFile.value = file
-  previewHighlightGroups.value = highlights && highlights.length > 0
-    ? [{ id: file.relPath, boxes: highlights }]
-    : undefined
-  showPreviewModal.value = true
+  previewFile.value = file;
+  previewHighlightGroups.value =
+    highlights && highlights.length > 0
+      ? [{ id: file.relPath, boxes: highlights }]
+      : undefined;
+  showPreviewModal.value = true;
 }
 
 async function loadSessionMessages(sessionId: string) {
   if (chatStore[sessionId] && chatStore[sessionId].length > 0) {
     // Already loaded
-    return
+    return;
   }
   try {
-    const session = await fetchChatSession(props.id, sessionId)
-    chatStore[sessionId] = session.messages
+    const session = await fetchChatSession(props.id, sessionId);
+    chatStore[sessionId] = session.messages;
   } catch (e) {
-    console.error("Failed to load session messages:", e)
-    chatStore[sessionId] = []
+    console.error("Failed to load session messages:", e);
+    chatStore[sessionId] = [];
   }
 }
 
@@ -216,31 +239,31 @@ async function switchChat(id: string) {
   // Save current session before switching
   if (currentChatId.value && savePending.value) {
     if (saveDebounceTimer.value) {
-      clearTimeout(saveDebounceTimer.value)
-      saveDebounceTimer.value = null
+      clearTimeout(saveDebounceTimer.value);
+      saveDebounceTimer.value = null;
     }
-    await saveCurrentSession()
-    savePending.value = false
+    await saveCurrentSession();
+    savePending.value = false;
   }
 
-  currentChatId.value = id
-  await loadSessionMessages(id)
+  currentChatId.value = id;
+  await loadSessionMessages(id);
 }
 
 function openSearch() {
-  isSearchOpen.value = true
+  isSearchOpen.value = true;
 }
 
 async function handleSearchNavigate(item: any) {
-  if (item.type === 'chat') {
+  if (item.type === "chat") {
     if (item.data.sessionId) {
-      await switchChat(item.data.sessionId)
-      await nextTick()
-      highlightMessageId.value = item.data.messageId
+      await switchChat(item.data.sessionId);
+      await nextTick();
+      highlightMessageId.value = item.data.messageId;
     }
-  } else if (item.type === 'note') {
-    openNoteLocation(item.data.chunkId)
-  } else if (item.type === 'file') {
+  } else if (item.type === "note") {
+    openNoteLocation(item.data.chunkId);
+  } else if (item.type === "file") {
     // File navigation: Just close search, file is already in the project
     // User can find it in SidePanel corpus tab
     // TODO: Add file highlighting in SidePanel for better UX
@@ -248,166 +271,199 @@ async function handleSearchNavigate(item: any) {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault()
-    openSearch()
+  if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+    e.preventDefault();
+    openSearch();
   }
 }
 
 // Auto-Title Generation Watcher
-const titleGeneratingFor = ref<string | null>(null)
+const titleGeneratingFor = ref<string | null>(null);
 
-watch(chatStore, async (newStore) => {
-  const currentId = currentChatId.value
-  if (!currentId) return
+watch(
+  chatStore,
+  async (newStore) => {
+    const currentId = currentChatId.value;
+    if (!currentId) return;
 
-  const messages = newStore[currentId]
-  const session = chatSessions.value.find(s => s.id === currentId)
+    const messages = newStore[currentId];
+    const session = chatSessions.value.find((s) => s.id === currentId);
 
-  if (session && messages && messages.length > 0) {
-    session.messageCount = messages.length
-    session.lastActive = messages[messages.length - 1].timestamp
-    session.preview = messages[messages.length - 1].content.slice(0, 50)
+    if (session && messages && messages.length > 0) {
+      session.messageCount = messages.length;
+      session.lastActive = messages[messages.length - 1].timestamp;
+      session.preview = messages[messages.length - 1].content.slice(0, 50);
 
-    // Trigger debounced save
-    debouncedSaveSession()
+      // Trigger debounced save
+      debouncedSaveSession();
 
-    if (messages.length >= 2 && session.title === "New Chat" && titleGeneratingFor.value !== currentId) {
-      const aiMsg = messages.find(m => m.role === 'ai')
-      if (aiMsg && !aiMsg.isStreaming && aiMsg.content.length > 10) {
-        titleGeneratingFor.value = currentId
-        session.title = ""
-        try {
-          await streamSummarize(
-            props.id,
-            messages,
-            (delta) => { session.title += delta },
-            async (title) => {
-              session.title = title
-              titleGeneratingFor.value = null
-              // Save the updated title to backend
-              try {
-                await updateChatSession(props.id, currentId, { title })
-              } catch (e) {
-                console.error("Failed to save title:", e)
-              }
-            }
-          )
-        } catch (e) {
-          console.error("Failed to generate title", e)
-          session.title = "New Chat"
-          titleGeneratingFor.value = null
+      if (
+        messages.length >= 2 &&
+        session.title === "New Chat" &&
+        titleGeneratingFor.value !== currentId
+      ) {
+        const aiMsg = messages.find((m) => m.role === "ai");
+        if (aiMsg && !aiMsg.isStreaming && aiMsg.content.length > 10) {
+          titleGeneratingFor.value = currentId;
+          session.title = "";
+          try {
+            await streamSummarize(
+              props.id,
+              messages,
+              (delta) => {
+                session.title += delta;
+              },
+              async (title) => {
+                session.title = title;
+                titleGeneratingFor.value = null;
+                // Save the updated title to backend
+                try {
+                  await updateChatSession(props.id, currentId, { title });
+                } catch (e) {
+                  console.error("Failed to save title:", e);
+                }
+              },
+            );
+          } catch (e) {
+            console.error("Failed to generate title", e);
+            session.title = "New Chat";
+            titleGeneratingFor.value = null;
+          }
         }
       }
     }
-  }
-}, { deep: true })
+  },
+  { deep: true },
+);
 
 // Provide to children
-provide("openEvidence", openEvidence)
-provide("openNoteLocation", openNoteLocation)
-provide("handleNewChat", handleNewChat)
-provide("deleteChat", requestDeleteChat)
-provide("toggleDrawer", toggleDrawer)
-provide("openPreview", openPreview)
-provide("togglePin", togglePin)
-provide("isPinned", isPinned)
-provide("pinnedEvidenceMap", pinnedEvidenceMap)
-provide("manifest", manifest)
-provide("citationFormat", citationFormat)
-provide("projectFiles", projectFiles)
-provide("selectedFiles", selectedFiles)
-provide("selectedNotes", selectedNotes)
-provide("chatSessions", chatSessions)
-provide("setHighlightedPaths", setHighlightedPaths)
-provide("currentProject", project)
+provide("openEvidence", openEvidence);
+provide("openNoteLocation", openNoteLocation);
+provide("handleNewChat", handleNewChat);
+provide("deleteChat", requestDeleteChat);
+provide("toggleDrawer", toggleDrawer);
+provide("openPreview", openPreview);
+provide("togglePin", togglePin);
+provide("isPinned", isPinned);
+provide("pinnedEvidenceMap", pinnedEvidenceMap);
+provide("manifest", manifest);
+provide("citationFormat", citationFormat);
+provide("projectFiles", projectFiles);
+provide("selectedFiles", selectedFiles);
+provide("selectedNotes", selectedNotes);
+provide("chatSessions", chatSessions);
+provide("setHighlightedPaths", setHighlightedPaths);
+provide("currentProject", project);
 
 onMounted(async () => {
-  const pid = props.id
-  try { await activateProject(pid) } catch (e) { }
+  const pid = props.id;
+  try {
+    await activateProject(pid);
+  } catch (e) {}
 
   // Load pinned evidence from localStorage (shared across sessions)
-  const savedPins = localStorage.getItem(`pinned_evidence_${pid}`)
+  const savedPins = localStorage.getItem(`pinned_evidence_${pid}`);
   if (savedPins) {
     try {
-      const parsed = JSON.parse(savedPins)
-      pinnedEvidenceMap.value = new Map(parsed)
-    } catch (e) { }
+      const parsed = JSON.parse(savedPins);
+      pinnedEvidenceMap.value = new Map(parsed);
+    } catch (e) {}
   }
 
   // Load chat sessions from backend
-  isLoadingChats.value = true
+  isLoadingChats.value = true;
   try {
-    const sessions = await fetchChatSessions(pid)
-    chatSessions.value = sessions
+    const sessions = await fetchChatSessions(pid);
+    chatSessions.value = sessions;
 
     if (sessions.length > 0) {
       // Load the most recent session
-      const lastSessionId = localStorage.getItem(`active_chat_id_${pid}`)
-      const targetSession = sessions.find(s => s.id === lastSessionId) || sessions[0]
-      currentChatId.value = targetSession.id
-      await loadSessionMessages(targetSession.id)
+      const lastSessionId = localStorage.getItem(`active_chat_id_${pid}`);
+      const targetSession =
+        sessions.find((s) => s.id === lastSessionId) || sessions[0];
+      currentChatId.value = targetSession.id;
+      await loadSessionMessages(targetSession.id);
     } else {
       // Create a new session if none exist
-      await handleNewChat()
+      await handleNewChat();
     }
   } catch (e) {
-    console.error("Failed to load chat sessions:", e)
+    console.error("Failed to load chat sessions:", e);
     // Create a new session on error
-    await handleNewChat()
+    await handleNewChat();
   } finally {
-    isLoadingChats.value = false
+    isLoadingChats.value = false;
   }
 
   try {
-    const list = await fetchProjects()
-    project.value = list.find(p => p.id === pid) || null
-    manifest.value = await fetchBankManifest()
-    const pFiles = await fetchProjectFiles(pid)
-    projectFiles.value = new Set(pFiles)
+    const list = await fetchProjects();
+    project.value = list.find((p) => p.id === pid) || null;
+    manifest.value = await fetchBankManifest();
+    const pFiles = await fetchProjectFiles(pid);
+    projectFiles.value = new Set(pFiles);
     // selectedFiles starts empty as requested
-    selectedFiles.value = new Set()
-  } catch (e) { console.error(e) }
+    selectedFiles.value = new Set();
+  } catch (e) {
+    console.error(e);
+  }
 
   // Load citation format setting
   try {
-    const settings = await getSettings()
-    citationFormat.value = settings.citationCopyFormat || "apa"
-  } catch (e) { console.error("Failed to load citation format:", e) }
+    const settings = await getSettings();
+    citationFormat.value = settings.citationCopyFormat || "apa";
+  } catch (e) {
+    console.error("Failed to load citation format:", e);
+  }
 
   // Listen for setting changes from ProjectHub
-  window.addEventListener("settingChanged", handleSettingChange as EventListener)
-  window.addEventListener('keydown', handleKeydown)
-})
+  window.addEventListener(
+    "settingChanged",
+    handleSettingChange as EventListener,
+  );
+  window.addEventListener("keydown", handleKeydown);
+});
 
 onUnmounted(async () => {
-  window.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener("settingChanged", handleSettingChange as EventListener)
+  window.removeEventListener("keydown", handleKeydown);
+  window.removeEventListener(
+    "settingChanged",
+    handleSettingChange as EventListener,
+  );
   // Save any pending changes before unmounting
   if (savePending.value && currentChatId.value) {
     if (saveDebounceTimer.value) {
-      clearTimeout(saveDebounceTimer.value)
+      clearTimeout(saveDebounceTimer.value);
     }
-    await saveCurrentSession()
+    await saveCurrentSession();
   }
-})
+});
 
 function handleSettingChange(event: Event) {
-  const detail = (event as CustomEvent).detail
+  const detail = (event as CustomEvent).detail;
   if (detail?.key === "citationCopyFormat") {
-    citationFormat.value = detail.value as CitationCopyFormat
+    citationFormat.value = detail.value as CitationCopyFormat;
   }
 }
 
 // Save active chat ID to localStorage for persistence across page reloads
-watch(() => currentChatId.value, (val) => {
-  if (val) localStorage.setItem(`active_chat_id_${props.id}`, val)
-})
+watch(
+  () => currentChatId.value,
+  (val) => {
+    if (val) localStorage.setItem(`active_chat_id_${props.id}`, val);
+  },
+);
 
 // Save pinned evidence to localStorage (shared across sessions)
-watch(() => pinnedEvidenceMap.value, (val) => {
-  localStorage.setItem(`pinned_evidence_${props.id}`, JSON.stringify(Array.from(val.entries())))
-}, { deep: true })
+watch(
+  () => pinnedEvidenceMap.value,
+  (val) => {
+    localStorage.setItem(
+      `pinned_evidence_${props.id}`,
+      JSON.stringify(Array.from(val.entries())),
+    );
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -436,27 +492,61 @@ watch(() => pinnedEvidenceMap.value, (val) => {
     </header>
 
     <div class="main-layout">
-      <SidePanel :active-chat-id="currentChatId ?? undefined" :highlighted-paths="highlightedPaths"
-        @preview="openPreview" @select-chat="switchChat" @new-chat="handleNewChat" />
+      <SidePanel
+        :active-chat-id="currentChatId ?? undefined"
+        :highlighted-paths="highlightedPaths"
+        @preview="openPreview"
+        @select-chat="switchChat"
+        @new-chat="handleNewChat"
+      />
       <main class="workspace-shell">
-        <ChatWindow v-model:history="chatHistory" :highlight-id="highlightMessageId" />
+        <ChatWindow
+          v-model:history="chatHistory"
+          :highlight-id="highlightMessageId"
+        />
       </main>
     </div>
 
-    <div class="drawer-overlay" :class="{ open: isDrawerOpen }" @click="toggleDrawer(false)"></div>
-    <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
-      :related-evidence="activeRelatedEvidence" :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
+    <div
+      class="drawer-overlay"
+      :class="{ open: isDrawerOpen }"
+      @click="toggleDrawer(false)"
+    ></div>
+    <RightDrawer
+      :class="{ open: isDrawerOpen }"
+      :is-open="isDrawerOpen"
+      :tab="drawerTab"
+      :evidence="activeEvidence"
+      :related-evidence="activeRelatedEvidence"
+      :highlight-note-id="targetNoteId"
+      @close="toggleDrawer(false)"
+    />
     <!-- File Preview Modal -->
-    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlight-groups="previewHighlightGroups" />
+    <FilePreviewModal
+      v-model="showPreviewModal"
+      :file="previewFile"
+      :highlight-groups="previewHighlightGroups"
+    />
 
     <!-- Delete Confirmation Modal -->
-    <ConfirmationModal v-model="showDeleteModal" title="Delete Chat?"
-      message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
-      @confirm="confirmDeleteChat" />
+    <ConfirmationModal
+      v-model="showDeleteModal"
+      title="Delete Chat?"
+      message="Are you sure you want to delete this conversation? This action cannot be undone."
+      confirm-text="Delete"
+      @confirm="confirmDeleteChat"
+    />
 
-    <CommandPalette :visible="isSearchOpen" :project-files="projectFiles" :pinned-evidence="pinnedEvidenceMap"
-      :chat-store="chatStore" :chat-sessions="chatSessions" :manifest="manifest" @close="isSearchOpen = false"
-      @navigate="handleSearchNavigate" />
+    <CommandPalette
+      :visible="isSearchOpen"
+      :project-files="projectFiles"
+      :pinned-evidence="pinnedEvidenceMap"
+      :chat-store="chatStore"
+      :chat-sessions="chatSessions"
+      :manifest="manifest"
+      @close="isSearchOpen = false"
+      @navigate="handleSearchNavigate"
+    />
   </div>
 </template>
 
@@ -559,8 +649,6 @@ watch(() => pinnedEvidenceMap.value, (val) => {
   gap: 12px;
 }
 
-
-
 .main-layout {
   display: flex;
   flex: 1;
@@ -602,7 +690,9 @@ watch(() => pinnedEvidenceMap.value, (val) => {
 .modal-enter-active :deep(.modal-content),
 .modal-leave-active :deep(.modal-box),
 .modal-leave-active :deep(.modal-content) {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .modal-enter-from,

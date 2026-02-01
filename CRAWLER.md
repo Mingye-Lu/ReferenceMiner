@@ -90,6 +90,7 @@ Added to `src/refminer/settings/manager.py`:
 ## Test Results
 
 Successfully tested crawler search:
+
 - Google Scholar: Working (web scraping)
 - PubMed: Available (API)
 - Semantic Scholar: Available (API, may hit rate limits)
@@ -114,10 +115,10 @@ async def search_papers():
         max_results=10,
         year_from=2020
     )
-    
+
     async with manager:
         results = await manager.search(query)
-        
+
     for result in results:
         print(f"{result.title} ({result.year})")
         print(f"  Authors: {', '.join(result.authors[:3])}")

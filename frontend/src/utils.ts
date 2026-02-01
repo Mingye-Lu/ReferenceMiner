@@ -4,23 +4,23 @@
  * @returns 包含 HTML <mark> 标签的字符串
  */
 export function highlightTerms(text: string, terms: string[]): string {
-  if (!terms || terms.length === 0 || !text) return text
-  
+  if (!terms || terms.length === 0 || !text) return text;
+
   const validTerms = terms
-    .filter(t => t.trim().length > 0)
-    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    
-  if (validTerms.length === 0) return text
-  const regex = new RegExp(`(${validTerms.join("|")})`, "gi")
+    .filter((t) => t.trim().length > 0)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+  if (validTerms.length === 0) return text;
+  const regex = new RegExp(`(${validTerms.join("|")})`, "gi");
   return text.replace(
     regex,
-    '<mark style="background-color: var(--mark-bg); color: var(--mark-text); padding: 0 2px; border-radius: 2px;">$1</mark>'
-  )
+    '<mark style="background-color: var(--mark-bg); color: var(--mark-text); padding: 0 2px; border-radius: 2px;">$1</mark>',
+  );
 }
 
 export function getFileName(path: string): string {
-  if (!path) return ""
-  const normalized = path.replace(/\\/g, "/")
-  const parts = normalized.split("/")
-  return parts[parts.length - 1] || path
+  if (!path) return "";
+  const normalized = path.replace(/\\/g, "/");
+  const parts = normalized.split("/");
+  return parts[parts.length - 1] || path;
 }

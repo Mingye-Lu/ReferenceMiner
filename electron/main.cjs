@@ -1,91 +1,103 @@
-const { app, BrowserWindow, dialog, Menu } = require("electron")
-const { autoUpdater } = require("electron-updater")
-const { spawn, exec } = require("child_process")
-const http = require("http")
-const os = require("os")
-const path = require("path")
-const fs = require("fs")
+const { app, BrowserWindow, dialog, Menu } = require("electron");
+const { autoUpdater } = require("electron-updater");
+const { spawn, exec } = require("child_process");
+const http = require("http");
+const os = require("os");
+const path = require("path");
+const fs = require("fs");
 
-const DEFAULT_PORT = 8000
+const DEFAULT_PORT = 8000;
 
-let mainWindow = null
-let backendProcess = null
-let backendPort = DEFAULT_PORT
+let mainWindow = null;
+let backendProcess = null;
+let backendPort = DEFAULT_PORT;
 
 function resolveBaseDir() {
-  const appPath = app.getAppPath()
+  const appPath = app.getAppPath();
   const candidates = [
     appPath,
     path.resolve(appPath, ".."),
     path.resolve(appPath, "..", ".."),
-  ]
+  ];
   for (const candidate of candidates) {
     if (fs.existsSync(path.join(candidate, "src"))) {
-      return candidate
+      return candidate;
     }
   }
-  return appPath
+  return appPath;
 }
 
 function resolvePythonCommand() {
-  return process.env.REFMINER_PYTHON || "python"
+  return process.env.REFMINER_PYTHON || "python";
 }
 
 function resolveBackendExecutable() {
-  const exePath = path.join(process.resourcesPath, "backend", "ReferenceMiner.exe")
-  return fs.existsSync(exePath) ? exePath : null
+  const exePath = path.join(
+    process.resourcesPath,
+    "backend",
+    "ReferenceMiner.exe",
+  );
+  return fs.existsSync(exePath) ? exePath : null;
 }
 
 function waitForServer(url, timeoutMs = 20000) {
-  const start = Date.now()
+  const start = Date.now();
   return new Promise((resolve, reject) => {
     const tick = () => {
       const req = http.get(url, (res) => {
-        res.resume()
+        res.resume();
         if (res.statusCode && res.statusCode < 500) {
-          resolve()
-          return
+          resolve();
+          return;
         }
         if (Date.now() - start > timeoutMs) {
-          reject(new Error("Timed out waiting for backend"))
-          return
+          reject(new Error("Timed out waiting for backend"));
+          return;
         }
-        setTimeout(tick, 500)
-      })
+        setTimeout(tick, 500);
+      });
       req.on("error", () => {
         if (Date.now() - start > timeoutMs) {
-          reject(new Error("Timed out waiting for backend"))
-          return
+          reject(new Error("Timed out waiting for backend"));
+          return;
         }
-        setTimeout(tick, 500)
-      })
-    }
-    tick()
-  })
+        setTimeout(tick, 500);
+      });
+    };
+    tick();
+  });
 }
 
 function startBackend(port) {
-  const baseDir = resolveBaseDir()
-  const isPackaged = app.isPackaged
-  let command = null
-  let args = []
-  let cwd = baseDir
-  let dataDir = baseDir
+  const baseDir = resolveBaseDir();
+  const isPackaged = app.isPackaged;
+  let command = null;
+  let args = [];
+  let cwd = baseDir;
+  let dataDir = baseDir;
 
   if (isPackaged) {
-    const exePath = resolveBackendExecutable()
+    const exePath = resolveBackendExecutable();
     if (!exePath) {
-      dialog.showErrorBox("Backend Error", "Bundled backend was not found.")
-      return
+      dialog.showErrorBox("Backend Error", "Bundled backend was not found.");
+      return;
     }
-    cwd = path.dirname(exePath)
+    cwd = path.dirname(exePath);
     // Use user data directory for references and index (writable location)
-    dataDir = app.getPath("userData")
-    command = exePath
-    args = []
+    dataDir = app.getPath("userData");
+    command = exePath;
+    args = [];
   } else {
-    command = resolvePythonCommand()
-    args = ["-m", "uvicorn", "refminer.server:app", "--app-dir", "src", "--port", String(port)]
+    command = resolvePythonCommand();
+    args = [
+      "-m",
+      "uvicorn",
+      "refminer.server:app",
+      "--app-dir",
+      "src",
+      "--port",
+      String(port),
+    ];
   }
 
   backendProcess = spawn(command, args, {
@@ -98,54 +110,60 @@ function startBackend(port) {
       REFMINER_PARENT_PID: String(process.pid),
       REFMINER_DATA_DIR: dataDir,
     },
-  })
+  });
 
   backendProcess.on("error", (err) => {
-    dialog.showErrorBox("Backend Error", `Failed to start backend: ${err.message}`)
-  })
+    dialog.showErrorBox(
+      "Backend Error",
+      `Failed to start backend: ${err.message}`,
+    );
+  });
 }
 
 function stopBackend() {
   if (!backendProcess || backendProcess.killed) {
     if (os.platform() === "win32") {
-      killPortProcess(backendPort)
+      killPortProcess(backendPort);
     }
-    return
+    return;
   }
-  const pid = backendProcess.pid
+  const pid = backendProcess.pid;
   if (!pid) {
     if (os.platform() === "win32") {
-      killPortProcess(backendPort)
+      killPortProcess(backendPort);
     }
-    return
+    return;
   }
   if (os.platform() === "win32") {
-    spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true })
-    killPortProcess(backendPort)
+    spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
+    killPortProcess(backendPort);
   } else {
-    backendProcess.kill("SIGTERM")
+    backendProcess.kill("SIGTERM");
   }
 }
 
 function killPortProcess(port) {
-  const cmd = `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /F /PID %a`
-  exec(`cmd.exe /c "${cmd}"`, { windowsHide: true })
+  const cmd = `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /F /PID %a`;
+  exec(`cmd.exe /c "${cmd}"`, { windowsHide: true });
 }
 
 async function createWindow() {
-  const port = Number(process.env.REFMINER_PORT || DEFAULT_PORT)
-  backendPort = port
-  startBackend(port)
+  const port = Number(process.env.REFMINER_PORT || DEFAULT_PORT);
+  backendPort = port;
+  startBackend(port);
 
   try {
-    await waitForServer(`http://127.0.0.1:${port}/`)
+    await waitForServer(`http://127.0.0.1:${port}/`);
   } catch (err) {
-    dialog.showErrorBox("Backend Timeout", err.message || "Backend did not start in time.")
+    dialog.showErrorBox(
+      "Backend Timeout",
+      err.message || "Backend did not start in time.",
+    );
   }
 
   // Hide menu bar in packaged app
   if (app.isPackaged) {
-    Menu.setApplicationMenu(null)
+    Menu.setApplicationMenu(null);
   }
 
   mainWindow = new BrowserWindow({
@@ -162,69 +180,72 @@ async function createWindow() {
       nodeIntegration: false,
       preload: path.join(__dirname, "preload.cjs"),
     },
-  })
+  });
 
   mainWindow.once("ready-to-show", () => {
-    mainWindow.show()
-  })
+    mainWindow.show();
+  });
 
   mainWindow.on("closed", () => {
-    stopBackend()
-    mainWindow = null
-  })
+    stopBackend();
+    mainWindow = null;
+  });
 
-  const appUrl = `http://127.0.0.1:${port}/`
-  await mainWindow.loadURL(appUrl)
+  const appUrl = `http://127.0.0.1:${port}/`;
+  await mainWindow.loadURL(appUrl);
 }
 
 app.whenReady().then(async () => {
-  await createWindow()
+  await createWindow();
 
   // Check for updates (only in packaged mode)
   if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.checkForUpdatesAndNotify();
   }
-})
+});
 
 app.on("window-all-closed", () => {
-  stopBackend()
+  stopBackend();
   if (process.platform !== "darwin") {
-    app.quit()
+    app.quit();
   }
-})
+});
 
 app.on("before-quit", () => {
-  stopBackend()
-})
+  stopBackend();
+});
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    createWindow();
   }
-})
+});
 
 // Auto-updater event handlers
 autoUpdater.on("update-available", (info) => {
   dialog.showMessageBox(mainWindow, {
     type: "info",
     title: "Update Available",
-    message: `Version ${info.version} is available. It will be downloaded in the background.`
-  })
-})
+    message: `Version ${info.version} is available. It will be downloaded in the background.`,
+  });
+});
 
 autoUpdater.on("update-downloaded", (info) => {
-  dialog.showMessageBox(mainWindow, {
-    type: "info",
-    title: "Update Ready",
-    message: "A new version has been downloaded. Restart to apply the update?",
-    buttons: ["Restart Now", "Later"]
-  }).then((result) => {
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall()
-    }
-  })
-})
+  dialog
+    .showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Ready",
+      message:
+        "A new version has been downloaded. Restart to apply the update?",
+      buttons: ["Restart Now", "Later"],
+    })
+    .then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+});
 
 autoUpdater.on("error", (err) => {
-  console.error("Update error:", err)
-})
+  console.error("Update error:", err);
+});

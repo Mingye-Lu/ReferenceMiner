@@ -25,25 +25,44 @@ const queueItems = computed(() => {
   });
 });
 
-const queueCount = computed(() =>
-  queueJobs.value.filter(
-    (item: QueueJob) =>
-      item.status === "pending" ||
-      item.status === "uploading" ||
-      item.status === "processing",
-  ).length,
+const queueCount = computed(
+  () =>
+    queueJobs.value.filter(
+      (item: QueueJob) =>
+        item.status === "pending" ||
+        item.status === "uploading" ||
+        item.status === "processing",
+    ).length,
 );
 
 function upsertQueueJob(job: QueueJob) {
   const idx = queueJobs.value.findIndex((item) => item.id === job.id);
   if (idx === -1) {
-    console.log("[useQueue] new job:", job.id.slice(0, 8), "status:", job.status, "phase:", job.phase);
+    console.log(
+      "[useQueue] new job:",
+      job.id.slice(0, 8),
+      "status:",
+      job.status,
+      "phase:",
+      job.phase,
+    );
     queueJobs.value = [job, ...queueJobs.value];
     return;
   }
   const prev = queueJobs.value[idx];
   if (prev.phase !== job.phase || prev.status !== job.status) {
-    console.log("[useQueue] update job:", job.id.slice(0, 8), "status:", prev.status, "->", job.status, "phase:", prev.phase, "->", job.phase);
+    console.log(
+      "[useQueue] update job:",
+      job.id.slice(0, 8),
+      "status:",
+      prev.status,
+      "->",
+      job.status,
+      "phase:",
+      prev.phase,
+      "->",
+      job.phase,
+    );
   }
   const next = [...queueJobs.value];
   next[idx] = { ...next[idx], ...job };
@@ -56,7 +75,15 @@ async function refreshQueue(params?: {
   includeCompleted?: boolean;
 }) {
   const items = await fetchQueueJobs(params);
-  console.log("[useQueue] refreshQueue got", items.length, "jobs, active phases:", items.filter(j => j.phase).map(j => `${j.id.slice(0,8)}:${j.phase}`).join(", "));
+  console.log(
+    "[useQueue] refreshQueue got",
+    items.length,
+    "jobs, active phases:",
+    items
+      .filter((j) => j.phase)
+      .map((j) => `${j.id.slice(0, 8)}:${j.phase}`)
+      .join(", "),
+  );
   queueJobs.value = items;
 }
 
@@ -78,7 +105,7 @@ function startQueueStream(params?: { scope?: string; projectId?: string }) {
         (error: Error) => {
           console.log("[useQueue] stream error:", error.message);
           handleStreamError(params);
-        }
+        },
       );
     } catch (error) {
       console.error("[useQueue] connection failed:", error);
@@ -86,7 +113,10 @@ function startQueueStream(params?: { scope?: string; projectId?: string }) {
     }
   }
 
-  async function handleStreamError(params?: { scope?: string; projectId?: string }) {
+  async function handleStreamError(params?: {
+    scope?: string;
+    projectId?: string;
+  }) {
     if (streamAbort?.signal.aborted) {
       console.log("[useQueue] stream was aborted, not reconnecting");
       return;
@@ -103,7 +133,9 @@ function startQueueStream(params?: { scope?: string; projectId?: string }) {
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
       const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
-      console.log(`[useQueue] reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+      console.log(
+        `[useQueue] reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`,
+      );
       setTimeout(() => connect(), delay);
     } else {
       console.error("[useQueue] max reconnect attempts reached, giving up");

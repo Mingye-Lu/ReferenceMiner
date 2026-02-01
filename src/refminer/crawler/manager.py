@@ -73,9 +73,7 @@ class CrawlerManager:
             logger.warning("[CrawlerManager] No enabled engines")
             return []
 
-        logger.info(
-            f"[CrawlerManager] Searching with engines: {', '.join(engines)}"
-        )
+        logger.info(f"[CrawlerManager] Searching with engines: {', '.join(engines)}")
 
         tasks = []
         for engine_name in engines:
@@ -98,9 +96,7 @@ class CrawlerManager:
         all_results: list[SearchResult] = []
         for i, result in enumerate(results_by_engine):
             if isinstance(result, Exception):
-                logger.error(
-                    f"[CrawlerManager] Engine {engines[i]} failed: {result}"
-                )
+                logger.error(f"[CrawlerManager] Engine {engines[i]} failed: {result}")
                 continue
             all_results.extend(result)
 
@@ -119,7 +115,9 @@ class CrawlerManager:
         try:
             logger.info(f"[CrawlerManager] Searching with {engine.name}")
             results = await engine.search(query)
-            logger.info(f"[CrawlerManager] {engine.name} returned {len(results)} results")
+            logger.info(
+                f"[CrawlerManager] {engine.name} returned {len(results)} results"
+            )
             return results
         except Exception as e:
             logger.error(f"[CrawlerManager] {engine.name} error: {e}", exc_info=True)

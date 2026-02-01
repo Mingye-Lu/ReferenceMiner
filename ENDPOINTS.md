@@ -26,12 +26,12 @@ This document provides a comprehensive reference for all API endpoints in Refere
 
 ### Static File Serving
 
-| Path | Description |
-|------|-------------|
-| `/files` | Static mount to serve reference files from `references/` directory |
-| `/assets` | Frontend assets (when available) |
-| `/` | SPA root (serves `index.html`) |
-| `/{full_path:path}` | SPA fallback routing |
+| Path                | Description                                                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `/files`            | Static mount to serve reference files from `references/` directory |
+| `/assets`           | Frontend assets (when available)                                   |
+| `/`                 | SPA root (serves `index.html`)                                     |
+| `/{full_path:path}` | SPA fallback routing                                               |
 
 ---
 
@@ -54,6 +54,7 @@ POST /api/projects
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "string",
@@ -84,8 +85,9 @@ DELETE /api/projects/{project_id}
 ```
 
 **Response:**
+
 ```json
-{"success": true}
+{ "success": true }
 ```
 
 ---
@@ -99,8 +101,9 @@ POST /api/projects/{project_id}/activate
 Updates the `last_active` timestamp.
 
 **Response:**
+
 ```json
-{"success": true}
+{ "success": true }
 ```
 
 ---
@@ -114,6 +117,7 @@ GET /api/settings
 ```
 
 **Response:**
+
 ```json
 {
   "active_provider": "deepseek|openai|gemini|anthropic|custom",
@@ -146,6 +150,7 @@ GET /api/settings/version
 ```
 
 **Response:**
+
 ```json
 {
   "version": "1.0.0"
@@ -163,11 +168,16 @@ GET /api/settings/update-check
 Checks GitHub for a newer version.
 
 **Response:**
+
 ```json
 {
   "repo": "owner/repo",
-  "current": {"version": "1.0.0"},
-  "latest": {"version": "1.1.0", "url": "https://github.com/...", "source": "release"},
+  "current": { "version": "1.0.0" },
+  "latest": {
+    "version": "1.1.0",
+    "url": "https://github.com/...",
+    "source": "release"
+  },
   "is_update_available": true,
   "checked_at": 1234567890000,
   "error": null
@@ -183,6 +193,7 @@ POST /api/settings/api-key
 ```
 
 **Request Body:**
+
 ```json
 {
   "api_key": "string",
@@ -191,6 +202,7 @@ POST /api/settings/api-key
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -213,6 +225,7 @@ DELETE /api/settings/api-key
 **Query Parameters:** `provider` (optional, defaults to active provider)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -230,6 +243,7 @@ POST /api/settings/validate
 ```
 
 **Request Body:**
+
 ```json
 {
   "api_key": "string (optional)",
@@ -240,6 +254,7 @@ POST /api/settings/validate
 ```
 
 **Response:**
+
 ```json
 {
   "valid": true,
@@ -256,6 +271,7 @@ POST /api/settings/models
 ```
 
 **Request Body:**
+
 ```json
 {
   "api_key": "string (optional)",
@@ -265,6 +281,7 @@ POST /api/settings/models
 ```
 
 **Response:**
+
 ```json
 {
   "models": ["model_id_1", "model_id_2"],
@@ -283,6 +300,7 @@ POST /api/settings/llm
 ```
 
 **Request Body:**
+
 ```json
 {
   "base_url": "string",
@@ -292,6 +310,7 @@ POST /api/settings/llm
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -314,6 +333,7 @@ POST /api/settings/reset
 Clears all indexes, manifest, and chat sessions. **Preserves reference files.**
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -332,6 +352,7 @@ POST /api/settings/citation-format
 Save the preferred citation format for copying AI responses.
 
 **Request Body:**
+
 ```json
 {
   "format": "apa|mla|chicago|gbt7714|numeric"
@@ -339,6 +360,7 @@ Save the preferred citation format for copying AI responses.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -367,6 +389,7 @@ POST /api/projects/{project_id}/chats
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "New Chat"
@@ -396,6 +419,7 @@ PUT /api/projects/{project_id}/chats/{session_id}
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "string (optional)",
@@ -414,8 +438,9 @@ DELETE /api/projects/{project_id}/chats/{session_id}
 ```
 
 **Response:**
+
 ```json
-{"success": true}
+{ "success": true }
 ```
 
 ---
@@ -427,6 +452,7 @@ POST /api/projects/{project_id}/chats/{session_id}/messages
 ```
 
 **Request Body:**
+
 ```json
 {
   "message": {
@@ -452,6 +478,7 @@ PATCH /api/projects/{project_id}/chats/{session_id}/messages
 ```
 
 **Request Body:**
+
 ```json
 {
   "message_id": "string",
@@ -498,6 +525,7 @@ GET /api/bank/files/stats
 ```
 
 **Response:**
+
 ```json
 {
   "file_path.pdf": {
@@ -520,6 +548,7 @@ Rebuilds all indexes from scratch by re-extracting and re-indexing all files in 
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: progress
 data: {"phase": "resetting|scanning|indexing", "percent": 10}
@@ -550,6 +579,7 @@ Re-extracts and re-indexes a single file.
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: file
 data: {"rel_path": "paper.pdf", "status": "processing", "phase": "extracting"}
@@ -570,8 +600,9 @@ GET /api/projects/{project_id}/files
 ```
 
 **Response:**
+
 ```json
-{"selected_files": ["file1.pdf", "file2.docx"]}
+{ "selected_files": ["file1.pdf", "file2.docx"] }
 ```
 
 ---
@@ -583,6 +614,7 @@ POST /api/projects/{project_id}/files/select
 ```
 
 **Request Body:**
+
 ```json
 {
   "rel_paths": ["file1.pdf", "file2.docx"]
@@ -590,8 +622,9 @@ POST /api/projects/{project_id}/files/select
 ```
 
 **Response:**
+
 ```json
-{"selected_files": ["file1.pdf", "file2.docx"]}
+{ "selected_files": ["file1.pdf", "file2.docx"] }
 ```
 
 ---
@@ -603,6 +636,7 @@ POST /api/projects/{project_id}/files/remove
 ```
 
 **Request Body:**
+
 ```json
 {
   "rel_paths": ["file1.pdf"]
@@ -610,8 +644,9 @@ POST /api/projects/{project_id}/files/remove
 ```
 
 **Response:**
+
 ```json
-{"selected_files": ["file2.docx"]}
+{ "selected_files": ["file2.docx"] }
 ```
 
 ---
@@ -627,12 +662,14 @@ POST /api/projects/{project_id}/upload/stream
 **Content-Type:** `multipart/form-data`
 
 **Form Data:**
+
 - `file` - File to upload (max 100MB)
 - `replace_existing` - Boolean, replace if duplicate found
 
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: progress
 data: {"phase": "uploading|hashing|checking_duplicate|storing|extracting|indexing", "percent": 50}
@@ -666,6 +703,7 @@ GET /api/projects/{project_id}/files/check-duplicate?sha256=abc123
 ```
 
 **Response:**
+
 ```json
 {
   "is_duplicate": true,
@@ -687,6 +725,7 @@ Supports subdirectories (e.g., `subdir/file.pdf`).
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: progress
 data: {"phase": "deleting", "percent": 50}
@@ -707,6 +746,7 @@ POST /api/projects/{project_id}/files/batch-delete
 ```
 
 **Request Body:**
+
 ```json
 {
   "rel_paths": ["file1.pdf", "file2.pdf"]
@@ -714,6 +754,7 @@ POST /api/projects/{project_id}/files/batch-delete
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -721,8 +762,8 @@ POST /api/projects/{project_id}/files/batch-delete
   "failed_count": 0,
   "total_chunks_removed": 84,
   "results": [
-    {"rel_path": "file1.pdf", "success": true, "removed_chunks": 42},
-    {"rel_path": "file2.pdf", "success": true, "removed_chunks": 42}
+    { "rel_path": "file1.pdf", "success": true, "removed_chunks": 42 },
+    { "rel_path": "file2.pdf", "success": true, "removed_chunks": 42 }
   ]
 }
 ```
@@ -738,14 +779,13 @@ GET /api/files/{rel_path}/highlights
 Returns bounding boxes for all chunks in a file (PDF only). Used for rendering text highlights in the PDF viewer.
 
 **Response:**
+
 ```json
 {
-  "chunk_id_1": [
-    {"page": 1, "x0": 72, "y0": 100, "x1": 540, "y1": 120}
-  ],
+  "chunk_id_1": [{ "page": 1, "x0": 72, "y0": 100, "x1": 540, "y1": 120 }],
   "chunk_id_2": [
-    {"page": 1, "x0": 72, "y0": 130, "x1": 540, "y1": 150},
-    {"page": 2, "x0": 72, "y0": 50, "x1": 540, "y1": 70}
+    { "page": 1, "x0": 72, "y0": 130, "x1": 540, "y1": 150 },
+    { "page": 2, "x0": 72, "y0": 50, "x1": 540, "y1": 70 }
   ]
 }
 ```
@@ -761,6 +801,7 @@ GET /api/projects/{project_id}/status
 ```
 
 **Response:**
+
 ```json
 {
   "indexed": true,
@@ -778,6 +819,7 @@ POST /api/projects/{project_id}/ask
 ```
 
 **Request Body:**
+
 ```json
 {
   "question": "What is the main thesis?",
@@ -785,13 +827,14 @@ POST /api/projects/{project_id}/ask
   "use_notes": false,
   "notes": [],
   "history": [
-    {"role": "user", "content": "Previous question"},
-    {"role": "assistant", "content": "Previous answer"}
+    { "role": "user", "content": "Previous question" },
+    { "role": "assistant", "content": "Previous answer" }
   ]
 }
 ```
 
 **Response:**
+
 ```json
 {
   "question": "What is the main thesis?",
@@ -833,6 +876,7 @@ POST /api/projects/{project_id}/ask/stream
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: step
 data: {"step": "research|analyze|answer|done", "title": "Searching documents...", "timestamp": 1234567890.0}
@@ -859,11 +903,12 @@ POST /api/projects/{project_id}/summarize
 ```
 
 **Request Body:**
+
 ```json
 {
   "messages": [
-    {"role": "user", "content": "What is machine learning?"},
-    {"role": "assistant", "content": "Machine learning is..."}
+    { "role": "user", "content": "What is machine learning?" },
+    { "role": "assistant", "content": "Machine learning is..." }
   ]
 }
 ```
@@ -871,6 +916,7 @@ POST /api/projects/{project_id}/summarize
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: title_delta
 data: {"delta": "M"}
@@ -890,6 +936,7 @@ GET /api/queue/jobs
 ```
 
 **Query Parameters:**
+
 - `scope` (optional) - Filter by scope
 - `project_id` (optional) - Filter by project
 - `include_completed` (optional, default: false) - Include completed jobs
@@ -918,6 +965,7 @@ POST /api/queue/jobs
 ```
 
 **Request Body:**
+
 ```json
 {
   "type": "upload|reprocess|delete",
@@ -942,12 +990,14 @@ GET /api/queue/stream
 ```
 
 **Query Parameters:**
+
 - `scope` (optional) - Filter by scope
 - `project_id` (optional) - Filter by project
 
 **Response:** `text/event-stream` (SSE)
 
 **Events:**
+
 ```
 event: job
 data: {"id": "...", "type": "upload", "status": "running", "progress": 50, ...}
@@ -968,8 +1018,8 @@ interface Project {
   name: string;
   description?: string;
   root_path: string;
-  created_at: number;      // epoch timestamp (seconds)
-  last_active: number;     // epoch timestamp (seconds)
+  created_at: number; // epoch timestamp (seconds)
+  last_active: number; // epoch timestamp (seconds)
   file_count: number;
   note_count: number;
   selected_files: string[];
@@ -984,7 +1034,7 @@ interface ManifestEntry {
   rel_path: string;
   file_type: "pdf" | "docx" | "text" | "image" | "table";
   size_bytes: number;
-  modified_time: number;   // epoch timestamp
+  modified_time: number; // epoch timestamp
   sha256: string;
   title?: string;
   abstract?: string;
@@ -998,7 +1048,7 @@ interface ManifestEntry {
 interface ChatSession {
   id: string;
   title: string;
-  lastActive: number;      // epoch ms
+  lastActive: number; // epoch ms
   messageCount: number;
   preview: string;
   messages: ChatMessage[];
@@ -1012,12 +1062,12 @@ interface ChatMessage {
   id: string;
   role: "user" | "ai";
   content: string;
-  timestamp: number;       // epoch ms
+  timestamp: number; // epoch ms
   timeline?: TimelineEntry[];
   sources?: EvidenceChunk[];
   keywords?: string[];
   isStreaming?: boolean;
-  completedAt?: number;    // epoch ms
+  completedAt?: number; // epoch ms
 }
 ```
 
@@ -1041,7 +1091,7 @@ interface EvidenceChunk {
 interface TimelineEntry {
   phase: string;
   message: string;
-  startTime: number;       // epoch ms
+  startTime: number; // epoch ms
 }
 ```
 
@@ -1057,9 +1107,9 @@ interface QueueJob {
   rel_path?: string;
   status: "pending" | "running" | "complete" | "failed";
   phase?: string;
-  progress: number;         // 0.0 to 1.0
-  created_at: number;      // epoch ms
-  updated_at: number;      // epoch ms
+  progress: number; // 0.0 to 1.0
+  created_at: number; // epoch ms
+  updated_at: number; // epoch ms
   error?: string;
 }
 ```
@@ -1068,13 +1118,13 @@ interface QueueJob {
 
 ## Supported File Types
 
-| Extension | Type | Code |
-|-----------|------|------|
-| `.pdf` | PDF Document | `pdf` |
-| `.docx` | Word Document | `docx` |
-| `.txt`, `.md` | Text File | `text` |
-| `.png`, `.jpg`, `.jpeg` | Image | `image` |
-| `.csv`, `.xlsx` | Table/Spreadsheet | `table` |
+| Extension               | Type              | Code    |
+| ----------------------- | ----------------- | ------- |
+| `.pdf`                  | PDF Document      | `pdf`   |
+| `.docx`                 | Word Document     | `docx`  |
+| `.txt`, `.md`           | Text File         | `text`  |
+| `.png`, `.jpg`, `.jpeg` | Image             | `image` |
+| `.csv`, `.xlsx`         | Table/Spreadsheet | `table` |
 
 ---
 
@@ -1082,25 +1132,25 @@ interface QueueJob {
 
 ### HTTP Status Codes
 
-| Code | Description |
-|------|-------------|
-| `200` | Success |
+| Code  | Description                                                           |
+| ----- | --------------------------------------------------------------------- |
+| `200` | Success                                                               |
 | `400` | Bad Request - Invalid parameters, empty API key, unsupported provider |
-| `404` | Not Found - Project, chat, or file not found |
-| `409` | Conflict - Multiple files with same name (ambiguous path) |
-| `500` | Internal Server Error - Server processing failures |
+| `404` | Not Found - Project, chat, or file not found                          |
+| `409` | Conflict - Multiple files with same name (ambiguous path)             |
+| `500` | Internal Server Error - Server processing failures                    |
 
 ### Streaming Error Codes
 
-| Code | Description |
-|------|-------------|
-| `LACK_INGEST` | No indexed documents available |
+| Code               | Description                            |
+| ------------------ | -------------------------------------- |
+| `LACK_INGEST`      | No indexed documents available         |
 | `CONTENT_FILTERED` | Content was filtered by safety systems |
-| `LLM_ERROR` | LLM API request failed |
-| `UNSUPPORTED_TYPE` | File type not supported for upload |
-| `FILE_TOO_LARGE` | File exceeds 100MB limit |
-| `EXTRACTION_ERROR` | Failed to extract content from file |
-| `UPLOAD_ERROR` | General upload failure |
+| `LLM_ERROR`        | LLM API request failed                 |
+| `UNSUPPORTED_TYPE` | File type not supported for upload     |
+| `FILE_TOO_LARGE`   | File exceeds 100MB limit               |
+| `EXTRACTION_ERROR` | Failed to extract content from file    |
+| `UPLOAD_ERROR`     | General upload failure                 |
 
 ---
 

@@ -1,121 +1,134 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { ListOrdered } from 'lucide-vue-next'
-import type { QueueStatus } from '../types'
-import { useQueue } from '../composables/useQueue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import { ListOrdered } from "lucide-vue-next";
+import type { QueueStatus } from "../types";
+import { useQueue } from "../composables/useQueue";
 
-const { queueItems, queueCount, ejectBursts, clearQueueEject, launchQueueEject } = useQueue()
+const {
+  queueItems,
+  queueCount,
+  ejectBursts,
+  clearQueueEject,
+  launchQueueEject,
+} = useQueue();
 
-const isQueueOpen = ref(false)
-const queueRef = ref<HTMLElement | null>(null)
-const queueButtonRef = ref<HTMLButtonElement | null>(null)
-const targetPoint = ref({ x: 0, y: 0 })
-const pulseActive = ref(false)
-const activeBursts = ref<{ id: string; x: number; y: number; scale: number; opacity: number }[]>([])
-const hasInitializedQueue = ref(false)
-const seenJobIds = new Set<string>()
+const isQueueOpen = ref(false);
+const queueRef = ref<HTMLElement | null>(null);
+const queueButtonRef = ref<HTMLButtonElement | null>(null);
+const targetPoint = ref({ x: 0, y: 0 });
+const pulseActive = ref(false);
+const activeBursts = ref<
+  { id: string; x: number; y: number; scale: number; opacity: number }[]
+>([]);
+const hasInitializedQueue = ref(false);
+const seenJobIds = new Set<string>();
 const burstMeta = new Map<
   string,
   {
-    startX: number
-    startY: number
-    endX: number
-    endY: number
-    startTime: number
-    duration: number
-    vx: number
-    vy: number
-    gravity: number
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    startTime: number;
+    duration: number;
+    vx: number;
+    vy: number;
+    gravity: number;
   }
->()
-let rafId: number | null = null
+>();
+let rafId: number | null = null;
 
 function formatQueueStatus(status: QueueStatus): string {
   switch (status) {
-    case 'pending':
-      return 'Pending'
-    case 'uploading':
-      return 'Uploading'
-    case 'processing':
-      return 'Processing'
-    case 'complete':
-      return 'Complete'
-    case 'error':
-      return 'Error'
-    case 'duplicate':
-      return 'Duplicate'
-    case 'cancelled':
-      return 'Cancelled'
+    case "pending":
+      return "Pending";
+    case "uploading":
+      return "Uploading";
+    case "processing":
+      return "Processing";
+    case "complete":
+      return "Complete";
+    case "error":
+      return "Error";
+    case "duplicate":
+      return "Duplicate";
+    case "cancelled":
+      return "Cancelled";
     default:
-      return status
+      return status;
   }
 }
 
 function formatQueuePhase(phase?: string): string {
-  if (!phase) return ''
+  if (!phase) return "";
   switch (phase) {
-    case 'uploading':
-      return 'Uploading'
-    case 'hashing':
-      return 'Hashing'
-    case 'checking_duplicate':
-      return 'Checking'
-    case 'storing':
-      return 'Storing'
-    case 'extracting':
-      return 'Extracting'
-    case 'indexing':
-      return 'Indexing'
-    case 'scanning':
-      return 'Scanning'
-    case 'resetting':
-      return 'Resetting'
+    case "uploading":
+      return "Uploading";
+    case "hashing":
+      return "Hashing";
+    case "checking_duplicate":
+      return "Checking";
+    case "storing":
+      return "Storing";
+    case "extracting":
+      return "Extracting";
+    case "indexing":
+      return "Indexing";
+    case "scanning":
+      return "Scanning";
+    case "resetting":
+      return "Resetting";
     default:
-      return phase.replace(/_/g, ' ')
+      return phase.replace(/_/g, " ");
   }
 }
 
 function handleOutsideQueueClick(event: MouseEvent) {
-  if (!isQueueOpen.value) return
-  const target = event.target as Node | null
-  if (!target) return
-  if (queueRef.value && queueRef.value.contains(target)) return
-  isQueueOpen.value = false
+  if (!isQueueOpen.value) return;
+  const target = event.target as Node | null;
+  if (!target) return;
+  if (queueRef.value && queueRef.value.contains(target)) return;
+  isQueueOpen.value = false;
 }
 
 function updateTargetPoint() {
-  if (!queueButtonRef.value) return
+  if (!queueButtonRef.value) return;
   requestAnimationFrame(() => {
-    if (!queueButtonRef.value) return
-    const rect = queueButtonRef.value.getBoundingClientRect()
+    if (!queueButtonRef.value) return;
+    const rect = queueButtonRef.value.getBoundingClientRect();
     targetPoint.value = {
       x: rect.left + rect.width / 2 - 6,
       y: rect.top + rect.height / 2 - 2,
-    }
-  })
+    };
+  });
 }
 
-function getBurstStyle(burst: { x: number; y: number; scale: number; opacity: number }) {
+function getBurstStyle(burst: {
+  x: number;
+  y: number;
+  scale: number;
+  opacity: number;
+}) {
   return {
     transform: `translate(${burst.x}px, ${burst.y}px) scale(${burst.scale})`,
     opacity: String(burst.opacity),
-  } as Record<string, string>
+  } as Record<string, string>;
 }
 
 function startBurst(burst: { id: string; x: number; y: number }) {
-  const endX = targetPoint.value.x
-  const endY = targetPoint.value.y
-  const startX = burst.x
-  const startY = burst.y
-  const distance = Math.hypot(endX - startX, endY - startY)
-  const duration = Math.min(780, Math.max(420, distance * 0.55))
-  const t = duration / 1000
-  const baseGravity = Math.min(5200, Math.max(3200, distance * 3.8))
-  const deltaY = endY - startY
-  const minGravityForUpward = (2 * deltaY) / (t * t) + 800
-  const gravity = Math.max(baseGravity, minGravityForUpward)
-  const vx = (endX - startX) / t
-  const vy = (deltaY - 0.5 * gravity * t * t) / t
+  const endX = targetPoint.value.x;
+  const endY = targetPoint.value.y;
+  const startX = burst.x;
+  const startY = burst.y;
+  const distance = Math.hypot(endX - startX, endY - startY);
+  const duration = Math.min(780, Math.max(420, distance * 0.55));
+  const t = duration / 1000;
+  const baseGravity = Math.min(5200, Math.max(3200, distance * 3.8));
+  const deltaY = endY - startY;
+  const minGravityForUpward = (2 * deltaY) / (t * t) + 800;
+  const gravity = Math.max(baseGravity, minGravityForUpward);
+  const vx = (endX - startX) / t;
+  const vy = (deltaY - 0.5 * gravity * t * t) / t;
   burstMeta.set(burst.id, {
     startX,
     startY,
@@ -126,91 +139,100 @@ function startBurst(burst: { id: string; x: number; y: number }) {
     vx,
     vy,
     gravity,
-  })
+  });
   if (rafId === null) {
-    rafId = requestAnimationFrame(stepBursts)
+    rafId = requestAnimationFrame(stepBursts);
   }
 }
 
 function stepBursts(timestamp: number) {
-  const nextBursts: { id: string; x: number; y: number; scale: number; opacity: number }[] = []
+  const nextBursts: {
+    id: string;
+    x: number;
+    y: number;
+    scale: number;
+    opacity: number;
+  }[] = [];
   for (const [id, meta] of burstMeta.entries()) {
-    const elapsed = timestamp - meta.startTime
-    const progress = Math.min(1, elapsed / meta.duration)
-    const t = elapsed / 1000
+    const elapsed = timestamp - meta.startTime;
+    const progress = Math.min(1, elapsed / meta.duration);
+    const t = elapsed / 1000;
     if (progress >= 1) {
-      burstMeta.delete(id)
-      clearQueueEject(id)
-      pulseActive.value = true
+      burstMeta.delete(id);
+      clearQueueEject(id);
+      pulseActive.value = true;
       setTimeout(() => {
-        pulseActive.value = false
-      }, 320)
-      continue
+        pulseActive.value = false;
+      }, 320);
+      continue;
     }
-    const x = meta.startX + meta.vx * t
-    const y = meta.startY + meta.vy * t + 0.5 * meta.gravity * t * t
-    const scale = 1 - 0.35 * progress
-    const opacity = 1
-    nextBursts.push({ id, x, y, scale, opacity })
+    const x = meta.startX + meta.vx * t;
+    const y = meta.startY + meta.vy * t + 0.5 * meta.gravity * t * t;
+    const scale = 1 - 0.35 * progress;
+    const opacity = 1;
+    nextBursts.push({ id, x, y, scale, opacity });
   }
-  activeBursts.value = nextBursts
+  activeBursts.value = nextBursts;
   if (burstMeta.size > 0) {
-    rafId = requestAnimationFrame(stepBursts)
+    rafId = requestAnimationFrame(stepBursts);
   } else {
-    rafId = null
+    rafId = null;
   }
 }
 
 onMounted(() => {
-  document.addEventListener('click', handleOutsideQueueClick)
-  updateTargetPoint()
-  window.addEventListener('resize', updateTargetPoint)
-})
+  document.addEventListener("click", handleOutsideQueueClick);
+  updateTargetPoint();
+  window.addEventListener("resize", updateTargetPoint);
+});
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleOutsideQueueClick)
-  window.removeEventListener('resize', updateTargetPoint)
-})
+  document.removeEventListener("click", handleOutsideQueueClick);
+  window.removeEventListener("resize", updateTargetPoint);
+});
 
 watch(isQueueOpen, async () => {
-  await nextTick()
-  updateTargetPoint()
-})
+  await nextTick();
+  updateTargetPoint();
+});
 
 watch(ejectBursts, async (items) => {
-  await nextTick()
-  updateTargetPoint()
+  await nextTick();
+  updateTargetPoint();
   for (const item of items) {
     if (!burstMeta.has(item.id)) {
-      startBurst(item)
+      startBurst(item);
     }
   }
-})
+});
 
 watch(queueItems, (items) => {
   if (!hasInitializedQueue.value) {
-    items.forEach((item) => seenJobIds.add(item.id))
-    hasInitializedQueue.value = true
-    return
+    items.forEach((item) => seenJobIds.add(item.id));
+    hasInitializedQueue.value = true;
+    return;
   }
-  if (!queueButtonRef.value) return
-  const rect = queueButtonRef.value.getBoundingClientRect()
-  const startX = rect.left + rect.width / 2 + (Math.random() * 120 - 60)
-  const startY = rect.top + rect.height / 2 + 90 + Math.random() * 60
+  if (!queueButtonRef.value) return;
+  const rect = queueButtonRef.value.getBoundingClientRect();
+  const startX = rect.left + rect.width / 2 + (Math.random() * 120 - 60);
+  const startY = rect.top + rect.height / 2 + 90 + Math.random() * 60;
 
   for (const item of items) {
-    if (seenJobIds.has(item.id)) continue
-    launchQueueEject(startX, startY)
-    seenJobIds.add(item.id)
+    if (seenJobIds.has(item.id)) continue;
+    launchQueueEject(startX, startY);
+    seenJobIds.add(item.id);
   }
-})
-
+});
 </script>
 
 <template>
   <div ref="queueRef" class="queue-fab">
-    <button ref="queueButtonRef" class="queue-toggle" :class="{ pulse: pulseActive }"
-      @click="isQueueOpen = !isQueueOpen">
+    <button
+      ref="queueButtonRef"
+      class="queue-toggle"
+      :class="{ pulse: pulseActive }"
+      @click="isQueueOpen = !isQueueOpen"
+    >
       <ListOrdered :size="16" />
       <span v-if="queueCount > 0" class="queue-badge">{{ queueCount }}</span>
     </button>
@@ -222,21 +244,40 @@ watch(queueItems, (items) => {
         <div v-else class="queue-list">
           <div v-for="item in queueItems" :key="item.id" class="queue-item">
             <div class="queue-name" :title="item.name ?? ''">
-              {{ item.name ?? 'Untitled job' }}
+              {{ item.name ?? "Untitled job" }}
             </div>
             <div class="queue-meta">
-              <span class="queue-status" :class="item.status">{{ formatQueueStatus(item.status) }}</span>
-              <span v-if="item.phase" class="queue-phase">{{ formatQueuePhase(item.phase) }}</span>
-              <span v-if="item.progress !== null && item.progress !== undefined" class="queue-progress-text">{{
-                item.progress }}%</span>
+              <span class="queue-status" :class="item.status">{{
+                formatQueueStatus(item.status)
+              }}</span>
+              <span v-if="item.phase" class="queue-phase">{{
+                formatQueuePhase(item.phase)
+              }}</span>
+              <span
+                v-if="item.progress !== null && item.progress !== undefined"
+                class="queue-progress-text"
+                >{{ item.progress }}%</span
+              >
             </div>
-            <div v-if="item.progress !== null && item.progress !== undefined" class="queue-progress">
-              <div class="queue-progress-fill" :style="{ width: `${item.progress}%` }"></div>
+            <div
+              v-if="item.progress !== null && item.progress !== undefined"
+              class="queue-progress"
+            >
+              <div
+                class="queue-progress-fill"
+                :style="{ width: `${item.progress}%` }"
+              ></div>
             </div>
-            <div v-if="item.status === 'error' && item.error" class="queue-error">
+            <div
+              v-if="item.status === 'error' && item.error"
+              class="queue-error"
+            >
               {{ item.error }}
             </div>
-            <div v-if="item.status === 'duplicate' && item.duplicatePath" class="queue-duplicate">
+            <div
+              v-if="item.status === 'duplicate' && item.duplicatePath"
+              class="queue-duplicate"
+            >
               Duplicate: {{ item.duplicatePath }}
             </div>
           </div>
@@ -247,7 +288,12 @@ watch(queueItems, (items) => {
 
   <Teleport to="body">
     <div class="queue-eject-layer" aria-hidden="true">
-      <span v-for="burst in activeBursts" :key="burst.id" class="queue-eject-ball" :style="getBurstStyle(burst)"></span>
+      <span
+        v-for="burst in activeBursts"
+        :key="burst.id"
+        class="queue-eject-ball"
+        :style="getBurstStyle(burst)"
+      ></span>
     </div>
   </Teleport>
 </template>

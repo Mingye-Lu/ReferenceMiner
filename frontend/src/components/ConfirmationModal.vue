@@ -1,38 +1,47 @@
 <script setup lang="ts">
-import BaseModal from './BaseModal.vue'
+import BaseModal from "./BaseModal.vue";
 
 defineProps<{
-  modelValue: boolean
-  title?: string
-  message: string
-  confirmText?: string
-  cancelText?: string
-}>()
+  modelValue: boolean;
+  title?: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+}>();
 
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: boolean): void
-  (event: 'confirm'): void
-  (event: 'cancel'): void
-}>()
+  (event: "update:modelValue", value: boolean): void;
+  (event: "confirm"): void;
+  (event: "cancel"): void;
+}>();
 
 function handleClose() {
-  emit('update:modelValue', false)
-  emit('cancel')
+  emit("update:modelValue", false);
+  emit("cancel");
 }
 
 function handleConfirm() {
-  emit('update:modelValue', false)
-  emit('confirm')
+  emit("update:modelValue", false);
+  emit("confirm");
 }
 </script>
 
 <template>
-  <BaseModal :model-value="modelValue" :title="title || 'Confirm'" size="small" @update:model-value="handleClose">
+  <BaseModal
+    :model-value="modelValue"
+    :title="title || 'Confirm'"
+    size="small"
+    @update:model-value="handleClose"
+  >
     <p class="message">{{ message }}</p>
 
     <template #footer>
-      <button class="btn btn-secondary" @click="handleClose">{{ cancelText || 'Cancel' }}</button>
-      <button class="btn btn-danger" @click="handleConfirm">{{ confirmText || 'Delete' }}</button>
+      <button class="btn btn-secondary" @click="handleClose">
+        {{ cancelText || "Cancel" }}
+      </button>
+      <button class="btn btn-danger" @click="handleConfirm">
+        {{ confirmText || "Delete" }}
+      </button>
     </template>
   </BaseModal>
 </template>

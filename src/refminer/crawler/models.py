@@ -35,7 +35,9 @@ class SearchResult(BaseModel):
     issue: Optional[str] = Field(None, description="Issue")
     pages: Optional[str] = Field(None, description="Page range")
     citation_count: Optional[int] = Field(None, description="Number of citations")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
     def get_hash(self) -> str:
         """Get unique hash for deduplication."""

@@ -1,18 +1,18 @@
-import { defineConfig } from "vite"
-import vue from "@vitejs/plugin-vue"
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
   plugins: [vue()],
-  base: "/",  // Root-relative paths for bundled deployment
+  base: "/", // Root-relative paths for bundled deployment
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
+      "/api": {
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
-      '/files': {
-        target: 'http://localhost:8000',
+      "/files": {
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
     },
@@ -21,4 +21,4 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
   },
-})
+});

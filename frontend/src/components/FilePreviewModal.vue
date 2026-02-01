@@ -1,171 +1,212 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, inject, type Ref } from "vue"
-import BaseModal from "./BaseModal.vue"
-import FileMetadataModal from "./FileMetadataModal.vue"
-import PdfPreview from "./PdfPreview.vue"
-import type { ManifestEntry, Project, HighlightGroup } from "../types"
-import { renderAsync } from "docx-preview"
-import { getFileUrl, fetchFileHighlights } from "../api/client"
-import { getFileName } from "../utils"
-import { Maximize2, Minimize2 } from "lucide-vue-next"
+import { computed, ref, watch, nextTick, inject, type Ref } from "vue";
+import BaseModal from "./BaseModal.vue";
+import FileMetadataModal from "./FileMetadataModal.vue";
+import PdfPreview from "./PdfPreview.vue";
+import type { ManifestEntry, Project, HighlightGroup } from "../types";
+import { renderAsync } from "docx-preview";
+import { getFileUrl, fetchFileHighlights } from "../api/client";
+import { getFileName } from "../utils";
+import { Maximize2, Minimize2 } from "lucide-vue-next";
 
 const props = defineProps<{
-  modelValue: boolean
-  file: ManifestEntry | null
-  highlightGroups?: HighlightGroup[]
-}>()
+  modelValue: boolean;
+  file: ManifestEntry | null;
+  highlightGroups?: HighlightGroup[];
+}>();
 
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: boolean): void
-  (event: 'close'): void
-}>()
+  (event: "update:modelValue", value: boolean): void;
+  (event: "close"): void;
+}>();
 
-const currentProject = inject<Ref<Project | null> | undefined>("currentProject", undefined)
-const projectId = computed(() => currentProject?.value?.id || "default")
+const currentProject = inject<Ref<Project | null> | undefined>(
+  "currentProject",
+  undefined,
+);
+const projectId = computed(() => currentProject?.value?.id || "default");
 
-const docxContainer = ref<HTMLElement | null>(null)
-const isLoading = ref(false)
-const allChunkGroups = ref<HighlightGroup[] | null>(null)
-const isFullscreen = ref(true)
-const showMetadataModal = ref(false)
+const docxContainer = ref<HTMLElement | null>(null);
+const isLoading = ref(false);
+const allChunkGroups = ref<HighlightGroup[] | null>(null);
+const isFullscreen = ref(true);
+const showMetadataModal = ref(false);
 
 // Cache for DOCX content to prevent re-rendering flicker
 // LRU cache with max 5 files to prevent memory bloat
-const MAX_DOCX_CACHE_SIZE = 5
-const docxContentCache = new Map<string, string>()
+const MAX_DOCX_CACHE_SIZE = 5;
+const docxContentCache = new Map<string, string>();
 
 const fileUrl = computed(() => {
-  if (!props.file) return ""
-  return getFileUrl(projectId.value, props.file.relPath)
-})
+  if (!props.file) return "";
+  return getFileUrl(projectId.value, props.file.relPath);
+});
 
-const isPdf = computed(() => props.file?.fileType === "pdf")
-const isImage = computed(() => ["png", "jpg", "jpeg", "gif", "webp"].includes(props.file?.fileType || ""))
-const isDocx = computed(() => ["docx", "doc"].includes(props.file?.fileType || ""))
+const isPdf = computed(() => props.file?.fileType === "pdf");
+const isImage = computed(() =>
+  ["png", "jpg", "jpeg", "gif", "webp"].includes(props.file?.fileType || ""),
+);
+const isDocx = computed(() =>
+  ["docx", "doc"].includes(props.file?.fileType || ""),
+);
 
 const activeHighlightGroups = computed(() => {
-  if (allChunkGroups.value && allChunkGroups.value.length > 0) return allChunkGroups.value
-  return props.highlightGroups
-})
+  if (allChunkGroups.value && allChunkGroups.value.length > 0)
+    return allChunkGroups.value;
+  return props.highlightGroups;
+});
 
 async function loadDocx() {
-  if (!isDocx.value || !fileUrl.value || !props.file) return
+  if (!isDocx.value || !fileUrl.value || !props.file) return;
 
-  const filePath = props.file.relPath
+  const filePath = props.file.relPath;
 
   // Check if content is already cached
   if (docxContentCache.has(filePath)) {
     if (docxContainer.value) {
-      const cachedContent = docxContentCache.get(filePath)!
+      const cachedContent = docxContentCache.get(filePath)!;
       // Move to end (most recently used) by deleting and re-adding
-      docxContentCache.delete(filePath)
-      docxContentCache.set(filePath, cachedContent)
-      docxContainer.value.innerHTML = cachedContent
+      docxContentCache.delete(filePath);
+      docxContentCache.set(filePath, cachedContent);
+      docxContainer.value.innerHTML = cachedContent;
     }
-    return
+    return;
   }
 
-
-  isLoading.value = true
+  isLoading.value = true;
   try {
-    const resp = await fetch(fileUrl.value)
-    if (!resp.ok) throw new Error("Failed to load file")
-    const blob = await resp.blob()
+    const resp = await fetch(fileUrl.value);
+    if (!resp.ok) throw new Error("Failed to load file");
+    const blob = await resp.blob();
     if (docxContainer.value) {
-      docxContainer.value.innerHTML = "" // Clear previous
+      docxContainer.value.innerHTML = ""; // Clear previous
       await renderAsync(blob, docxContainer.value, docxContainer.value, {
         className: "docx-wrapper",
-        inWrapper: true
-      })
+        inWrapper: true,
+      });
 
       // LRU cache management: remove oldest entry if cache is full
       if (docxContentCache.size >= MAX_DOCX_CACHE_SIZE) {
-        const firstKey = docxContentCache.keys().next().value
+        const firstKey = docxContentCache.keys().next().value;
         if (firstKey) {
-          docxContentCache.delete(firstKey)
+          docxContentCache.delete(firstKey);
         }
       }
 
       // Cache the rendered content
-      docxContentCache.set(filePath, docxContainer.value.innerHTML)
+      docxContentCache.set(filePath, docxContainer.value.innerHTML);
     }
   } catch (e) {
-    console.error("DOCX preview failed", e)
-    if (docxContainer.value) docxContainer.value.innerHTML = "<div class='error'>Failed to load document preview.</div>"
+    console.error("DOCX preview failed", e);
+    if (docxContainer.value)
+      docxContainer.value.innerHTML =
+        "<div class='error'>Failed to load document preview.</div>";
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
 }
 
 async function loadHighlights() {
   if (!props.file || !isPdf.value) {
-    allChunkGroups.value = null
-    return
+    allChunkGroups.value = null;
+    return;
   }
   try {
-    allChunkGroups.value = await fetchFileHighlights(props.file.relPath)
+    allChunkGroups.value = await fetchFileHighlights(props.file.relPath);
   } catch (e) {
-    allChunkGroups.value = null
+    allChunkGroups.value = null;
   }
 }
 
 // Watch for file changes - only reload when file path actually changes
-watch(() => props.file, (newFile, oldFile) => {
-  // Only reload if the file path changed (different file selected)
-  if (newFile?.relPath !== oldFile?.relPath) {
-    allChunkGroups.value = null
-    if (isDocx.value) {
-      nextTick(() => loadDocx())
+watch(
+  () => props.file,
+  (newFile, oldFile) => {
+    // Only reload if the file path changed (different file selected)
+    if (newFile?.relPath !== oldFile?.relPath) {
+      allChunkGroups.value = null;
+      if (isDocx.value) {
+        nextTick(() => loadDocx());
+      }
+      loadHighlights();
     }
-    loadHighlights()
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+);
 
 // Watch for modal open state - ensure content is loaded when modal opens
-watch(() => props.modelValue, (isOpen) => {
-  if (isOpen && props.file) {
-    // For DOCX: load from cache or fetch if needed
-    if (isDocx.value) {
-      nextTick(() => {
-        if (docxContainer.value) {
-          // Always try to load (will use cache if available)
-          loadDocx()
-        }
-      })
+watch(
+  () => props.modelValue,
+  (isOpen) => {
+    if (isOpen && props.file) {
+      // For DOCX: load from cache or fetch if needed
+      if (isDocx.value) {
+        nextTick(() => {
+          if (docxContainer.value) {
+            // Always try to load (will use cache if available)
+            loadDocx();
+          }
+        });
+      }
+      // For PDF: reload highlights if not loaded
+      if (isPdf.value && allChunkGroups.value === null) {
+        loadHighlights();
+      }
     }
-    // For PDF: reload highlights if not loaded
-    if (isPdf.value && allChunkGroups.value === null) {
-      loadHighlights()
-    }
-  }
-})
+  },
+);
 
 function handleClose() {
-  emit('update:modelValue', false)
-  emit('close')
+  emit("update:modelValue", false);
+  emit("close");
 }
 </script>
 
 <template>
-  <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'"
-    :size="isFullscreen ? 'fullscreen' : 'xlarge'" :fill-body="true" @update:model-value="handleClose">
+  <BaseModal
+    :model-value="modelValue"
+    :title="file ? getFileName(file.relPath) : 'Preview'"
+    :size="isFullscreen ? 'fullscreen' : 'xlarge'"
+    :fill-body="true"
+    @update:model-value="handleClose"
+  >
     <template #header-content>
       <div class="preview-header">
-        <h3 class="preview-title">{{ file ? getFileName(file.relPath) : 'Preview' }}</h3>
-        <button class="preview-meta" @click="showMetadataModal = true" :disabled="!file" title="Edit metadata">
+        <h3 class="preview-title">
+          {{ file ? getFileName(file.relPath) : "Preview" }}
+        </h3>
+        <button
+          class="preview-meta"
+          @click="showMetadataModal = true"
+          :disabled="!file"
+          title="Edit metadata"
+        >
           Metadata
         </button>
-        <button class="preview-toggle" @click="isFullscreen = !isFullscreen"
-          :title="isFullscreen ? 'Exit full screen' : 'Full screen'">
+        <button
+          class="preview-toggle"
+          @click="isFullscreen = !isFullscreen"
+          :title="isFullscreen ? 'Exit full screen' : 'Full screen'"
+        >
           <Minimize2 v-if="isFullscreen" :size="16" />
           <Maximize2 v-else :size="16" />
         </button>
       </div>
     </template>
     <div class="preview-content">
-      <PdfPreview v-if="isPdf" :key="`pdf-${file?.relPath}`" :file-url="fileUrl"
-        :highlight-groups="activeHighlightGroups" class="pdf-viewer-wrapper" />
-      <img v-else-if="isImage" :key="`img-${file?.relPath}`" :src="fileUrl" class="preview-image" />
+      <PdfPreview
+        v-if="isPdf"
+        :key="`pdf-${file?.relPath}`"
+        :file-url="fileUrl"
+        :highlight-groups="activeHighlightGroups"
+        class="pdf-viewer-wrapper"
+      />
+      <img
+        v-else-if="isImage"
+        :key="`img-${file?.relPath}`"
+        :src="fileUrl"
+        class="preview-image"
+      />
       <div v-else-if="isDocx" class="docx-preview-area">
         <div v-if="isLoading" class="loading">Loading document...</div>
         <div ref="docxContainer" class="docx-container"></div>

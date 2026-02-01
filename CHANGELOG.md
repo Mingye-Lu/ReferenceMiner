@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## 1.2.0
 
 ### Added
+
 - Zoom hotkey functionality for PDF viewer
 - Confirm extract metadata modal with user confirmation
 - Global queue component with projectile eject animation
@@ -13,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Works cited modal for managing citations
 
 ### Changed
+
 - Reorganized file metadata modal for better UX
 - Unified styles across reference bank and selector modal
 - Adjusted bankfile selector modal and component layouts
@@ -20,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - Various UI style improvements and polish
 
 ### Fixed
+
 - Build issues for Electron packaging (missing dependencies)
 - Layout overflow issue of preview-container
 - DOCX reload bug with LRU cache implementation
@@ -29,6 +32,7 @@ All notable changes to this project will be documented in this file.
 ## 1.1.0
 
 ### Added
+
 - Automatic update support via electron-updater for seamless app updates.
 - Heuristic PDF metadata extraction for improved document indexing.
 - Bibliography modal with enhanced citation display.
@@ -42,6 +46,7 @@ All notable changes to this project will be documented in this file.
   - Responsive table styling with horizontal scroll.
 
 ### Fixed
+
 - Various bug fixes and stability improvements.
 
 ## 1.0.0

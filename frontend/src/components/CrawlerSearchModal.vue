@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import BaseModal from "./BaseModal.vue";
+import BaseToggle from "./BaseToggle.vue";
 import type {
   CrawlerSearchResult,
   CrawlerSearchQuery,
@@ -60,23 +61,26 @@ const allSelected = computed(() => {
 });
 
 const papersWithPdfs = computed(() =>
-  searchResults.value.filter((r) => r.pdf_url)
+  searchResults.value.filter((r) => r.pdf_url),
 );
 
-watch(() => props.modelValue, async (isOpen) => {
-  if (isOpen) {
-    await loadEngines();
-  } else {
-    resetState();
-  }
-});
+watch(
+  () => props.modelValue,
+  async (isOpen) => {
+    if (isOpen) {
+      await loadEngines();
+    } else {
+      resetState();
+    }
+  },
+);
 
 async function loadEngines() {
   try {
     const config = await fetchCrawlerConfig();
     availableEngines.value = Object.keys(config.engines);
     enabledEngines.value = Object.keys(config.engines).filter(
-      (e) => config.engines[e].enabled
+      (e) => config.engines[e].enabled,
     );
     selectedEngines.value = new Set(enabledEngines.value);
   } catch (e) {
@@ -121,7 +125,9 @@ async function handleSearch() {
       year_range: yearRange.value,
       sort_by: sortBy.value,
       deep_crawl: deepCrawl.value,
-      deep_crawl_max_papers: deepCrawl.value ? deepCrawlMaxPapers.value : undefined,
+      deep_crawl_max_papers: deepCrawl.value
+        ? deepCrawlMaxPapers.value
+        : undefined,
     };
 
     const results = await searchPapers(query);
@@ -156,9 +162,7 @@ function toggleAllSelection() {
   if (allSelected.value) {
     selectedResults.value = new Set();
   } else {
-    selectedResults.value = new Set(
-      downloadablePapers.map((r) => r.hash)
-    );
+    selectedResults.value = new Set(downloadablePapers.map((r) => r.hash));
   }
 }
 
@@ -200,7 +204,7 @@ async function confirmDownload() {
   downloadResults.value.clear();
 
   const selectedPapers = searchResults.value.filter((r) =>
-    selectedResults.value.has(r.hash)
+    selectedResults.value.has(r.hash),
   );
 
   try {
@@ -259,7 +263,11 @@ function cancelDownload() {
               @keyup.enter="handleSearch"
             />
           </div>
-          <button class="btn-primary" @click="handleSearch" :disabled="isSearching">
+          <button
+            class="btn-primary"
+            @click="handleSearch"
+            :disabled="isSearching"
+          >
             <span v-if="isSearching">Searching...</span>
             <span v-else>Search</span>
           </button>
@@ -300,7 +308,14 @@ function cancelDownload() {
             <div class="year-inputs">
               <input
                 :value="yearRange?.[0]"
-                @input="(e) => { if (yearRange) yearRange[0] = parseInt((e.target as HTMLInputElement).value) }"
+                @input="
+                  (e) => {
+                    if (yearRange)
+                      yearRange[0] = parseInt(
+                        (e.target as HTMLInputElement).value,
+                      );
+                  }
+                "
                 type="number"
                 placeholder="From"
                 class="year-input"
@@ -308,7 +323,14 @@ function cancelDownload() {
               <span class="year-separator">to</span>
               <input
                 :value="yearRange?.[1]"
-                @input="(e) => { if (yearRange) yearRange[1] = parseInt((e.target as HTMLInputElement).value) }"
+                @input="
+                  (e) => {
+                    if (yearRange)
+                      yearRange[1] = parseInt(
+                        (e.target as HTMLInputElement).value,
+                      );
+                  }
+                "
                 type="number"
                 placeholder="To"
                 class="year-input"
@@ -346,10 +368,10 @@ function cancelDownload() {
           <div class="option-group">
             <label class="option-label">Deep Crawl</label>
             <div class="deep-crawl-controls">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="deepCrawl" />
-                <span>Enable citation expansion</span>
-              </label>
+              <div class="toggle-wrapper">
+                <BaseToggle v-model="deepCrawl" />
+                <span class="toggle-label-text">Enable citation expansion</span>
+              </div>
               <input
                 v-if="deepCrawl"
                 v-model.number="deepCrawlMaxPapers"
@@ -377,7 +399,10 @@ function cancelDownload() {
         <div class="results-header">
           <div class="results-count">
             {{ searchResults.length }} papers found
-            <span v-if="papersWithPdfs.length < searchResults.length" class="pdf-hint">
+            <span
+              v-if="papersWithPdfs.length < searchResults.length"
+              class="pdf-hint"
+            >
               ({{ papersWithPdfs.length }} with PDFs)
             </span>
           </div>
@@ -400,9 +425,9 @@ function cancelDownload() {
             v-for="result in searchResults"
             :key="result.hash"
             class="result-card"
-            :class="{ 
+            :class="{
               selected: selectedResults.has(result.hash),
-              'no-pdf': !result.pdf_url
+              'no-pdf': !result.pdf_url,
             }"
           >
             <div class="result-header">
@@ -414,12 +439,8 @@ function cancelDownload() {
                 class="result-checkbox"
               />
               <div class="result-main">
-                <div v-if="result.pdf_url" class="pdf-badge">
-                  PDF Available
-                </div>
-                <div v-else class="no-pdf-badge">
-                  No PDF
-                </div>
+                <div v-if="result.pdf_url" class="pdf-badge">PDF Available</div>
+                <div v-else class="no-pdf-badge">No PDF</div>
                 <h4 class="result-title">{{ result.title }}</h4>
                 <div class="result-meta">
                   <span v-if="result.authors.length" class="result-authors">
@@ -467,11 +488,12 @@ function cancelDownload() {
                 <span v-if="expandedAbstracts.has(result.hash)">
                   <ChevronUp :size="14" /> Hide Abstract
                 </span>
-                <span v-else>
-                  <ChevronDown :size="14" /> Show Abstract
-                </span>
+                <span v-else> <ChevronDown :size="14" /> Show Abstract </span>
               </button>
-              <p v-if="expandedAbstracts.has(result.hash)" class="abstract-text">
+              <p
+                v-if="expandedAbstracts.has(result.hash)"
+                class="abstract-text"
+              >
                 {{ result.abstract }}
               </p>
             </div>
@@ -520,7 +542,8 @@ function cancelDownload() {
       >
         <div class="download-confirm">
           <p class="confirm-text">
-            You are about to download <strong>{{ selectedCount }}</strong> papers.
+            You are about to download
+            <strong>{{ selectedCount }}</strong> papers.
           </p>
           <p class="confirm-hint">
             Papers will be added to your Reference Bank.
@@ -715,13 +738,15 @@ function cancelDownload() {
   gap: 12px;
 }
 
-.toggle-label {
+.toggle-wrapper {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+}
+
+.toggle-label-text {
   font-size: 12px;
   color: var(--text-primary);
-  cursor: pointer;
 }
 
 .error-banner {
@@ -835,7 +860,6 @@ function cancelDownload() {
   color: var(--text-primary);
   margin: 0 0 6px 0;
   line-height: 1.4;
-;
 }
 
 .result-meta {

@@ -23,6 +23,7 @@ Instead of crawling the web (which introduces legal, ethical, and reproducibilit
 ## Non-Goals (By Design)
 
 ReferenceMiner intentionally does not:
+
 - Crawl the web
 - Query external APIs for content
 - Hallucinate missing sources
@@ -165,6 +166,7 @@ The Vue 3 frontend has two main views:
 **ProjectHub** (`/`) — Landing page with project cards and settings configuration.
 
 **Cockpit** (`/project/:id`) — Main 3-panel research interface:
+
 - **SidePanel** (left) — File browser with upload/selection, chat session list, pinned notes
 - **ChatWindow** (center) — Message history with streaming responses, input area
 - **RightDrawer** (right) — PDF viewer with highlight rendering, notebook for pinned evidence
@@ -269,26 +271,31 @@ ReferenceMiner/
 ## Core Data Structures
 
 **ManifestEntry** — File metadata stored in `manifest.json`:
+
 ```python
 path, rel_path, file_type, size_bytes, modified_time, sha256, title, abstract, page_count
 ```
 
 **Chunk** — Text segment created during indexing:
+
 ```python
 chunk_id, path, text, page, section, bbox  # bbox enables PDF highlighting
 ```
 
 **EvidenceChunk** — Chunk with retrieval score, passed to LLM:
+
 ```python
 chunk_id, path, page, section, text, score, bbox
 ```
 
 **Project** — Lightweight metadata overlay:
+
 ```python
 id, name, root_path, created_at, last_active, file_count, selected_files
 ```
 
 **ChatMessage** — Stored in per-project session files:
+
 ```python
 id, role, content, timestamp, sources, keywords, isStreaming
 ```
@@ -303,14 +310,14 @@ ReferenceMiner automatically extracts bibliographic metadata from PDFs during in
 
 ### Supported Fields
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `title` | Document title | "老有所学"能否促进"老有所为" |
-| `authors` | List of author names | [{"literal": "黄家乐"}, {"literal": "宋亦芳"}] |
-| `year` | Publication year | 2025 |
-| `doi` | Digital Object Identifier | 10.1234/example |
-| `doc_type` | Document type code | J (journal), M (book), C (conference), D (thesis) |
-| `language` | Detected language | "zh" or "en" |
+| Field      | Description               | Example                                           |
+| ---------- | ------------------------- | ------------------------------------------------- |
+| `title`    | Document title            | "老有所学"能否促进"老有所为"                      |
+| `authors`  | List of author names      | [{"literal": "黄家乐"}, {"literal": "宋亦芳"}]    |
+| `year`     | Publication year          | 2025                                              |
+| `doi`      | Digital Object Identifier | 10.1234/example                                   |
+| `doc_type` | Document type code        | J (journal), M (book), C (conference), D (thesis) |
+| `language` | Detected language         | "zh" or "en"                                      |
 
 ### Chinese Journal Support
 
@@ -326,6 +333,7 @@ Specialized heuristics for Chinese academic journals (CNKI, Wanfang, VIP, etc.):
 In the web UI, open the file's metadata modal and click **Extract** to re-run extraction. This replaces existing metadata with fresh extraction results.
 
 API endpoint:
+
 ```bash
 # Replace existing metadata
 POST /api/files/{rel_path}/metadata/extract?force=true
@@ -374,77 +382,83 @@ Open `http://localhost:5173` and configure your LLM provider in Settings.
 
 ## API Endpoints
 
-| Category | Endpoint | Description |
-|----------|----------|-------------|
-| **Projects** | `GET /api/projects` | List all projects |
-| | `POST /api/projects` | Create project |
-| | `GET /api/projects/{id}` | Get project details |
-| | `DELETE /api/projects/{id}` | Delete project |
-| | `POST /api/projects/{id}/activate` | Update last_active timestamp |
-| **Chats** | `GET /api/projects/{id}/chats` | List sessions |
-| | `POST /api/projects/{id}/chats` | Create session |
-| | `GET /api/projects/{id}/chats/{sid}` | Get session with messages |
-| | `PUT /api/projects/{id}/chats/{sid}` | Update session |
-| | `DELETE /api/projects/{id}/chats/{sid}` | Delete session |
-| | `POST /api/projects/{id}/chats/{sid}/messages` | Add message |
-| | `PATCH /api/projects/{id}/chats/{sid}/messages` | Update message |
-| **Q&A** | `POST /api/projects/{id}/ask` | Non-streaming answer |
-| | `POST /api/projects/{id}/ask/stream` | Streaming answer (SSE) |
-| | `POST /api/projects/{id}/summarize` | Generate chat title (SSE) |
-| **Files** | `GET /api/projects/{id}/manifest` | Get project manifest |
-| | `GET /api/projects/{id}/files` | Get selected files |
-| | `POST /api/projects/{id}/files/select` | Add files to project |
-| | `POST /api/projects/{id}/files/remove` | Remove files from project |
-| | `GET /api/projects/{id}/status` | Get index statistics |
-| | `POST /api/projects/{id}/upload/stream` | Upload with progress (SSE) |
-| | `GET /api/projects/{id}/files/check-duplicate` | Check duplicate by hash |
-| | `POST /api/projects/{id}/files/{rel_path}/delete/stream` | Delete file (SSE) |
-| | `POST /api/projects/{id}/files/batch-delete` | Batch delete files |
-| | `POST /api/projects/{id}/files/batch-delete/stream` | Batch delete (SSE) |
-| | `GET /api/files/{rel_path}/highlights` | Get PDF highlights |
-| | `GET /api/files/{rel_path}/metadata` | Get file metadata |
-| | `PATCH /api/files/{rel_path}/metadata` | Update file metadata |
-| | `POST /api/files/{rel_path}/metadata/extract` | Extract metadata from PDF |
-| **Bank** | `GET /api/bank/manifest` | Get all files in bank |
-| | `GET /api/bank/files/stats` | Get file usage statistics |
-| | `POST /api/bank/upload/stream` | Upload to bank (SSE) |
-| | `POST /api/bank/reprocess/stream` | Rebuild all indexes (SSE) |
-| | `POST /api/bank/files/{rel_path}/reprocess/stream` | Reprocess single file (SSE) |
-| **Settings** | `GET /api/settings` | Get current settings |
-| | `GET /api/settings/version` | Get app version |
-| | `GET /api/settings/update-check` | Check for updates |
-| | `POST /api/settings/api-key` | Save API key |
-| | `DELETE /api/settings/api-key` | Delete API key |
-| | `POST /api/settings/validate` | Validate key |
-| | `POST /api/settings/models` | Fetch available models |
-| | `POST /api/settings/llm` | Save LLM configuration |
-| | `POST /api/settings/citation-format` | Save citation format |
-| | `POST /api/settings/reset` | Reset all data (preserves refs) |
-| **Queue** | `GET /api/queue/jobs` | List queue jobs |
-| | `GET /api/queue/jobs/{job_id}` | Get specific job |
-| | `POST /api/queue/jobs` | Create queue job |
-| | `GET /api/queue/stream` | Stream job events (SSE) |
+| Category     | Endpoint                                                 | Description                     |
+| ------------ | -------------------------------------------------------- | ------------------------------- |
+| **Projects** | `GET /api/projects`                                      | List all projects               |
+|              | `POST /api/projects`                                     | Create project                  |
+|              | `GET /api/projects/{id}`                                 | Get project details             |
+|              | `DELETE /api/projects/{id}`                              | Delete project                  |
+|              | `POST /api/projects/{id}/activate`                       | Update last_active timestamp    |
+| **Chats**    | `GET /api/projects/{id}/chats`                           | List sessions                   |
+|              | `POST /api/projects/{id}/chats`                          | Create session                  |
+|              | `GET /api/projects/{id}/chats/{sid}`                     | Get session with messages       |
+|              | `PUT /api/projects/{id}/chats/{sid}`                     | Update session                  |
+|              | `DELETE /api/projects/{id}/chats/{sid}`                  | Delete session                  |
+|              | `POST /api/projects/{id}/chats/{sid}/messages`           | Add message                     |
+|              | `PATCH /api/projects/{id}/chats/{sid}/messages`          | Update message                  |
+| **Q&A**      | `POST /api/projects/{id}/ask`                            | Non-streaming answer            |
+|              | `POST /api/projects/{id}/ask/stream`                     | Streaming answer (SSE)          |
+|              | `POST /api/projects/{id}/summarize`                      | Generate chat title (SSE)       |
+| **Files**    | `GET /api/projects/{id}/manifest`                        | Get project manifest            |
+|              | `GET /api/projects/{id}/files`                           | Get selected files              |
+|              | `POST /api/projects/{id}/files/select`                   | Add files to project            |
+|              | `POST /api/projects/{id}/files/remove`                   | Remove files from project       |
+|              | `GET /api/projects/{id}/status`                          | Get index statistics            |
+|              | `POST /api/projects/{id}/upload/stream`                  | Upload with progress (SSE)      |
+|              | `GET /api/projects/{id}/files/check-duplicate`           | Check duplicate by hash         |
+|              | `POST /api/projects/{id}/files/{rel_path}/delete/stream` | Delete file (SSE)               |
+|              | `POST /api/projects/{id}/files/batch-delete`             | Batch delete files              |
+|              | `POST /api/projects/{id}/files/batch-delete/stream`      | Batch delete (SSE)              |
+|              | `GET /api/files/{rel_path}/highlights`                   | Get PDF highlights              |
+|              | `GET /api/files/{rel_path}/metadata`                     | Get file metadata               |
+|              | `PATCH /api/files/{rel_path}/metadata`                   | Update file metadata            |
+|              | `POST /api/files/{rel_path}/metadata/extract`            | Extract metadata from PDF       |
+| **Bank**     | `GET /api/bank/manifest`                                 | Get all files in bank           |
+|              | `GET /api/bank/files/stats`                              | Get file usage statistics       |
+|              | `POST /api/bank/upload/stream`                           | Upload to bank (SSE)            |
+|              | `POST /api/bank/reprocess/stream`                        | Rebuild all indexes (SSE)       |
+|              | `POST /api/bank/files/{rel_path}/reprocess/stream`       | Reprocess single file (SSE)     |
+| **Settings** | `GET /api/settings`                                      | Get current settings            |
+|              | `GET /api/settings/version`                              | Get app version                 |
+|              | `GET /api/settings/update-check`                         | Check for updates               |
+|              | `POST /api/settings/api-key`                             | Save API key                    |
+|              | `DELETE /api/settings/api-key`                           | Delete API key                  |
+|              | `POST /api/settings/validate`                            | Validate key                    |
+|              | `POST /api/settings/models`                              | Fetch available models          |
+|              | `POST /api/settings/llm`                                 | Save LLM configuration          |
+|              | `POST /api/settings/citation-format`                     | Save citation format            |
+|              | `POST /api/settings/reset`                               | Reset all data (preserves refs) |
+| **Queue**    | `GET /api/queue/jobs`                                    | List queue jobs                 |
+|              | `GET /api/queue/jobs/{job_id}`                           | Get specific job                |
+|              | `POST /api/queue/jobs`                                   | Create queue job                |
+|              | `GET /api/queue/stream`                                  | Stream job events (SSE)         |
 
 ---
 
 ## Key Design Patterns
 
 ### Reference Bank Model
+
 Single `references/` directory shared across projects. Files never deleted—only index entries cleared. Projects are lightweight views that select subsets of files.
 
 ### Hybrid Retrieval
+
 BM25 for exact term matching + vector embeddings for semantic similarity. Reciprocal Rank Fusion combines rankings without parameter tuning.
 
 ### Project-Scoped Queries
+
 Global index, local filtering. Queries filtered by `selected_files` at retrieval time. Same index serves all projects.
 
 ### Agentic Tool Calling
+
 Multi-turn architecture where LLM decides when to retrieve vs respond. Tools: `rag_search`, `read_chunk`, `get_abstract`.
 
 ### SSE Streaming
+
 Real-time updates for uploads and Q&A responses without polling.
 
 ### Citation Tracking
+
 [C#] markers in responses mapped to evidence chunks. Bounding boxes enable PDF highlighting at exact text locations.
 
 ---
@@ -470,6 +484,7 @@ python scripts/set_version.py 1.0.0
 ```
 
 This updates:
+
 - `src/refminer/version.py` (APP_VERSION)
 - `package.json`
 - `frontend/package.json`

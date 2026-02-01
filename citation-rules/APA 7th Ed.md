@@ -4,17 +4,17 @@
 
 ### 1.1 Page Layout
 
-* **Margins**: 1 inch on all sides
-* **Font** (any one of the following is acceptable):
+- **Margins**: 1 inch on all sides
+- **Font** (any one of the following is acceptable):
+  - 12-pt Times New Roman
+  - 11-pt Calibri
+  - 11-pt Arial
+  - 10-pt Lucida Sans Unicode
+  - 10-pt Computer Modern
 
-  * 12-pt Times New Roman
-  * 11-pt Calibri
-  * 11-pt Arial
-  * 10-pt Lucida Sans Unicode
-  * 10-pt Computer Modern
-* **Line spacing**: Double-spaced throughout (text, block quotes, references, tables, figure captions)
-* **Alignment**: Left-aligned (ragged right)
-* **Paragraph indentation**: First line indented **0.5 inch**
+- **Line spacing**: Double-spaced throughout (text, block quotes, references, tables, figure captions)
+- **Alignment**: Left-aligned (ragged right)
+- **Paragraph indentation**: First line indented **0.5 inch**
 
 ---
 
@@ -36,21 +36,20 @@ Includes (centered, bold where indicated):
 
 Includes:
 
-* Title (bold)
-* Author(s)
-* Affiliation(s)
-* Author note
-* Running head (optional in 7th ed, required by some journals)
+- Title (bold)
+- Author(s)
+- Affiliation(s)
+- Author note
+- Running head (optional in 7th ed, required by some journals)
 
 ---
 
 ## 3. Page Header and Page Numbers
 
-* **Page number** appears in the **top-right corner** of every page
-* Running head:
-
-  * **Not required** for student papers
-  * Optional / journal-dependent for professional papers
+- **Page number** appears in the **top-right corner** of every page
+- Running head:
+  - **Not required** for student papers
+  - Optional / journal-dependent for professional papers
 
 ---
 
@@ -72,20 +71,20 @@ APA uses a **5-level heading system**:
 
 ### 5.1 Basic Format
 
-* **Paraphrase**: (Author, Year)
-* **Direct quote**: (Author, Year, p. X)
+- **Paraphrase**: (Author, Year)
+- **Direct quote**: (Author, Year, p. X)
 
 Examples:
 
-* (Smith, 2021)
-* (Smith, 2021, p. 45)
+- (Smith, 2021)
+- (Smith, 2021, p. 45)
 
 ---
 
 ### 5.2 Narrative vs Parenthetical
 
-* **Narrative**: Smith (2021) argues that …
-* **Parenthetical**: … as previously shown (Smith, 2021).
+- **Narrative**: Smith (2021) argues that …
+- **Parenthetical**: … as previously shown (Smith, 2021).
 
 ---
 
@@ -97,45 +96,45 @@ Examples:
 | 2 authors  | (Smith & Lee, 2021)  |
 | 3+ authors | (Smith et al., 2021) |
 
-*“et al.” is used from the **first citation** onward (change from APA 6).*
+_“et al.” is used from the **first citation** onward (change from APA 6)._
 
 ---
 
 ### 5.4 Group Authors
 
-* First citation: (World Health Organization [WHO], 2020)
-* Subsequent: (WHO, 2020)
+- First citation: (World Health Organization [WHO], 2020)
+- Subsequent: (WHO, 2020)
 
 ---
 
 ### 5.5 No Author
 
-* Use **title** (shortened if long) + year
+- Use **title** (shortened if long) + year
   Example: (“Climate Change Report,” 2022)
 
 ---
 
 ### 5.6 Multiple Citations in One Parentheses
 
-* Alphabetize by author, separate with semicolons
+- Alphabetize by author, separate with semicolons
   Example: (Brown, 2019; Garcia, 2020; Smith, 2021)
 
 ---
 
 ### 5.7 Page Numbers Optional for Paraphrase
 
-* Page numbers are **required for quotations**, optional but encouraged for paraphrases
+- Page numbers are **required for quotations**, optional but encouraged for paraphrases
 
 ---
 
 ## 6. Block Quotations
 
-* Used for quotations **40 words or longer**
-* Start on a new line
-* Indent entire block **0.5 inch**
-* Double-spaced
-* **No quotation marks**
-* Citation comes **after final punctuation**
+- Used for quotations **40 words or longer**
+- Start on a new line
+- Indent entire block **0.5 inch**
+- Double-spaced
+- **No quotation marks**
+- Citation comes **after final punctuation**
 
 ---
 
@@ -143,62 +142,60 @@ Examples:
 
 ### 7.1 General Rules
 
-* Begins on a new page titled **References** (bold, centered)
-* Double-spaced
-* **Hanging indent** (0.5 inch)
-* Alphabetized by **first author’s surname**
-* Every in-text citation must appear in References (and vice versa)
+- Begins on a new page titled **References** (bold, centered)
+- Double-spaced
+- **Hanging indent** (0.5 inch)
+- Alphabetized by **first author’s surname**
+- Every in-text citation must appear in References (and vice versa)
 
 ---
 
 ### 7.2 Author Rules
 
-* Format: **Last name, Initials.**
-* Up to **20 authors**: list all
-* More than 20:
-
-  * First 19 authors
-  * Ellipsis (…)
-  * Final author
+- Format: **Last name, Initials.**
+- Up to **20 authors**: list all
+- More than 20:
+  - First 19 authors
+  - Ellipsis (…)
+  - Final author
 
 ---
 
 ### 7.3 Date Rules
 
-* Year in parentheses: (2021)
-* More specific when available:
-
-  * (2021, March)
-  * (2021, March 15)
+- Year in parentheses: (2021)
+- More specific when available:
+  - (2021, March)
+  - (2021, March 15)
 
 ---
 
 ### 7.4 Title Capitalization
 
-* **Sentence case** for titles:
+- **Sentence case** for titles:
+  - Capitalize first word
+  - Capitalize first word after colon
+  - Proper nouns only otherwise
 
-  * Capitalize first word
-  * Capitalize first word after colon
-  * Proper nouns only otherwise
-* **Italicize**:
-
-  * Books
-  * Reports
-  * Webpages (standalone)
-  * Journals and volume numbers
+- **Italicize**:
+  - Books
+  - Reports
+  - Webpages (standalone)
+  - Journals and volume numbers
 
 ---
 
 ### 7.5 DOI and URL Rules
 
-* **DOI preferred** over URL
-* Format DOI as URL:
+- **DOI preferred** over URL
+- Format DOI as URL:
 
   ```
   https://doi.org/10.xxxx/xxxxx
   ```
-* URLs are clickable, no “Retrieved from”
-* Access dates only required for **unstable content** (e.g., wikis)
+
+- URLs are clickable, no “Retrieved from”
+- Access dates only required for **unstable content** (e.g., wikis)
 
 ---
 
@@ -240,47 +237,47 @@ Title of report. Publisher. URL
 
 ### 9.1 Tables
 
-* Table number (bold)
-* Title (italic, title case)
-* Notes below table if needed
+- Table number (bold)
+- Title (italic, title case)
+- Notes below table if needed
 
 ### 9.2 Figures
 
-* Figure number (bold)
-* Title (italic)
-* Caption below image if applicable
+- Figure number (bold)
+- Title (italic)
+- Caption below image if applicable
 
 ---
 
 ## 10. Numbers, Statistics, and Units
 
-* Numbers **0–9** spelled out; **10+** numerals (with exceptions)
-* Always use numerals for:
+- Numbers **0–9** spelled out; **10+** numerals (with exceptions)
+- Always use numerals for:
+  - Measurements
+  - Statistical values
+  - Time, age, percentages
 
-  * Measurements
-  * Statistical values
-  * Time, age, percentages
-* Use **SI units**
+- Use **SI units**
 
 ---
 
 ## 11. Bias-Free Language
 
-* Use **inclusive, respectful language**
-* Avoid labeling people by condition or characteristic
-* Person-first or identity-first language depending on community preference
+- Use **inclusive, respectful language**
+- Avoid labeling people by condition or characteristic
+- Person-first or identity-first language depending on community preference
 
 ---
 
 ## 12. Notes (Footnotes / Endnotes)
 
-* Used sparingly
-* For content that would disrupt text flow
-* Not for citation replacement
+- Used sparingly
+- For content that would disrupt text flow
+- Not for citation replacement
 
 ---
 
 ## 13. Official Sources (Authoritative)
 
-* **Publication Manual of the American Psychological Association (7th ed.)**
-* APA Style website (style.apa.org)
+- **Publication Manual of the American Psychological Association (7th ed.)**
+- APA Style website (style.apa.org)
