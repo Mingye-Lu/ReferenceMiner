@@ -50,6 +50,25 @@ class CrossrefCrawler(BaseCrawler):
             "rows": str(query.max_results),
         }
 
+        select_fields = [
+            "DOI",
+            "title",
+            "author",
+            "container-title",
+            "link",
+            "URL",
+            "volume",
+            "issue",
+            "page",
+            "published",
+            "is-referenced-by-count",
+        ]
+
+        if query.include_abstract:
+            select_fields.append("abstract")
+
+        params["select"] = ",".join(select_fields)
+
         if query.year_from and query.year_to:
             params["filter"] = (
                 f"from-pub-date:{query.year_from},until-pub-date:{query.year_to}"
@@ -95,28 +114,31 @@ class CrossrefCrawler(BaseCrawler):
             return None
 
         authors = self._parse_authors(item)
-        year = item.get("year")
+        year = self._parse_year(item)
         doi = item.get("DOI")
+        abstract = self._parse_abstract(item) if query.include_abstract else None
         url = item.get("URL")
+        pdf_url = self._parse_pdf_url(item)
         journal = self._parse_journal(item)
         volume = item.get("volume")
         issue = item.get("issue")
         pages = item.get("page")
+        citation_count = item.get("is-referenced-by-count")
 
         result = SearchResult(
             title=title,
             authors=authors,
             year=year,
             doi=doi,
-            abstract=None,
+            abstract=abstract,
             source=self.name,
             url=url,
-            pdf_url=None,
+            pdf_url=pdf_url,
             journal=journal,
             volume=volume,
             issue=issue,
             pages=pages,
-            citation_count=None,
+            citation_count=citation_count,
         )
 
         return result
@@ -143,4 +165,37 @@ class CrossrefCrawler(BaseCrawler):
         container_titles = item.get("container-title", [])
         if container_titles and isinstance(container_titles, list):
             return container_titles[0]
+        return None
+
+    def _parse_year(self, item: dict[str, Any]) -> Optional[int]:
+        """Parse publication year from item."""
+        published = item.get("published", {})
+        if published and isinstance(published, dict):
+            date_parts = published.get("date-parts", [])
+            if date_parts and isinstance(date_parts, list) and date_parts[0]:
+                try:
+                    return int(date_parts[0][0])
+                except (ValueError, TypeError, IndexError):
+                    pass
+        return None
+
+    def _parse_abstract(self, item: dict[str, Any]) -> Optional[str]:
+        """Parse abstract from item."""
+        abstract = item.get("abstract")
+        if abstract:
+            import re
+
+            clean_abstract = re.sub(r"<[^>]+>", "", abstract)
+            return clean_abstract.strip()
+        return None
+
+    def _parse_pdf_url(self, item: dict[str, Any]) -> Optional[str]:
+        """Parse PDF URL from item."""
+        links = item.get("link", [])
+        if links and isinstance(links, list):
+            for link in links:
+                content_type = link.get("content-type", "")
+                url = link.get("URL", "")
+                if "application/pdf" in content_type and url:
+                    return url
         return None

@@ -109,11 +109,16 @@ class ArXivCrawler(BaseCrawler):
             title=title,
             authors=authors,
             year=year,
+            doi=None,
             abstract=abstract,
             source=self.name,
             url=url,
             pdf_url=pdf_url,
             journal=journal,
+            volume=None,
+            issue=None,
+            pages=None,
+            citation_count=None,
         )
 
         return result

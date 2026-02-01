@@ -48,13 +48,16 @@ class OpenAlexCrawler(BaseCrawler):
         params = {
             "search": query.query,
             "per-page": str(query.max_results),
-            "filter": "has_fulltext:true",
         }
 
+        filters = []
         if query.year_from:
-            params["filter"] += f",from_publication_date:{query.year_from}-01-01"
+            filters.append(f"from_publication_date:{query.year_from}-01-01")
         if query.year_to:
-            params["filter"] += f",to_publication_date:{query.year_to}-12-31"
+            filters.append(f"to_publication_date:{query.year_to}-12-31")
+
+        if filters:
+            params["filter"] = ",".join(filters)
 
         query_string = "&".join(
             f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items()
@@ -106,6 +109,9 @@ class OpenAlexCrawler(BaseCrawler):
             url=url,
             pdf_url=pdf_url,
             journal=journal,
+            volume=None,
+            issue=None,
+            pages=None,
             citation_count=citation_count,
         )
 
@@ -140,8 +146,23 @@ class OpenAlexCrawler(BaseCrawler):
         return ids.get("doi")
 
     def _parse_abstract(self, item: dict[str, Any]) -> Optional[str]:
-        """Parse abstract from item."""
-        return item.get("abstract_inverted_index")
+        """Parse abstract from inverted index."""
+        inverted_index = item.get("abstract_inverted_index")
+        if not inverted_index:
+            return None
+
+        try:
+            word_positions = []
+            for word, positions in inverted_index.items():
+                for pos in positions:
+                    word_positions.append((pos, word))
+
+            word_positions.sort(key=lambda x: x[0])
+
+            abstract_words = [word for pos, word in word_positions]
+            return " ".join(abstract_words)
+        except (TypeError, AttributeError):
+            return None
 
     def _parse_pdf_url(self, item: dict[str, Any]) -> Optional[str]:
         """Parse PDF URL from item."""

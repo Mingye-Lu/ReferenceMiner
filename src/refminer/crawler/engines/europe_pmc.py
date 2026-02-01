@@ -52,9 +52,9 @@ class EuropePmcCrawler(BaseCrawler):
         }
 
         if query.year_from:
-            params["query"] += f" FIRST_PDATE%3A{query.year_from}"
+            params["query"] += f" FIRST_PDATE:{query.year_from}"
         if query.year_to:
-            params["query"] += f" LAST_PDATE%3A{query.year_to}"
+            params["query"] += f" LAST_PDATE:{query.year_to}"
 
         query_string = "&".join(
             f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items()
@@ -107,6 +107,10 @@ class EuropePmcCrawler(BaseCrawler):
         url = item.get("pmcid")
         pdf_url = self._parse_pdf_url(item)
         journal = self._parse_journal(item)
+        volume = self._parse_volume(item)
+        issue = self._parse_issue(item)
+        pages = self._parse_pages(item)
+        citation_count = item.get("citedByCount")
 
         if url:
             url = f"https://europepmc.org/article/PMC/{url}"
@@ -121,6 +125,10 @@ class EuropePmcCrawler(BaseCrawler):
             url=url,
             pdf_url=pdf_url,
             journal=journal,
+            volume=volume,
+            issue=issue,
+            pages=pages,
+            citation_count=citation_count,
         )
 
         return result
@@ -183,3 +191,20 @@ class EuropePmcCrawler(BaseCrawler):
         journal_info = item.get("journalInfo", {})
         journal = journal_info.get("journal", {})
         return journal.get("title")
+
+    def _parse_volume(self, item: dict[str, Any]) -> Optional[str]:
+        """Parse volume from item."""
+        journal_info = item.get("journalInfo", {})
+        volume = journal_info.get("volume")
+        return str(volume) if volume else None
+
+    def _parse_issue(self, item: dict[str, Any]) -> Optional[str]:
+        """Parse issue from item."""
+        journal_info = item.get("journalInfo", {})
+        issue = journal_info.get("journalIssueId")
+        return str(issue) if issue else None
+
+    def _parse_pages(self, item: dict[str, Any]) -> Optional[str]:
+        """Parse page range from item."""
+        page_info = item.get("pageInfo", "")
+        return page_info if page_info and page_info != "Not Available" else None

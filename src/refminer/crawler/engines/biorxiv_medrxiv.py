@@ -21,7 +21,7 @@ class BiorxivMedrxivCrawler(BaseCrawler):
 
     @property
     def base_url(self) -> str:
-        return "https://api.biorxiv.org/details/biorxiv/medrxiv"
+        return "https://api.biorxiv.org/pub/biorxiv/medrxiv"
 
     @property
     def requires_api_key(self) -> bool:
@@ -94,17 +94,20 @@ class BiorxivMedrxivCrawler(BaseCrawler):
         self, item: dict[str, Any], query: SearchQuery
     ) -> Optional[SearchResult]:
         """Parse a single search result item."""
-        title = item.get("title", "")
+        title = item.get("preprint_title", "")
         if not title:
             return None
 
         authors = self._parse_authors(item)
         year = self._parse_year(item)
-        doi = item.get("doi")
+        doi = item.get("biorxiv_doi")
         abstract = self._parse_abstract(item)
-        url = item.get("biorxiv_url")
-        pdf_url = item.get("pdf_url")
+        url = item.get("biorxiv_doi")
+        pdf_url = self._parse_pdf_url(item)
         journal = item.get("server")
+
+        if url:
+            url = f"https://www.biorxiv.org/content/{url}"
 
         result = SearchResult(
             title=title,
@@ -116,6 +119,10 @@ class BiorxivMedrxivCrawler(BaseCrawler):
             url=url,
             pdf_url=pdf_url,
             journal=journal,
+            volume=None,
+            issue=None,
+            pages=None,
+            citation_count=None,
         )
 
         return result
@@ -123,17 +130,15 @@ class BiorxivMedrxivCrawler(BaseCrawler):
     def _parse_authors(self, item: dict[str, Any]) -> list[str]:
         """Parse authors from item."""
         authors: list[str] = []
-        authors_list = item.get("authors", [])
-
-        authors_list = item.get("authors", "")
-        if authors_list:
-            authors = [a.strip() for a in authors_list.split(";") if a.strip()]
+        authors_text = item.get("authors", "")
+        if authors_text:
+            authors = [a.strip() for a in authors_text.split(";") if a.strip()]
 
         return authors
 
     def _parse_year(self, item: dict[str, Any]) -> Optional[int]:
         """Parse publication year from item."""
-        date = item.get("date", "")
+        date = item.get("preprint_date", "")
         if date:
             try:
                 year_str = date.split("-")[0]
@@ -146,3 +151,10 @@ class BiorxivMedrxivCrawler(BaseCrawler):
         """Parse abstract from item."""
         abstract = item.get("abstract", "")
         return abstract if abstract else None
+
+    def _parse_pdf_url(self, item: dict[str, Any]) -> Optional[str]:
+        """Parse PDF URL from item."""
+        doi = item.get("biorxiv_doi", "")
+        if doi:
+            return f"https://www.biorxiv.org/content/{doi}.full.pdf"
+        return None

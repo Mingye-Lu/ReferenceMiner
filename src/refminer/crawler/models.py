@@ -73,7 +73,7 @@ class CrawlerConfig(BaseModel):
                 enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
             ),
             "semantic_scholar": EngineConfig(
-                enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3
+                enabled=True, rate_limit=1, api_key=None, timeout=30, max_retries=3
             ),
             "arxiv": EngineConfig(
                 enabled=True, rate_limit=10, api_key=None, timeout=30, max_retries=3

@@ -85,6 +85,7 @@ class PubMedCrawler(BaseCrawler):
             "db": "pubmed",
             "id": ",".join(pmids),
             "retmode": "json",
+            "rettype": "abstract",
         }
 
         response = await self._fetch(summary_url, params=params)
@@ -124,16 +125,28 @@ class PubMedCrawler(BaseCrawler):
         authors = self._parse_authors(data)
         year = self._parse_year(data)
         doi = self._parse_doi(data)
+        abstract = self._parse_abstract(data)
+        pdf_url = self._parse_pdf_url(data)
         journal = data.get("source", "")
+        volume = self._parse_volume(data)
+        issue = self._parse_issue(data)
+        pages = self._parse_pages(data)
+        citation_count = self._parse_citation_count(data)
 
         result = SearchResult(
             title=title,
             authors=authors,
             year=year,
             doi=doi,
+            abstract=abstract,
             source=self.name,
             url=f"{self.base_url}/{uid}/",
+            pdf_url=pdf_url,
             journal=journal,
+            volume=volume,
+            issue=issue,
+            pages=pages,
+            citation_count=citation_count,
         )
 
         return result
@@ -168,4 +181,40 @@ class PubMedCrawler(BaseCrawler):
         for aid in article_ids:
             if aid.get("idtype") == "doi":
                 return aid.get("value")
+        return None
+
+    def _parse_abstract(self, data: dict[str, Any]) -> Optional[str]:
+        """Parse abstract from article data."""
+        return data.get("abstract")
+
+    def _parse_pdf_url(self, data: dict[str, Any]) -> Optional[str]:
+        """Parse PDF URL from article data."""
+        pmcid = data.get("pmcid", "")
+        if pmcid:
+            return f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf"
+        return None
+
+    def _parse_volume(self, data: dict[str, Any]) -> Optional[str]:
+        """Parse volume from article data."""
+        volume = data.get("volume", "")
+        return volume if volume else None
+
+    def _parse_issue(self, data: dict[str, Any]) -> Optional[str]:
+        """Parse issue from article data."""
+        issue = data.get("issue", "")
+        return issue if issue else None
+
+    def _parse_pages(self, data: dict[str, Any]) -> Optional[str]:
+        """Parse pages from article data."""
+        pages = data.get("pages", "")
+        return pages if pages else None
+
+    def _parse_citation_count(self, data: dict[str, Any]) -> Optional[int]:
+        """Parse citation count from article data."""
+        pmcrefcount = data.get("pmcrefcount", "")
+        if pmcrefcount:
+            try:
+                return int(pmcrefcount)
+            except (ValueError, TypeError):
+                pass
         return None

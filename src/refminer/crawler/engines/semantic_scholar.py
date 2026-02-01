@@ -64,12 +64,12 @@ class SemanticScholarCrawler(BaseCrawler):
             "fields": ",".join(fields),
         }
 
-        if query.year_from:
-            params["year"] = f"{query.year_from}-"
-        if query.year_to:
-            params["year"] = f"-{query.year_to}"
         if query.year_from and query.year_to:
             params["year"] = f"{query.year_from}-{query.year_to}"
+        elif query.year_from:
+            params["year"] = f"{query.year_from}-"
+        elif query.year_to:
+            params["year"] = f"-{query.year_to}"
 
         query_string = "&".join(f"{k}={v}" for k, v in params.items())
         return f"{self.base_url}?{query_string}"
@@ -119,6 +119,9 @@ class SemanticScholarCrawler(BaseCrawler):
             url=url,
             pdf_url=pdf_url,
             journal=journal,
+            volume=None,
+            issue=None,
+            pages=None,
             citation_count=citation_count,
         )
 
