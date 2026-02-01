@@ -102,15 +102,34 @@ class GoogleScholarCrawler(BaseCrawler):
             return None
 
         title_link = result_engine.find_element(GoogleScholarSelectors.TITLE_LINK)
+        
+        url = None
+        pdf_url = None
+        
         if title_link:
-            title = title_link.get_text(strip=True)
-            url = title_link.get("href", "")
+            raw_title = title_link.get_text(strip=True)
+            link_url = title_link.get("href", "")
+            
+            title = re.sub(r'^\[PDF\]\s*', '', raw_title).strip()
+            
+            link_url_str = str(link_url) if link_url else ""
+            is_pdf_url = '.pdf' in link_url_str.lower() or '/pdf/' in link_url_str.lower()
+            if is_pdf_url:
+                pdf_url = link_url_str
+                url = self._transform_pdf_to_landing_page(link_url_str)
+            else:
+                url = link_url_str
         else:
             title = title_element.get_text(strip=True)
             url = None
 
         if not title:
             return None
+
+        if not pdf_url:
+            pdf_link = result_engine.find_element(GoogleScholarSelectors.PDF_LINK)
+            if pdf_link:
+                pdf_url = pdf_link.get("href", "")
 
         authors, year, journal = self._parse_authors_year_journal(div)
 
@@ -120,6 +139,7 @@ class GoogleScholarCrawler(BaseCrawler):
             year=year,
             source=self.name,
             url=url,
+            pdf_url=pdf_url,
             journal=journal,
         )
 
@@ -150,3 +170,14 @@ class GoogleScholarCrawler(BaseCrawler):
                     journal = parts[-1].strip()
 
         return authors, year, journal
+
+    def _transform_pdf_to_landing_page(self, pdf_url: str) -> Optional[str]:
+        """Transform PDF URL to landing page URL."""
+        if 'arxiv.org/pdf/' in pdf_url:
+            arxiv_id = pdf_url.split('/pdf/')[-1].replace('.pdf', '')
+            return f"https://arxiv.org/abs/{arxiv_id}"
+        
+        if 'biorxiv.org' in pdf_url or 'medrxiv.org' in pdf_url:
+            return pdf_url.replace('.full.pdf', '').replace('.pdf', '')
+        
+        return pdf_url
