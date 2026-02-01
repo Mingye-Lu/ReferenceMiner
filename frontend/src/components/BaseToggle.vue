@@ -56,25 +56,14 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <button
-    class="toggle"
-    :class="{ active: modelValue, disabled }"
-    :style="{ width: toggleWidth, height: toggleHeight }"
-    :disabled="disabled"
-    @click="handleClick"
-    @keydown="handleKeydown"
-    :aria-checked="modelValue"
-    role="switch"
-    tabindex="0"
-  >
-    <span
-      class="toggle-thumb"
-      :style="{
-        width: thumbSize,
-        height: thumbSize,
-        left: modelValue ? thumbLeftOn : thumbLeftOff,
-      }"
-    ></span>
+  <button class="toggle" :class="{ active: modelValue, disabled }" :style="{ width: toggleWidth, height: toggleHeight }"
+    :disabled="disabled" @click="handleClick" @keydown="handleKeydown" :aria-checked="modelValue" role="switch"
+    tabindex="0">
+    <span class="toggle-thumb" :style="{
+      width: thumbSize,
+      height: thumbSize,
+      left: modelValue ? thumbLeftOn : thumbLeftOff,
+    }"></span>
   </button>
 </template>
 
@@ -82,10 +71,10 @@ function handleKeydown(event: KeyboardEvent) {
 .toggle {
   position: relative;
   background: var(--color-neutral-250);
-  border-radius: 999px;
-  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
   display: flex;
   align-items: center;
@@ -116,9 +105,9 @@ function handleKeydown(event: KeyboardEvent) {
   top: 50%;
   transform: translateY(-50%);
   background: white;
-  border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: left 0.2s ease;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-theme="dark"] .toggle {
@@ -142,5 +131,6 @@ function handleKeydown(event: KeyboardEvent) {
 
 [data-theme="dark"] .toggle-thumb {
   background: var(--color-white);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 </style>

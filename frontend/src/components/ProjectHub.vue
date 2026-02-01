@@ -974,7 +974,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {});
+onUnmounted(() => { });
 </script>
 
 <template>
@@ -982,14 +982,7 @@ onUnmounted(() => {});
     <header class="hub-header">
       <div class="header-left">
         <div class="logo">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
           <span>ReferenceMiner</span>
@@ -1011,39 +1004,24 @@ onUnmounted(() => {});
     <!-- Tabs -->
     <div class="hub-tabs">
       <div class="tabs-left">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'projects' }"
-          @click="activeTab = 'projects'"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
           <Search :size="16" />
           <span>Projects</span>
         </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'bank' }"
-          @click="switchToBank"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
           <FileText :size="16" />
           <span>Reference Bank</span>
         </button>
       </div>
       <div class="tabs-right">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'settings' }"
-          @click="activeTab = 'settings'"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
           <Settings :size="16" />
           <span>Settings</span>
         </button>
       </div>
     </div>
 
-    <main
-      class="hub-content"
-      :class="{ 'settings-active': activeTab === 'settings' }"
-    >
+    <main class="hub-content" :class="{ 'settings-active': activeTab === 'settings' }">
       <!-- Projects Tab -->
       <div v-if="activeTab === 'projects'">
         <div v-if="loading" class="loading-state">
@@ -1062,13 +1040,8 @@ onUnmounted(() => {});
         </div>
 
         <div v-else class="project-grid">
-          <ProjectCard
-            v-for="p in projects"
-            :key="p.id"
-            :project="p"
-            @open="openProject"
-            @delete="handleDeleteProject"
-          />
+          <ProjectCard v-for="p in projects" :key="p.id" :project="p" @open="openProject"
+            @delete="handleDeleteProject" />
 
           <div class="create-card" @click="showCreateModal = true">
             <div class="plus-icon">
@@ -1094,14 +1067,10 @@ onUnmounted(() => {});
               <Search :size="14" />
               <span>Search Online</span>
             </button>
-            <button
-              class="bank-action-btn"
-              :disabled="isReprocessing || bankLoading"
-              @click="
-                handleReprocessConfirm($event);
-                showReprocessConfirm = true;
-              "
-            >
+            <button class="bank-action-btn" :disabled="isReprocessing || bankLoading" @click="
+              handleReprocessConfirm($event);
+            showReprocessConfirm = true;
+            ">
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
               <span>{{
                 isReprocessing ? "Reprocessing..." : "Reprocess All"
@@ -1110,65 +1079,41 @@ onUnmounted(() => {});
           </div>
         </div>
 
-        <FileUploader
-          upload-mode="bank"
-          @upload-complete="handleUploadComplete"
-        />
+        <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete" />
 
         <!-- Search & Filter Section -->
         <div v-if="bankFiles.length > 0" class="bank-search-section">
           <div class="bank-search-wrapper">
             <Search :size="16" class="bank-search-icon" />
-            <input
-              v-model="bankSearchQuery"
-              type="text"
-              placeholder="Search by title, author, or filename..."
-              class="bank-search-input"
-            />
+            <input v-model="bankSearchQuery" type="text" placeholder="Search by title, author, or filename..."
+              class="bank-search-input" />
           </div>
 
           <!-- Filter Chips -->
           <div class="bank-filter-chips">
             <!-- File Type Chips -->
-            <button
-              v-for="type in availableBankTypes"
-              :key="type"
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.fileTypes.has(type) }"
-              @click="toggleBankFilter('fileTypes', type)"
-            >
+            <button v-for="type in availableBankTypes" :key="type" class="bank-filter-chip"
+              :class="{ active: bankFilters.fileTypes.has(type) }" @click="toggleBankFilter('fileTypes', type)">
               {{ type.toUpperCase() }}
             </button>
 
             <!-- Year Chips -->
-            <button
-              v-for="year in availableBankYears"
-              :key="year"
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.years.has(year) }"
-              @click="toggleBankFilter('years', year)"
-            >
+            <button v-for="year in availableBankYears" :key="year" class="bank-filter-chip"
+              :class="{ active: bankFilters.years.has(year) }" @click="toggleBankFilter('years', year)">
               {{ year }}
             </button>
 
             <!-- Language Toggle -->
-            <button
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.language === 'zh' }"
-              @click="
-                bankFilters.language =
-                  bankFilters.language === 'zh' ? null : 'zh'
-              "
-            >
+            <button class="bank-filter-chip" :class="{ active: bankFilters.language === 'zh' }" @click="
+              bankFilters.language =
+              bankFilters.language === 'zh' ? null : 'zh'
+              ">
               中文
             </button>
 
             <!-- Clear All Filters -->
-            <button
-              v-if="hasActiveBankFilters || bankSearchQuery"
-              class="bank-filter-chip clear-filters"
-              @click="clearAllBankFilters"
-            >
+            <button v-if="hasActiveBankFilters || bankSearchQuery" class="bank-filter-chip clear-filters"
+              @click="clearAllBankFilters">
               <X :size="12" />
               Clear
             </button>
@@ -1178,11 +1123,7 @@ onUnmounted(() => {});
           <div class="bank-controls-row">
             <div class="bank-sort-controls">
               <span>Sort:</span>
-              <CustomSelect
-                v-model="bankSortBy"
-                :options="bankSortOptions"
-                class="bank-sort-select"
-              />
+              <CustomSelect v-model="bankSortBy" :options="bankSortOptions" class="bank-sort-select" />
             </div>
             <div class="bank-file-count">
               {{ sortedBankFiles.length }}
@@ -1205,27 +1146,13 @@ onUnmounted(() => {});
           <p>Upload files using the button above to get started.</p>
         </div>
 
-        <div
-          v-else-if="sortedBankFiles.length === 0"
-          class="empty-state empty-state-compact"
-        >
+        <div v-else-if="sortedBankFiles.length === 0" class="empty-state empty-state-compact">
           <FileText :size="36" class="empty-icon-svg" />
           <p>No files match your search or filters</p>
         </div>
 
-        <TransitionGroup
-          v-else
-          name="file-list"
-          tag="div"
-          class="file-grid"
-          @before-leave="handleBeforeLeave"
-        >
-          <div
-            v-for="file in sortedBankFiles"
-            :key="file.relPath"
-            class="file-card"
-            @click="handlePreview(file)"
-          >
+        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
+          <div v-for="file in sortedBankFiles" :key="file.relPath" class="file-card" @click="handlePreview(file)">
             <div class="file-icon">
               <FileText :size="24" />
             </div>
@@ -1233,24 +1160,15 @@ onUnmounted(() => {});
               <div class="file-name" :title="getFileName(file.relPath)">
                 {{ getFileName(file.relPath) }}
               </div>
-              <div
-                v-if="file.bibliography?.title"
-                class="file-title"
-                :title="file.bibliography.title"
-              >
+              <div v-if="file.bibliography?.title" class="file-title" :title="file.bibliography.title">
                 {{ truncateText(file.bibliography.title, 60) }}
               </div>
-              <div
-                v-if="file.bibliography?.authors || file.bibliography?.year"
-                class="file-authors"
-              >
+              <div v-if="file.bibliography?.authors || file.bibliography?.year" class="file-authors">
                 {{ formatAuthors(file.bibliography?.authors) }}
-                <span
-                  v-if="
-                    formatAuthors(file.bibliography?.authors) &&
-                    file.bibliography?.year
-                  "
-                >
+                <span v-if="
+                  formatAuthors(file.bibliography?.authors) &&
+                  file.bibliography?.year
+                ">
                   ·
                 </span>
                 {{ file.bibliography?.year }}
@@ -1258,10 +1176,7 @@ onUnmounted(() => {});
               <div class="file-meta">
                 {{ file.fileType }} ·
                 {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
-                <span
-                  v-if="bankFileStats[file.relPath]?.usage_count"
-                  class="usage-badge"
-                >
+                <span v-if="bankFileStats[file.relPath]?.usage_count" class="usage-badge">
                   {{ bankFileStats[file.relPath].usage_count }} project{{
                     bankFileStats[file.relPath].usage_count > 1 ? "s" : ""
                   }}
@@ -1269,18 +1184,11 @@ onUnmounted(() => {});
               </div>
             </div>
             <div class="file-actions">
-              <button
-                class="btn-icon tooltip"
-                data-tooltip="Reprocess file"
-                @click.stop="handleReprocessFile(file, $event)"
-              >
+              <button class="btn-icon tooltip" data-tooltip="Reprocess file"
+                @click.stop="handleReprocessFile(file, $event)">
                 <RefreshCw :size="16" />
               </button>
-              <button
-                class="btn-icon delete tooltip"
-                data-tooltip="Delete file"
-                @click.stop="requestDelete(file)"
-              >
+              <button class="btn-icon delete tooltip" data-tooltip="Delete file" @click.stop="requestDelete(file)">
                 <Trash2 :size="16" />
               </button>
             </div>
@@ -1292,27 +1200,18 @@ onUnmounted(() => {});
       <div v-else-if="activeTab === 'settings'" class="settings-container">
         <aside class="settings-sidebar">
           <nav class="settings-nav">
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'preferences' }"
-              @click="settingsSection = 'preferences'"
-            >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'preferences' }"
+              @click="settingsSection = 'preferences'">
               <Settings :size="18" />
               <span>Preferences</span>
             </button>
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'crawler' }"
-              @click="settingsSection = 'crawler'"
-            >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'crawler' }"
+              @click="settingsSection = 'crawler'">
               <Globe :size="18" />
               <span>Crawler</span>
             </button>
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'advanced' }"
-              @click="settingsSection = 'advanced'"
-            >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'advanced' }"
+              @click="settingsSection = 'advanced'">
               <LayoutGrid :size="18" />
               <span>Advanced</span>
             </button>
@@ -1320,77 +1219,35 @@ onUnmounted(() => {});
         </aside>
 
         <main class="settings-content">
-          <SettingsPreferencesSection
-            v-if="settingsSection === 'preferences'"
-            :current-theme="currentTheme"
-            :theme-options="themeOptions"
-            :on-theme-change="setTheme"
-            :view-mode="viewMode"
-            :pdf-view-options="pdfViewOptions"
-            :on-view-mode-change="setViewMode"
-            :citation-copy-format="citationCopyFormat"
-            :citation-format-options="citationFormatOptions"
-            :is-saving-citation="isSavingCitation"
-            :on-citation-format-change="handleCitationFormatChange"
-            :files-per-page="filesPerPage"
-            :notes-per-page="notesPerPage"
-            :chats-per-page="chatsPerPage"
-            :on-display-setting-change="saveDisplaySetting"
-          />
+          <SettingsPreferencesSection v-if="settingsSection === 'preferences'" :current-theme="currentTheme"
+            :theme-options="themeOptions" :on-theme-change="setTheme" :view-mode="viewMode"
+            :pdf-view-options="pdfViewOptions" :on-view-mode-change="setViewMode"
+            :citation-copy-format="citationCopyFormat" :citation-format-options="citationFormatOptions"
+            :is-saving-citation="isSavingCitation" :on-citation-format-change="handleCitationFormatChange"
+            :files-per-page="filesPerPage" :notes-per-page="notesPerPage" :chats-per-page="chatsPerPage"
+            :on-display-setting-change="saveDisplaySetting" />
 
-          <SettingsCrawlerSection
-            v-else-if="settingsSection === 'crawler'"
-            :crawler-config="crawlerConfig"
-            :on-update="handleCrawlerConfigUpdate"
-          />
+          <SettingsCrawlerSection v-else-if="settingsSection === 'crawler'" :crawler-config="crawlerConfig"
+            :on-update="handleCrawlerConfigUpdate" />
 
-          <SettingsAdvancedSection
-            v-else-if="settingsSection === 'advanced'"
-            :is-loading-settings="isLoadingSettings"
-            :is-saving="isSaving"
-            :is-saving-llm="isSavingLlm"
-            :is-validating="isValidating"
-            :is-checking-update="isCheckingUpdate"
-            :is-resetting="isResetting"
-            :validation-status="validationStatus"
-            :validation-error="validationError"
-            :api-key-status-message="apiKeyStatusMessage"
-            :balance-infos="balanceInfos"
-            :balance-available="balanceAvailable"
-            :save-error="saveError"
-            :llm-save-error="llmSaveError"
-            :llm-save-success="llmSaveSuccess"
-            :reset-error="resetError"
-            :reset-success="resetSuccess"
-            :base-url-input="baseUrlInput"
-            :model-input="modelInput"
-            :update-info="updateInfo"
-            :update-error="updateError"
-            :current-version-label="currentVersionLabel"
-            :last-checked-label="lastCheckedLabel"
-            :update-badge-text="updateBadgeText"
-            :update-badge-class="updateBadgeClass"
-            :provider-options="providerOptions"
-            :selected-provider="selectedProvider"
-            :current-provider-link="currentProviderLink"
-            :current-provider-key="currentProviderKey"
-            :show-api-key="showApiKey"
-            :api-key-input="apiKeyInput"
-            :model-options="modelOptions"
-            :is-loading-models="isLoadingModels"
-            :on-set-provider="setProvider"
-            :on-validate="handleValidate"
-            :on-save-api-key="handleSave"
-            :on-delete-api-key="handleDeleteApiKey"
-            :on-load-models="handleLoadModels"
-            :on-save-llm-settings="handleSaveLlmSettings"
-            :on-update-check="handleUpdateCheck"
-            :on-reset-click="handleResetClick"
-            :on-toggle-show-api-key="toggleShowApiKey"
-            :on-api-key-input="updateApiKeyInput"
-            :on-base-url-input="updateBaseUrlInput"
-            :on-model-input="updateModelInput"
-          />
+          <SettingsAdvancedSection v-else-if="settingsSection === 'advanced'" :is-loading-settings="isLoadingSettings"
+            :is-saving="isSaving" :is-saving-llm="isSavingLlm" :is-validating="isValidating"
+            :is-checking-update="isCheckingUpdate" :is-resetting="isResetting" :validation-status="validationStatus"
+            :validation-error="validationError" :api-key-status-message="apiKeyStatusMessage"
+            :balance-infos="balanceInfos" :balance-available="balanceAvailable" :save-error="saveError"
+            :llm-save-error="llmSaveError" :llm-save-success="llmSaveSuccess" :reset-error="resetError"
+            :reset-success="resetSuccess" :base-url-input="baseUrlInput" :model-input="modelInput"
+            :update-info="updateInfo" :update-error="updateError" :current-version-label="currentVersionLabel"
+            :last-checked-label="lastCheckedLabel" :update-badge-text="updateBadgeText"
+            :update-badge-class="updateBadgeClass" :provider-options="providerOptions"
+            :selected-provider="selectedProvider" :current-provider-link="currentProviderLink"
+            :current-provider-key="currentProviderKey" :show-api-key="showApiKey" :api-key-input="apiKeyInput"
+            :model-options="modelOptions" :is-loading-models="isLoadingModels" :on-set-provider="setProvider"
+            :on-validate="handleValidate" :on-save-api-key="handleSave" :on-delete-api-key="handleDeleteApiKey"
+            :on-load-models="handleLoadModels" :on-save-llm-settings="handleSaveLlmSettings"
+            :on-update-check="handleUpdateCheck" :on-reset-click="handleResetClick"
+            :on-toggle-show-api-key="toggleShowApiKey" :on-api-key-input="updateApiKeyInput"
+            :on-base-url-input="updateBaseUrlInput" :on-model-input="updateModelInput" />
         </main>
       </div>
     </main>
@@ -1398,28 +1255,16 @@ onUnmounted(() => {});
 
   <!-- Create Modal -->
   <Transition name="fade">
-    <div
-      v-if="showCreateModal"
-      class="modal-mask"
-      @click.self="showCreateModal = false"
-    >
+    <div v-if="showCreateModal" class="modal-mask" @click.self="showCreateModal = false">
       <div class="modal-container">
         <h2>Create New Study</h2>
         <div class="form-group">
           <label>Project Name</label>
-          <input
-            v-model="newProjectName"
-            placeholder="e.g. Photovoltaic Research"
-            autofocus
-          />
+          <input v-model="newProjectName" placeholder="e.g. Photovoltaic Research" autofocus />
         </div>
         <div class="form-group">
           <label>Description (Optional)</label>
-          <textarea
-            v-model="newProjectDesc"
-            placeholder="What is this study about?"
-            rows="3"
-          ></textarea>
+          <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
         </div>
         <div class="form-group">
           <label>Initial Content (Optional)</label>
@@ -1439,11 +1284,7 @@ onUnmounted(() => {});
           <button class="btn-secondary" @click="showCreateModal = false">
             Cancel
           </button>
-          <button
-            class="btn-primary"
-            :disabled="!newProjectName.trim() || creating"
-            @click="handleCreate"
-          >
+          <button class="btn-primary" :disabled="!newProjectName.trim() || creating" @click="handleCreate">
             <Loader2 v-if="creating" class="spinner" :size="16" />
             <span>{{ creating ? "Creating..." : "Create Project" }}</span>
           </button>
@@ -1456,66 +1297,34 @@ onUnmounted(() => {});
   <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
   <!-- Delete Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showDeleteModal"
-    title="Delete File?"
-    :message="
-      fileToDelete
-        ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
-        : ''
-    "
-    confirmText="Delete"
-    @confirm="confirmDelete"
-    @cancel="cancelDelete"
-  />
+  <ConfirmationModal v-model="showDeleteModal" title="Delete File?" :message="fileToDelete
+    ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
+    : ''
+    " confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
 
   <!-- Delete Project Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showDeleteProjectModal"
-    title="Delete Project?"
-    :message="
-      projectToDelete
-        ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
-        : ''
-    "
-    confirmText="Delete"
-    @confirm="confirmDeleteProject"
-    @cancel="cancelDeleteProject"
-  />
+  <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?" :message="projectToDelete
+    ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
+    : ''
+    " confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
 
   <!-- Initial File Selector -->
-  <BankFileSelectorModal
-    v-model="showFileSelectorForCreate"
-    :selected-files="selectedFilesForCreate"
-    @confirm="handleInitialFilesSelected"
-  />
+  <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
+    @confirm="handleInitialFilesSelected" />
 
   <!-- Reset Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showResetConfirm"
-    title="Clear All Data?"
+  <ConfirmationModal v-model="showResetConfirm" title="Clear All Data?"
     message="This will permanently delete all indexed chunks, search indexes, and chat sessions. Your files will remain in the reference folder. This action cannot be undone."
-    confirm-text="Clear All Data"
-    cancel-text="Cancel"
-    @confirm="handleResetConfirm"
-  />
+    confirm-text="Clear All Data" cancel-text="Cancel" @confirm="handleResetConfirm" />
 
   <!-- Reprocess Reference Bank -->
-  <ConfirmationModal
-    v-model="showReprocessConfirm"
-    title="Reprocess Reference Bank?"
+  <ConfirmationModal v-model="showReprocessConfirm" title="Reprocess Reference Bank?"
     message="This will delete all indexed data and rebuild from files in reference folder. Your files will remain untouched."
-    confirm-text="Reprocess"
-    cancel-text="Cancel"
-    @confirm="handleReprocessConfirm"
-    @cancel="showReprocessConfirm = false"
-  />
+    confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm"
+    @cancel="showReprocessConfirm = false" />
 
   <!-- Crawler Search Modal -->
-  <CrawlerSearchModal
-    v-model="showCrawlerModal"
-    @download-complete="handleCrawlerDownloadComplete"
-  />
+  <CrawlerSearchModal v-model="showCrawlerModal" @download-complete="handleCrawlerDownloadComplete" />
 </template>
 
 <style scoped>
@@ -1751,11 +1560,12 @@ onUnmounted(() => {});
 }
 
 .btn-secondary {
-  background: var(--color-neutral-170);
+  background: var(--color-neutral-150);
   color: var(--text-primary);
-  border: none;
-  padding: 12px 24px;
+  border: 1px solid var(--border-card);
+  padding: 8px 16px;
   border-radius: 8px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -2371,629 +2181,5 @@ onUnmounted(() => {});
 .empty-state h3 {
   margin: 0 0 8px 0;
   font-size: 18px;
-}
-
-/* Settings Layout */
-.settings-layout {
-  display: flex;
-  height: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.settings-sidebar {
-  width: 280px;
-  border-right: 1px solid var(--border-card);
-  padding: 40px 0;
-  flex-shrink: 0;
-}
-
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 20px;
-}
-
-.settings-nav-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s;
-}
-
-.settings-nav-item:hover {
-  background: var(--bg-card-hover);
-  color: var(--accent-bright);
-}
-
-.settings-nav-item.active {
-  background: var(--accent-soft, var(--color-accent-50));
-  color: var(--accent-color);
-  font-weight: 600;
-}
-
-.settings-content {
-  flex: 1;
-  padding: 30px 60px 30px;
-  overflow-y: auto;
-  position: relative;
-}
-</style>
-
-<style scoped>
-/* Advanced Settings Styles */
-.settings-header {
-  margin-bottom: 24px;
-}
-
-.loading-settings {
-  text-align: center;
-  color: var(--text-secondary);
-  padding: 40px;
-}
-
-.start-settings-content {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* Note: .settings-card, .section-header, .section-icon, .section-title,
-   .section-description, .section-content are defined globally in style.css */
-
-/* Form label/hint overrides for this component */
-.form-hint a {
-  color: var(--accent-color, var(--color-accent-600));
-}
-
-.current-key {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--color-neutral-100);
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.key-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-}
-
-.key-status.valid {
-  color: var(--color-success-700);
-}
-
-.masked-key {
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-
-.btn-link.danger {
-  color: var(--color-danger-700);
-}
-
-.btn-link.danger:hover {
-  text-decoration: underline;
-}
-
-.input-group {
-  display: flex;
-  border: 1px solid var(--color-neutral-250);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.2s;
-}
-
-.input-group:focus-within {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px var(--alpha-accent-10);
-}
-
-.form-input {
-  flex: 1;
-  padding: 10px 12px;
-  border: none;
-  font-size: 14px;
-  font-family: inherit;
-  outline: none;
-  background: var(--bg-input);
-  color: var(--text-primary);
-}
-
-/* Hide browser's native password reveal button */
-.form-input::-ms-reveal,
-.form-input::-ms-clear {
-  display: none;
-}
-
-.input-addon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  background: var(--bg-input);
-  border: none;
-  border-left: 1px solid var(--color-neutral-250);
-  cursor: pointer;
-  color: var(--text-secondary);
-}
-
-.input-addon:hover {
-  color: var(--text-primary);
-  background: var(--bg-card-hover);
-}
-
-.error-message {
-  color: var(--color-danger-700);
-  font-size: 13px;
-}
-
-.success-message {
-  color: var(--color-success-700);
-  font-size: 13px;
-  padding: 10px 12px;
-  background: var(--color-success-50);
-  border-radius: 8px;
-  border: 1px solid var(--color-success-200);
-}
-
-.validation-result {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-}
-
-.validation-result .status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.validation-result .status.valid {
-  color: var(--color-success-700);
-}
-
-.validation-result .status.invalid {
-  color: var(--color-danger-700);
-}
-
-.balance-panel {
-  border: 1px solid var(--color-neutral-250);
-  border-radius: 8px;
-  background: var(--color-neutral-100);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.balance-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.balance-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.balance-warning {
-  font-size: 12px;
-  color: var(--color-danger-700);
-  background: var(--color-danger-50);
-  border: 1px solid var(--color-danger-200);
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.balance-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.balance-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.balance-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.balance-currency {
-  font-weight: 600;
-}
-
-.balance-amount {
-  font-variant-numeric: tabular-nums;
-}
-
-.balance-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.api-input-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.api-input-row .input-group {
-  flex: 1;
-}
-
-.api-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.btn-primary-sm {
-  background: var(--accent-color);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary-sm:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn-primary-sm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-outline {
-  background: transparent;
-  color: var(--accent-color);
-  border: 1px solid var(--accent-color);
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-outline:hover:not(:disabled) {
-  background: var(--accent-soft);
-}
-
-.btn-outline:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.llm-setup-intro {
-  padding: 12px 14px;
-  border: 1px dashed var(--color-neutral-250);
-  border-radius: 10px;
-  background: var(--color-neutral-100);
-}
-
-.llm-setup-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.llm-setup-grid {
-  display: grid;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.llm-setup-step {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--color-neutral-250);
-  border-radius: 12px;
-  background: var(--bg-input);
-}
-
-.step-badge {
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-soft, var(--color-accent-50));
-  color: var(--accent-color, var(--color-accent-600));
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.step-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.step-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.step-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.llm-config-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 4px;
-  gap: 8px;
-}
-
-.model-select-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.model-select-row :deep(.custom-select-wrapper) {
-  flex: 1;
-  min-width: 0;
-}
-
-@media (max-width: 640px) {
-  .llm-config-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .model-select-row {
-    align-items: stretch;
-  }
-
-  .model-select-row .btn {
-    width: 100%;
-  }
-}
-
-/* Note: .danger-zone-card styles are defined globally in style.css */
-
-.btn-danger-action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--color-danger-600);
-  color: white;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  width: fit-content;
-}
-
-.btn-danger-action:hover:not(:disabled) {
-  background: var(--color-danger-700);
-}
-
-.btn-danger-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Updates Section */
-.section-header-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-
-.update-badge {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.update-badge.neutral {
-  background: var(--color-neutral-150);
-  color: var(--text-secondary);
-}
-
-.update-badge.current {
-  background: var(--color-success-50);
-  color: var(--color-success-700);
-}
-
-.update-badge.available {
-  background: var(--color-warning-100);
-  color: var(--color-warning-800);
-}
-
-.update-badge.error {
-  background: var(--color-danger-50);
-  color: var(--color-danger-700);
-}
-
-[data-theme="dark"] .update-badge.neutral {
-  background: var(--color-neutral-800);
-  color: var(--text-secondary);
-}
-
-[data-theme="dark"] .update-badge.current {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--color-success-400);
-}
-
-[data-theme="dark"] .update-badge.available {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--color-warning-400);
-}
-
-[data-theme="dark"] .update-badge.error {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--color-danger-400);
-}
-
-.update-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .api-input-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .api-actions {
-    justify-content: flex-end;
-  }
-}
-
-/* Note: .setting-control .custom-select-wrapper width is set globally in style.css */
-
-/* Radio Inline Group (horizontal) */
-.radio-inline-group {
-  display: flex;
-  gap: 16px;
-}
-
-.radio-inline-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-neutral-250);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: var(--bg-input);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.radio-inline-option:hover {
-  border-color: var(--accent-color);
-  background: var(--color-neutral-100);
-}
-
-.radio-inline-option:has(input:checked) {
-  border-color: var(--accent-color);
-  background: var(--accent-soft, var(--color-accent-50));
-  color: var(--accent-color);
-}
-
-.radio-inline-option input[type="radio"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  appearance: none;
-  -webkit-appearance: none;
-  border: 2px solid var(--color-neutral-300);
-  border-radius: 50%;
-  position: relative;
-  background: var(--bg-card);
-}
-
-.radio-inline-option input[type="radio"]:hover {
-  border-color: var(--accent-color);
-}
-
-.radio-inline-option input[type="radio"]:checked {
-  border-color: var(--accent-color);
-  background: var(--bg-card);
-}
-
-.radio-inline-option input[type="radio"]:checked::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(1);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-color);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.radio-inline-option input[type="radio"]:not(:checked)::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-color);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@media (max-width: 640px) {
-  .radio-inline-group {
-    flex-direction: column;
-    gap: 8px;
-  }
 }
 </style>

@@ -60,7 +60,7 @@ const emitDisplayChange = (
 
     <div class="start-settings-content">
       <!-- Theme Card -->
-      <section class="settings-card">
+      <section class="settings-card updates-card">
         <div class="section-header">
           <div class="section-icon">
             <Sun :size="16" />
@@ -71,20 +71,15 @@ const emitDisplayChange = (
           </div>
         </div>
         <div class="section-content">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Appearance</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Appearance</label>
+              <p class="form-hint">
                 Select light, dark, or match your system settings
               </p>
             </div>
-            <div class="setting-control setting-control--md">
-              <CustomSelect
-                :model-value="currentTheme"
-                :options="themeOptions"
-                @update:model-value="(value) => onThemeChange(value as Theme)"
-              />
-            </div>
+            <CustomSelect :model-value="currentTheme" :options="themeOptions"
+              @update:model-value="(value) => onThemeChange(value as Theme)" />
           </div>
         </div>
       </section>
@@ -101,22 +96,16 @@ const emitDisplayChange = (
           </div>
         </div>
         <div class="section-content">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Default View Mode</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Default View Mode</label>
+              <p class="form-hint">
                 Choose between single page or continuous scrolling
               </p>
             </div>
-            <div class="setting-control setting-control--md">
-              <CustomSelect
-                :model-value="viewMode"
-                :options="pdfViewOptions"
-                @update:model-value="
-                  (value) => onViewModeChange(value as 'single' | 'continuous')
-                "
-              />
-            </div>
+            <CustomSelect :model-value="viewMode" :options="pdfViewOptions" @update:model-value="
+              (value) => onViewModeChange(value as 'single' | 'continuous')
+            " />
           </div>
         </div>
       </section>
@@ -125,23 +114,12 @@ const emitDisplayChange = (
       <section class="settings-card">
         <div class="section-header">
           <div class="section-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path
-                d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21"
-              />
+                d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21" />
               <path
-                d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3"
-              />
+                d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3" />
             </svg>
           </div>
           <div>
@@ -150,21 +128,15 @@ const emitDisplayChange = (
           </div>
         </div>
         <div class="section-content">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">In-Text Citation Style</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">In-Text Citation Style</label>
+              <p class="form-hint">
                 Replaces [C1] markers when copying responses
               </p>
             </div>
-            <div class="setting-control setting-control--lg">
-              <CustomSelect
-                :model-value="citationCopyFormat"
-                :options="citationFormatOptions"
-                :disabled="isSavingCitation"
-                @update:model-value="onCitationFormatChange"
-              />
-            </div>
+            <CustomSelect :model-value="citationCopyFormat" :options="citationFormatOptions"
+              :disabled="isSavingCitation" @update:model-value="onCitationFormatChange" />
           </div>
         </div>
       </section>
@@ -181,25 +153,21 @@ const emitDisplayChange = (
           </div>
         </div>
         <div class="section-content">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Send Message</label>
-              <p class="setting-hint">
-                Configure keyboard shortcut for sending messages
-              </p>
-            </div>
-            <div class="setting-control setting-control--lg">
-              <div class="radio-inline-group">
-                <label class="radio-inline-option">
-                  <input type="radio" name="submitKey" value="enter" checked />
-                  <span>Enter</span>
-                </label>
-                <label class="radio-inline-option">
-                  <input type="radio" name="submitKey" value="ctrl-enter" />
-                  <span>Ctrl+Enter</span>
-                </label>
+          <div class="radio-group-vertical">
+            <label class="radio-option">
+              <input type="radio" name="submitKey" value="enter" checked @change="$emit('updateShortcut', 'enter')" />
+              <div class="radio-option-content">
+                <span class="radio-option-label">Enter to send</span>
+                <span class="radio-option-desc">Shift+Enter for new line</span>
               </div>
-            </div>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="submitKey" value="ctrl-enter" @change="$emit('updateShortcut', 'ctrl-enter')" />
+              <div class="radio-option-content">
+                <span class="radio-option-label">Ctrl+Enter to send</span>
+                <span class="radio-option-desc">Enter for new line</span>
+              </div>
+            </label>
           </div>
         </div>
       </section>
@@ -219,59 +187,44 @@ const emitDisplayChange = (
         </div>
         <div class="section-content">
           <!-- Files Limit -->
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Project Files Limit</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Project Files Limit</label>
+              <p class="form-hint">
                 Items per page in sidebar (0 for unlimited)
               </p>
             </div>
-            <div class="setting-control setting-control--sm">
-              <input
-                type="number"
-                min="0"
-                class="form-input"
-                :value="filesPerPage"
-                @input="(event) => emitDisplayChange('filesPerPage', event)"
-              />
+            <div class="input-group" style="width: 120px">
+              <input type="number" min="0" class="form-input" :value="filesPerPage"
+                @input="(event) => emitDisplayChange('filesPerPage', event)" />
             </div>
           </div>
 
           <!-- Notes Limit -->
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Pinned Notes Limit</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Pinned Notes Limit</label>
+              <p class="form-hint">
                 Notes per page in sidebar (0 for unlimited)
               </p>
             </div>
-            <div class="setting-control setting-control--sm">
-              <input
-                type="number"
-                min="0"
-                class="form-input"
-                :value="notesPerPage"
-                @input="(event) => emitDisplayChange('notesPerPage', event)"
-              />
+            <div class="input-group" style="width: 120px">
+              <input type="number" min="0" class="form-input" :value="notesPerPage"
+                @input="(event) => emitDisplayChange('notesPerPage', event)" />
             </div>
           </div>
 
           <!-- Chats Limit -->
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Chat List Limit</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Chat List Limit</label>
+              <p class="form-hint">
                 Chats per page in sidebar (0 for unlimited)
               </p>
             </div>
-            <div class="setting-control setting-control--sm">
-              <input
-                type="number"
-                min="0"
-                class="form-input"
-                :value="chatsPerPage"
-                @input="(event) => emitDisplayChange('chatsPerPage', event)"
-              />
+            <div class="input-group" style="width: 120px">
+              <input type="number" min="0" class="form-input" :value="chatsPerPage"
+                @input="(event) => emitDisplayChange('chatsPerPage', event)" />
             </div>
           </div>
         </div>

@@ -70,13 +70,8 @@ onBeforeUnmount(() => {
     </div>
     <transition name="custom-select">
       <div v-if="isOpen" class="custom-options">
-        <div
-          v-for="option in options"
-          :key="option.value"
-          class="custom-option"
-          :class="{ selected: option.value === modelValue }"
-          @click="selectOption(option)"
-        >
+        <div v-for="option in options" :key="option.value" class="custom-option"
+          :class="{ selected: option.value === modelValue }" @click="selectOption(option)">
           {{ option.label }}
         </div>
       </div>
@@ -87,8 +82,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .custom-select-wrapper {
   position: relative;
-  width: 100%;
-  min-width: 120px;
+  width: auto;
+  min-width: 160px;
 }
 
 .custom-select-trigger {
@@ -101,7 +96,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  width: 100%;
+  min-width: 200px;
 }
 
 .custom-select-trigger:hover {

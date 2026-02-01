@@ -85,9 +85,7 @@ const onInput = (event: Event, handler: (value: string) => void) => {
       </p>
     </div>
 
-    <div v-if="isLoadingSettings" class="loading-settings">
-      Loading settings...
-    </div>
+    <div v-if="isLoadingSettings" class="loading-settings">Loading settings...</div>
 
     <div v-else class="start-settings-content">
       <!-- API Configuration Section -->
@@ -124,9 +122,7 @@ const onInput = (event: Event, handler: (value: string) => void) => {
                 <CustomSelect
                   :model-value="selectedProvider"
                   :options="providerOptions"
-                  @update:model-value="
-                    (value) => onSetProvider(value as string)
-                  "
+                  @update:model-value="(value) => onSetProvider(value as string)"
                 />
               </div>
             </div>
@@ -383,10 +379,10 @@ const onInput = (event: Event, handler: (value: string) => void) => {
         </div>
 
         <div class="section-content">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Check for Updates</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Check for Updates</label>
+              <p class="form-hint">
                 <template v-if="updateInfo?.isUpdateAvailable">
                   Version {{ updateInfo.latest?.version }} is available
                 </template>
@@ -396,26 +392,24 @@ const onInput = (event: Event, handler: (value: string) => void) => {
                 <template v-else>Check GitHub for new releases</template>
               </p>
             </div>
-            <div class="setting-control">
-              <div class="update-actions">
-                <a
-                  v-if="
-                    updateInfo?.isUpdateAvailable && updateInfo?.latest?.url
-                  "
-                  class="btn btn-primary-sm"
-                  :href="updateInfo.latest.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >Download</a
-                >
-                <button
-                  class="btn btn-outline"
-                  @click="onUpdateCheck"
-                  :disabled="isCheckingUpdate"
-                >
-                  {{ isCheckingUpdate ? "Checking..." : "Check" }}
-                </button>
-              </div>
+            <div class="update-actions">
+              <a
+                v-if="
+                  updateInfo?.isUpdateAvailable && updateInfo?.latest?.url
+                "
+                class="btn btn-primary-sm"
+                :href="updateInfo.latest.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Download</a
+              >
+              <button
+                class="btn btn-outline"
+                @click="onUpdateCheck"
+                :disabled="isCheckingUpdate"
+              >
+                {{ isCheckingUpdate ? "Checking..." : "Check" }}
+              </button>
             </div>
           </div>
           <div v-if="updateError" class="error-message">{{ updateError }}</div>

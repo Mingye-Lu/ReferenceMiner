@@ -71,7 +71,7 @@ async function autoSave(config: CrawlerConfig) {
 
     <div v-if="!localConfig" class="loading-settings">Loading settings...</div>
 
-    <div v-else class="crawler-settings">
+    <div v-else class="start-settings-content">
       <section class="settings-card">
         <div class="section-header">
           <div class="section-icon">
@@ -86,10 +86,10 @@ async function autoSave(config: CrawlerConfig) {
         </div>
 
         <div class="section-content">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Enable Crawler</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Enable Crawler</label>
+              <p class="form-hint">
                 Enable or disable the web crawler functionality
               </p>
             </div>
@@ -98,10 +98,10 @@ async function autoSave(config: CrawlerConfig) {
             </div>
           </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Auto-Download</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Auto-Download</label>
+              <p class="form-hint">
                 Automatically trigger download flow after search (still requires
                 confirmation)
               </p>
@@ -111,39 +111,33 @@ async function autoSave(config: CrawlerConfig) {
             </div>
           </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Max Results per Engine</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Max Results per Engine</label>
+              <p class="form-hint">
                 Maximum number of results to fetch from each engine
               </p>
             </div>
-            <div class="setting-control setting-control--sm">
-              <input
-                type="number"
-                v-model.number="localConfig.max_results_per_engine"
-                min="5"
-                max="100"
-                class="form-input"
-              />
+            <div class="setting-control">
+              <div class="input-group" style="width: 120px">
+                <input type="number" v-model.number="localConfig.max_results_per_engine" min="5" max="100"
+                  class="form-input" />
+              </div>
             </div>
           </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Global Timeout (seconds)</label>
-              <p class="setting-hint">
+          <div class="pref-setting-row">
+            <div class="pref-setting-info">
+              <label class="form-label">Global Timeout (seconds)</label>
+              <p class="form-hint">
                 Default timeout for all crawler operations
               </p>
             </div>
-            <div class="setting-control setting-control--sm">
-              <input
-                type="number"
-                v-model.number="localConfig.timeout_seconds"
-                min="5"
-                max="120"
-                class="form-input"
-              />
+            <div class="setting-control">
+              <div class="input-group" style="width: 120px">
+                <input type="number" v-model.number="localConfig.timeout_seconds" min="5" max="120"
+                  class="form-input" />
+              </div>
             </div>
           </div>
         </div>
@@ -163,55 +157,45 @@ async function autoSave(config: CrawlerConfig) {
         </div>
 
         <div class="section-content">
-          <div
-            v-for="(engineConfig, engineName) in localConfig.engines"
-            :key="engineName"
-            class="settings-card-nested"
-          >
-            <div class="nested-header">
-              <h4 class="nested-title">{{ engineName }}</h4>
-              <p class="nested-desc">
+          <div v-for="(engineConfig, engineName) in localConfig.engines" :key="engineName"
+            class="llm-setup-step full-width">
+            <div class="step-body">
+              <div class="step-title">{{ engineName }}</div>
+              <p class="step-desc">
                 {{ engineDescriptions[engineName] || "" }}
               </p>
-            </div>
 
-            <div class="nested-controls">
-              <div class="setting-row">
-                <div class="setting-info">
-                  <label class="setting-label">Enabled</label>
+              <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 8px;">
+                <div class="pref-setting-row">
+                  <div class="pref-setting-info">
+                    <label class="form-label">Enabled</label>
+                  </div>
+                  <div class="setting-control">
+                    <BaseToggle v-model="engineConfig.enabled" />
+                  </div>
                 </div>
-                <div class="setting-control">
-                  <BaseToggle v-model="engineConfig.enabled" />
-                </div>
-              </div>
 
-              <div class="setting-row">
-                <div class="setting-info">
-                  <label class="setting-label">Rate Limit (req/min)</label>
+                <div class="pref-setting-row">
+                  <div class="pref-setting-info">
+                    <label class="form-label">Rate Limit (req/min)</label>
+                  </div>
+                  <div class="setting-control">
+                    <div class="input-group" style="width: 120px">
+                      <input type="number" v-model.number="engineConfig.rate_limit" min="1" max="60"
+                        class="form-input" />
+                    </div>
+                  </div>
                 </div>
-                <div class="setting-control setting-control--sm">
-                  <input
-                    type="number"
-                    v-model.number="engineConfig.rate_limit"
-                    min="1"
-                    max="60"
-                    class="form-input"
-                  />
-                </div>
-              </div>
 
-              <div class="setting-row">
-                <div class="setting-info">
-                  <label class="setting-label">Timeout (seconds)</label>
-                </div>
-                <div class="setting-control setting-control--sm">
-                  <input
-                    type="number"
-                    v-model.number="engineConfig.timeout"
-                    min="5"
-                    max="120"
-                    class="form-input"
-                  />
+                <div class="pref-setting-row">
+                  <div class="pref-setting-info">
+                    <label class="form-label">Timeout (seconds)</label>
+                  </div>
+                  <div class="setting-control">
+                    <div class="input-group" style="width: 120px">
+                      <input type="number" v-model.number="engineConfig.timeout" min="5" max="120" class="form-input" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,14 +1,17 @@
+/* Settings Container Layout */
 .settings-container {
   display: flex;
   height: 100%;
   gap: 0;
 }
 
+/* Settings Sidebar */
 .settings-sidebar {
   width: 240px;
   border-right: 1px solid var(--border-color);
   background: var(--color-neutral-100);
   padding: 24px 0;
+  flex-shrink: 0;
 }
 
 .settings-nav {
@@ -50,17 +53,19 @@
   color: currentColor;
 }
 
+/* Settings Content Area */
 .settings-content {
   flex: 1;
   padding: 30px 60px 30px;
   overflow-y: auto;
-  position: relative;
 }
 
 .settings-section-container {
   width: 100%;
+  max-width: 800px;
 }
 
+/* Settings Section Headers */
 .settings-header {
   margin-bottom: 24px;
 }
@@ -91,11 +96,13 @@
   padding: 40px;
 }
 
-.settings-container .form-hint a {
-  color: var(--accent-color, var(--color-accent-600));
-}
+/* Settings Card */
+/* Settings Card styles removed - see style.css */
 
-.settings-container .current-key {
+/* API / Common Forms */
+/* Form Label/Hint styles removed - see style.css */
+
+.current-key {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -105,18 +112,18 @@
   font-size: 13px;
 }
 
-.settings-container .key-status {
+.key-status {
   display: flex;
   align-items: center;
   gap: 4px;
   font-weight: 500;
 }
 
-.settings-container .key-status.valid {
+.key-status.valid {
   color: var(--color-success-700);
 }
 
-.settings-container .masked-key {
+.masked-key {
   font-family: monospace;
   font-size: 12px;
   color: var(--text-secondary);
@@ -126,7 +133,7 @@
   text-overflow: ellipsis;
 }
 
-.settings-container .btn-link {
+.btn-link {
   background: none;
   border: none;
   font-size: 13px;
@@ -134,15 +141,15 @@
   padding: 4px 8px;
 }
 
-.settings-container .btn-link.danger {
+.btn-link.danger {
   color: var(--color-danger-700);
 }
 
-.settings-container .btn-link.danger:hover {
+.btn-link.danger:hover {
   text-decoration: underline;
 }
 
-.settings-container .input-group {
+.input-group {
   display: flex;
   border: 1px solid var(--color-neutral-250);
   border-radius: 8px;
@@ -150,28 +157,14 @@
   transition: all 0.2s;
 }
 
-.settings-container .input-group:focus-within {
+.input-group:focus-within {
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px var(--alpha-accent-10);
 }
 
-.settings-container .input-group .form-input {
-  flex: 1;
-  padding: 10px 12px;
-  border: none;
-  font-size: 14px;
-  font-family: inherit;
-  outline: none;
-  background: var(--bg-input);
-  color: var(--text-primary);
-}
+/* Form Input styles removed - see style.css */
 
-.settings-container .form-input::-ms-reveal,
-.settings-container .form-input::-ms-clear {
-  display: none;
-}
-
-.settings-container .input-addon {
+.input-addon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -183,17 +176,17 @@
   color: var(--text-secondary);
 }
 
-.settings-container .input-addon:hover {
+.input-addon:hover {
   color: var(--text-primary);
   background: var(--bg-card-hover);
 }
 
-.settings-container .error-message {
+.error-message {
   color: var(--color-danger-700);
   font-size: 13px;
 }
 
-.settings-container .success-message {
+.success-message {
   color: var(--color-success-700);
   font-size: 13px;
   padding: 10px 12px;
@@ -202,14 +195,14 @@
   border: 1px solid var(--color-success-200);
 }
 
-.settings-container .validation-result {
+.validation-result {
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
 }
 
-.settings-container .validation-result .status {
+.validation-result .status {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -217,15 +210,15 @@
   font-weight: 500;
 }
 
-.settings-container .validation-result .status.valid {
+.validation-result .status.valid {
   color: var(--color-success-700);
 }
 
-.settings-container .validation-result .status.invalid {
+.validation-result .status.invalid {
   color: var(--color-danger-700);
 }
 
-.settings-container .balance-panel {
+.balance-panel {
   border: 1px solid var(--color-neutral-250);
   border-radius: 8px;
   background: var(--color-neutral-100);
@@ -235,20 +228,20 @@
   gap: 8px;
 }
 
-.settings-container .balance-header {
+.balance-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.settings-container .balance-title {
+.balance-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.settings-container .balance-warning {
+.balance-warning {
   font-size: 12px;
   color: var(--color-danger-700);
   background: var(--color-danger-50);
@@ -257,19 +250,19 @@
   border-radius: 999px;
 }
 
-.settings-container .balance-list {
+.balance-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.settings-container .balance-item {
+.balance-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.settings-container .balance-line {
+.balance-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -278,36 +271,36 @@
   color: var(--text-primary);
 }
 
-.settings-container .balance-currency {
+.balance-currency {
   font-weight: 600;
 }
 
-.settings-container .balance-amount {
+.balance-amount {
   font-variant-numeric: tabular-nums;
 }
 
-.settings-container .balance-meta {
+.balance-meta {
   font-size: 12px;
   color: var(--text-secondary);
 }
 
-.settings-container .api-input-row {
+.api-input-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.settings-container .api-input-row .input-group {
+.api-input-row .input-group {
   flex: 1;
 }
 
-.settings-container .api-actions {
+.api-actions {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.settings-container .btn-primary-sm {
+.btn-primary-sm {
   background: var(--accent-color);
   color: white;
   border: none;
@@ -319,16 +312,16 @@
   transition: all 0.2s;
 }
 
-.settings-container .btn-primary-sm:hover:not(:disabled) {
+.btn-primary-sm:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 
-.settings-container .btn-primary-sm:disabled {
+.btn-primary-sm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.settings-container .btn-outline {
+.btn-outline {
   background: transparent;
   color: var(--accent-color);
   border: 1px solid var(--accent-color);
@@ -340,36 +333,36 @@
   transition: all 0.2s;
 }
 
-.settings-container .btn-outline:hover:not(:disabled) {
+.btn-outline:hover:not(:disabled) {
   background: var(--accent-soft);
 }
 
-.settings-container .btn-outline:disabled {
+.btn-outline:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.settings-container .llm-setup-intro {
+.llm-setup-intro {
   padding: 12px 14px;
   border: 1px dashed var(--color-neutral-250);
   border-radius: 10px;
   background: var(--color-neutral-100);
 }
 
-.settings-container .llm-setup-title {
+.llm-setup-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
 
-.settings-container .llm-setup-grid {
+.llm-setup-grid {
   display: grid;
   gap: 16px;
   margin-top: 16px;
 }
 
-.settings-container .llm-setup-step {
+.llm-setup-step {
   display: grid;
   grid-template-columns: 28px 1fr;
   gap: 12px;
@@ -379,7 +372,13 @@
   background: var(--bg-input);
 }
 
-.settings-container .step-badge {
+.llm-setup-step.full-width {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-badge {
   width: 26px;
   height: 26px;
   border-radius: 999px;
@@ -392,187 +391,48 @@
   font-weight: 600;
 }
 
-.settings-container .step-body {
+.step-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
 }
 
-.settings-container .step-title {
+.step-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.settings-container .step-desc {
+.step-desc {
   font-size: 12px;
   color: var(--text-secondary);
   margin: 0;
 }
 
-.settings-container .llm-config-actions {
+.llm-config-actions {
   display: flex;
   justify-content: flex-end;
   padding-top: 4px;
   gap: 8px;
 }
 
-.settings-container .model-select-row {
+.model-select-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.settings-container .model-select-row .custom-select-wrapper {
+.model-select-row :deep(.custom-select-wrapper) {
   flex: 1;
   min-width: 0;
 }
 
-.settings-container .section-header-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
+/* Danger Zone */
+/* Danger Zone styles removed - see style.css */
 
-.settings-container .update-badge {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.settings-container .update-badge.neutral {
-  background: var(--color-neutral-150);
-  color: var(--text-secondary);
-}
-
-.settings-container .update-badge.current {
-  background: var(--color-success-50);
-  color: var(--color-success-700);
-}
-
-.settings-container .update-badge.available {
-  background: var(--color-warning-100);
-  color: var(--color-warning-800);
-}
-
-.settings-container .update-badge.error {
-  background: var(--color-danger-50);
-  color: var(--color-danger-700);
-}
-
-[data-theme="dark"] .settings-container .update-badge.neutral {
-  background: var(--color-neutral-800);
-  color: var(--text-secondary);
-}
-
-[data-theme="dark"] .settings-container .update-badge.current {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--color-success-400);
-}
-
-[data-theme="dark"] .settings-container .update-badge.available {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--color-warning-400);
-}
-
-[data-theme="dark"] .settings-container .update-badge.error {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--color-danger-400);
-}
-
-.settings-container .update-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.settings-container .radio-inline-group {
-  display: flex;
-  gap: 16px;
-}
-
-.settings-container .radio-inline-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-neutral-250);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: var(--bg-input);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.settings-container .radio-inline-option:hover {
-  border-color: var(--accent-color);
-  background: var(--color-neutral-100);
-}
-
-.settings-container .radio-inline-option:has(input:checked) {
-  border-color: var(--accent-color);
-  background: var(--accent-soft, var(--color-accent-50));
-  color: var(--accent-color);
-}
-
-.settings-container .radio-inline-option input[type="radio"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  appearance: none;
-  -webkit-appearance: none;
-  border: 2px solid var(--color-neutral-300);
-  border-radius: 50%;
-  position: relative;
-  background: var(--bg-card);
-}
-
-.settings-container .radio-inline-option input[type="radio"]:hover {
-  border-color: var(--accent-color);
-}
-
-.settings-container .radio-inline-option input[type="radio"]:checked {
-  border-color: var(--accent-color);
-  background: var(--bg-card);
-}
-
-.settings-container .radio-inline-option input[type="radio"]:checked::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(1);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-color);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.settings-container
-  .radio-inline-option
-  input[type="radio"]:not(:checked)::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-color);
-}
-
-.settings-container .btn-danger-action {
+.btn-danger-action {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -589,35 +449,232 @@
   width: fit-content;
 }
 
-.settings-container .btn-danger-action:hover:not(:disabled) {
+.btn-danger-action:hover:not(:disabled) {
   background: var(--color-danger-700);
 }
 
-.settings-container .btn-danger-action:disabled {
+.btn-danger-action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
-  .settings-container .llm-config-actions {
+/* Updates Badge */
+.section-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.update-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.update-badge.neutral {
+  background: var(--color-neutral-150);
+  color: var(--text-secondary);
+}
+
+.update-badge.current {
+  background: var(--color-success-50);
+  color: var(--color-success-700);
+}
+
+.update-badge.available {
+  background: var(--color-warning-100);
+  color: var(--color-warning-800);
+}
+
+.update-badge.error {
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
+}
+
+[data-theme="dark"] .update-badge.neutral {
+  background: var(--color-neutral-800);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .update-badge.current {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--color-success-400);
+}
+
+[data-theme="dark"] .update-badge.available {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning-400);
+}
+
+[data-theme="dark"] .update-badge.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger-400);
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Preferences Section Styles - LEGACY */
+.pref-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.pref-setting-info {
+  flex: 1;
+}
+
+.pref-setting-info .form-label {
+  margin-bottom: 4px;
+}
+
+.pref-setting-info .form-hint {
+  margin: 0;
+}
+
+.pref-setting-row :deep(.custom-select-wrapper) {
+  min-width: 160px;
+}
+
+/* Radio Group Vertical - LEGACY */
+.radio-group-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-neutral-250);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg-input);
+}
+
+.radio-option:hover {
+  border-color: var(--accent-color);
+  background: var(--color-neutral-100);
+}
+
+.radio-option:has(input:checked) {
+  border-color: var(--accent-color);
+  background: var(--accent-soft, var(--color-accent-50));
+}
+
+.radio-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  margin-top: 1px;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid var(--color-neutral-300);
+  border-radius: 50%;
+  position: relative;
+  background: var(--bg-card);
+}
+
+.radio-option input[type="radio"]:hover {
+  border-color: var(--accent-color);
+}
+
+.radio-option input[type="radio"]:checked {
+  border-color: var(--accent-color);
+  background: var(--bg-card);
+}
+
+.radio-option input[type="radio"]:checked::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.radio-option input[type="radio"]:not(:checked)::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.radio-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.radio-option-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.radio-option-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Responsive Styles */
+@media (max-width: 1050px) {
+  .pref-setting-row {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .pref-setting-row .custom-select-wrapper {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+
+  .pref-setting-row,
+  .api-input-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .api-input-row {
     align-items: stretch;
   }
 
-  .settings-container .model-select-row {
-    align-items: stretch;
-  }
-
-  .settings-container .model-select-row .btn {
+  .pref-setting-row .custom-select-wrapper {
     width: 100%;
   }
 
-  .settings-container .api-input-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .settings-container .api-actions {
+  .api-actions {
     justify-content: flex-end;
   }
 }
+
+/* Crawler Nested (Retained for compatibility) */
+/* Nested Settings Card styles removed - see style.css */
