@@ -7,12 +7,20 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 from refminer.crawler import CrawlerManager, PDFDownloader, SearchQuery
 from refminer.crawler.models import CrawlerConfig, SearchResult
+from refminer.ingest.incremental import full_ingest_single_file
 from refminer.server.globals import get_bank_paths, queue_events, queue_store
 
 logger = logging.getLogger(__name__)
+
+
+class BatchDownloadRequest(BaseModel):
+    results: list[SearchResult]
+    overwrite: bool = False
+
 
 router = APIRouter(prefix="/api/crawler", tags=["crawler"])
 
@@ -92,67 +100,83 @@ async def download_papers(
 
 @router.post("/batch-download/stream")
 async def batch_download_stream(
-    results: list[SearchResult],
-    overwrite: bool = False,
+    req: BatchDownloadRequest,
 ) -> dict[str, Any]:
-    """Batch download with queue job and SSE streaming."""
-    job = queue_store.create_job(
-        job_type="crawler_download",
-        scope="global",
-        name="Batch download papers",
-        status="pending",
-        phase="initializing",
-    )
+    """Batch download with per-file queue jobs."""
+    ref_dir, idx_dir = get_bank_paths()
+    job_ids = []
 
-    queue_store.update_job(
-        job["id"],
-        status="processing",
-        phase="downloading",
-        progress=0,
-    )
-
-    ref_dir, _ = get_bank_paths()
-
-    async def _run_download():
+    async def _run_single_download(result: SearchResult, job_id: str):
+        """Download and ingest a single paper."""
         try:
-
-            def progress_callback(i: int, total: int, title: str) -> None:
-                queue_store.update_job(
-                    job["id"],
-                    progress=int((i / total) * 100) if total > 0 else 0,
-                )
-
-            downloader = PDFDownloader(
-                ref_dir,
-                progress_callback=progress_callback,
+            queue_store.update_job(
+                job_id,
+                status="processing",
+                phase="downloading",
+                progress=10,
             )
 
+            downloader = PDFDownloader(ref_dir)
             async with downloader:
-                downloads = await downloader.download_batch(results, overwrite)
+                pdf_path = await downloader.download(result, req.overwrite)
 
-            success_count = sum(1 for path in downloads.values() if path is not None)
+            if not pdf_path:
+                queue_store.update_job(
+                    job_id,
+                    status="failed",
+                    phase="error",
+                    error="Failed to download PDF",
+                    progress=100,
+                )
+                logger.warning(f"[Crawler] Failed to download: {result.title}")
+                return
 
             queue_store.update_job(
-                job["id"],
+                job_id,
+                status="processing",
+                phase="ingesting",
+                progress=30,
+            )
+
+            entry = full_ingest_single_file(
+                pdf_path,
+                references_dir=ref_dir,
+                index_dir=idx_dir,
+                build_vectors=True,
+            )
+
+            queue_store.update_job(
+                job_id,
                 status="complete",
                 phase="done",
                 progress=100,
+                rel_path=entry.rel_path,
+                name=Path(entry.rel_path).name,
             )
 
-            logger.info(
-                f"[Crawler] Batch download complete: {success_count}/{len(results)}"
-            )
+            logger.info(f"[Crawler] Downloaded and ingested: {result.title}")
+
         except Exception as e:
-            logger.error(f"[Crawler] Batch download failed: {e}", exc_info=True)
+            logger.error(f"[Crawler] Failed to process {result.title}: {e}", exc_info=True)
             queue_store.update_job(
-                job["id"],
+                job_id,
                 status="failed",
                 phase="error",
                 error=str(e),
+                progress=100,
             )
 
     import asyncio
 
-    asyncio.create_task(_run_download())
+    for result in req.results:
+        job = queue_store.create_job(
+            job_type="crawler_download_single",
+            scope="bank",
+            name=result.title[:100],
+            status="pending",
+            phase="initializing",
+        )
+        job_ids.append(job["id"])
+        asyncio.create_task(_run_single_download(result, job["id"]))
 
-    return {"job_id": job["id"], "status": "queued"}
+    return {"job_ids": job_ids, "status": "queued", "count": len(job_ids)}

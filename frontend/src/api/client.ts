@@ -1588,7 +1588,6 @@ import type {
   CrawlerConfig,
   CrawlerSearchQuery,
   CrawlerSearchResult,
-  CrawlerDownloadResult,
 } from "../types";
 
 export async function fetchCrawlerEngines(): Promise<{
@@ -1629,22 +1628,10 @@ export async function searchPapers(
   return data;
 }
 
-export type CrawlerDownloadEventHandler = {
-  onStart?: (total: number) => void;
-  onProgress?: (
-    current: number,
-    total: number,
-    result: CrawlerDownloadResult,
-  ) => void;
-  onComplete?: (results: CrawlerDownloadResult[]) => void;
-  onError?: (error: string) => void;
-};
-
-export async function downloadPapersStream(
+export async function downloadPapersQueueStream(
   results: CrawlerSearchResult[],
-  overwrite: boolean,
-  handlers: CrawlerDownloadEventHandler,
-): Promise<void> {
+  overwrite: boolean = false,
+): Promise<{ jobIds: string[]; status: string; count: number }> {
   const response = await fetch(
     `${API_BASE}/api/crawler/batch-download/stream`,
     {
@@ -1654,65 +1641,15 @@ export async function downloadPapersStream(
     },
   );
 
-  if (!response.ok || !response.body) {
+  if (!response.ok) {
     const detail = await response.text();
-    handlers.onError?.(detail || "Download request failed");
-    return;
+    throw new Error(detail || "Download request failed");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
-  const downloadResults: CrawlerDownloadResult[] = [];
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary !== -1) {
-      const raw = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-
-      let event = "message";
-      let data = "";
-      for (const line of raw.split("\n")) {
-        if (line.startsWith("event:")) {
-          event = line.replace("event:", "").trim();
-        } else if (line.startsWith("data:")) {
-          data += line.replace("data:", "").trim();
-        }
-      }
-
-      if (data) {
-        try {
-          const payload = JSON.parse(data);
-
-          if (event === "start") {
-            const total = payload.total ?? 0;
-            handlers.onStart?.(total);
-          } else if (event === "progress") {
-            const result: CrawlerDownloadResult = {
-              hash: payload.hash ?? "",
-              success: payload.success ?? false,
-              path: payload.path ?? null,
-              error: payload.error ?? null,
-            };
-            downloadResults.push(result);
-            const current = payload.current ?? 0;
-            const total = payload.total ?? 0;
-            handlers.onProgress?.(current, total, result);
-          } else if (event === "complete") {
-            handlers.onComplete?.(downloadResults);
-          } else if (event === "error") {
-            handlers.onError?.(payload.message ?? "Download failed");
-          }
-        } catch (e) {
-          console.error("[crawler-download] Parse error:", e);
-        }
-      }
-      boundary = buffer.indexOf("\n\n");
-    }
-  }
+  const data = await response.json();
+  return {
+    jobIds: data.job_ids ?? [],
+    status: data.status ?? "queued",
+    count: data.count ?? 0,
+  };
 }

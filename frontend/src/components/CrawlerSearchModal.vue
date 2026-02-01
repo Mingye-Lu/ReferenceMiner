@@ -9,14 +9,13 @@ import semanticScholarIcon from "../assets/semantic-scholar.svg";
 import type {
   CrawlerSearchResult,
   CrawlerSearchQuery,
-  CrawlerDownloadResult,
-  ManifestEntry,
 } from "../types";
 import {
   searchPapers,
-  downloadPapersStream,
+  downloadPapersQueueStream,
   fetchCrawlerConfig,
 } from "../api/client";
+import { useQueue } from "../composables/useQueue";
 import {
   Search,
   ChevronDown,
@@ -31,8 +30,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
-  (e: "downloadComplete", entries: ManifestEntry[]): void;
 }>();
+
+useQueue();
 
 const searchQuery = ref("");
 const selectedEngines = ref<Set<string>>(new Set());
@@ -49,13 +49,8 @@ const showAdvanced = ref(false);
 const hasSearched = ref(false);
 
 const isSearching = ref(false);
-const isDownloading = ref(false);
-const showDownloadConfirm = ref(false);
 const searchError = ref<string | null>(null);
 const isLoadingEngines = ref(false);
-
-const downloadProgress = ref({ current: 0, total: 0 });
-const downloadResults = ref<Map<string, CrawlerDownloadResult>>(new Map());
 
 const availableEngines = ref<string[]>([]);
 const enabledEngines = ref<string[]>([]);
@@ -207,12 +202,8 @@ function resetState() {
   showAdvanced.value = false;
   hasSearched.value = false;
   isSearching.value = false;
-  isDownloading.value = false;
-  showDownloadConfirm.value = false;
   searchError.value = null;
   isLoadingEngines.value = false;
-  downloadProgress.value = { current: 0, total: 0 };
-  downloadResults.value.clear();
   resetFilters();
 }
 
@@ -348,55 +339,24 @@ function formatAuthors(authors: string[]): string {
   return `${authors[0]} et al.`;
 }
 
-function openDownloadConfirm() {
-  if (selectedCount.value === 0) return;
-  showDownloadConfirm.value = true;
-}
-
 function getEngineIcon(engine: string): string | undefined {
   return engineIcons[engine];
 }
 
 async function confirmDownload() {
-  showDownloadConfirm.value = false;
-  isDownloading.value = true;
-  downloadProgress.value = { current: 0, total: selectedCount.value };
-  downloadResults.value.clear();
+  if (selectedCount.value === 0) return;
 
   const selectedPapers = keyedResults.value
     .filter((item) => selectedResults.value.has(item.key))
     .map((item) => item.result);
 
   try {
-    await downloadPapersStream(selectedPapers, false, {
-      onStart: (total) => {
-        downloadProgress.value = { current: 0, total };
-      },
-      onProgress: (current, total, result) => {
-        downloadProgress.value = { current, total };
-        downloadResults.value.set(result.hash, result);
-      },
-      onComplete: (results) => {
-        isDownloading.value = false;
-        const successCount = results.filter((r) => r.success).length;
-        if (successCount > 0) {
-          emit("update:modelValue", false);
-          emit("downloadComplete", []);
-        }
-      },
-      onError: (error) => {
-        console.error("Download error:", error);
-        isDownloading.value = false;
-      },
-    });
+    await downloadPapersQueueStream(selectedPapers, false);
+    emit("update:modelValue", false);
   } catch (e) {
     console.error("Download failed:", e);
-    isDownloading.value = false;
+    searchError.value = e instanceof Error ? e.message : "Download failed";
   }
-}
-
-function cancelDownload() {
-  showDownloadConfirm.value = false;
 }
 </script>
 
@@ -406,12 +366,12 @@ function cancelDownload() {
     @update:model-value="emit('update:modelValue', $event)"
     title="Search Online"
     size="xlarge"
-    :close-on-esc="!isSearching && !isDownloading"
-    :close-on-click-outside="!isSearching && !isDownloading"
+    :close-on-esc="!isSearching"
+    :close-on-click-outside="!isSearching"
   >
     <div class="crawler-modal">
       <!-- Search Section -->
-      <div v-if="!isDownloading" class="search-section">
+      <div class="search-section">
         <div class="search-input-row">
           <div class="search-input-wrapper">
             <Search :size="16" class="search-icon" />
@@ -566,7 +526,7 @@ function cancelDownload() {
 
       <!-- Results Section -->
       <div
-        v-if="!isSearching && !isDownloading && searchResults.length > 0"
+        v-if="!isSearching && searchResults.length > 0"
         class="results-section"
       >
         <div class="results-list">
@@ -606,7 +566,7 @@ function cancelDownload() {
               </button>
               <button
                 class="btn-primary"
-                @click="openDownloadConfirm"
+                @click="confirmDownload"
                 :disabled="selectedCount === 0"
               >
                 Download Selected ({{ selectedCount }})
@@ -762,7 +722,15 @@ function cancelDownload() {
                     PDF Available
                   </div>
                   <div v-else class="no-pdf-badge">No PDF</div>
-                  <span class="result-source">{{ item.result.source }}</span>
+                  <span class="result-source">
+                    <img
+                      v-if="getEngineIcon(item.result.source)"
+                      :src="getEngineIcon(item.result.source)"
+                      :alt="`${item.result.source} icon`"
+                      class="result-source-icon"
+                    />
+                    {{ item.result.source }}
+                  </span>
                 </div>
                 <h4 class="result-title">{{ item.result.title }}</h4>
                 <div class="result-meta">
@@ -823,7 +791,6 @@ function cancelDownload() {
       <div
         v-if="
           !isSearching &&
-          !isDownloading &&
           hasSearched &&
           searchResults.length === 0 &&
           !searchError
@@ -835,64 +802,6 @@ function cancelDownload() {
           Try broader keywords or select more engines.
         </div>
       </div>
-
-      <!-- Download Progress Section -->
-      <div v-if="isDownloading" class="download-progress-section">
-        <h3 class="progress-title">Downloading Papers</h3>
-        <div class="progress-bar">
-          <div
-            class="progress-fill"
-            :style="{
-              width: `${(downloadProgress.current / downloadProgress.total) * 100}%`,
-            }"
-          ></div>
-        </div>
-        <div class="progress-text">
-          {{ downloadProgress.current }} / {{ downloadProgress.total }}
-        </div>
-
-        <div class="download-results">
-          <div
-            v-for="[hash, result] in Array.from(downloadResults.entries())"
-            :key="hash"
-            class="download-result-item"
-            :class="{ success: result.success, error: !result.success }"
-          >
-            <span class="result-status">
-              {{ result.success ? "✓" : "✗" }}
-            </span>
-            <span class="result-message">
-              {{ result.success ? "Downloaded" : result.error || "Failed" }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Download Confirmation Modal -->
-      <BaseModal
-        :model-value="showDownloadConfirm"
-        @update:model-value="showDownloadConfirm = $event"
-        title="Confirm Download"
-        size="small"
-      >
-        <div class="download-confirm">
-          <p class="confirm-text">
-            You are about to download
-            <strong>{{ selectedCount }}</strong> papers.
-          </p>
-          <p class="confirm-hint">
-            Papers will be added to your Reference Bank.
-          </p>
-          <div class="confirm-actions">
-            <button class="btn-secondary" @click="cancelDownload">
-              Cancel
-            </button>
-            <button class="btn-primary" @click="confirmDownload">
-              Confirm Download
-            </button>
-          </div>
-        </div>
-      </BaseModal>
     </div>
   </BaseModal>
 </template>
@@ -1383,6 +1292,13 @@ function cancelDownload() {
   font-size: 11px;
 }
 
+.result-source-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  object-fit: contain;
+}
+
 .result-links {
   display: flex;
   gap: 12px;
@@ -1500,12 +1416,6 @@ function cancelDownload() {
   color: var(--text-primary);
 }
 
-.download-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .empty-state {
   padding: 32px 16px;
   background: var(--bg-panel);
@@ -1546,23 +1456,5 @@ function cancelDownload() {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-}
-
-.confirm-text {
-  font-size: 14px;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.confirm-hint {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.confirm-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
 }
 </style>

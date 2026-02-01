@@ -78,6 +78,8 @@ function formatQueuePhase(phase?: string): string {
       return "Scanning";
     case "resetting":
       return "Resetting";
+    case "downloading":
+      return "Downloading";
     default:
       return phase.replace(/_/g, " ");
   }
