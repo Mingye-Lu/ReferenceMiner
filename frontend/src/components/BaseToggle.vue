@@ -56,14 +56,25 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <button class="toggle" :class="{ active: modelValue, disabled }" :style="{ width: toggleWidth, height: toggleHeight }"
-    :disabled="disabled" @click="handleClick" @keydown="handleKeydown" :aria-checked="modelValue" role="switch"
-    tabindex="0">
-    <span class="toggle-thumb" :style="{
-      width: thumbSize,
-      height: thumbSize,
-      left: modelValue ? thumbLeftOn : thumbLeftOff,
-    }"></span>
+  <button
+    class="toggle"
+    :class="{ active: modelValue, disabled }"
+    :style="{ width: toggleWidth, height: toggleHeight }"
+    :disabled="disabled"
+    @click="handleClick"
+    @keydown="handleKeydown"
+    :aria-checked="modelValue"
+    role="switch"
+    tabindex="0"
+  >
+    <span
+      class="toggle-thumb"
+      :style="{
+        width: thumbSize,
+        height: thumbSize,
+        left: modelValue ? thumbLeftOn : thumbLeftOff,
+      }"
+    ></span>
   </button>
 </template>
 

@@ -62,7 +62,6 @@
 
 .settings-section-container {
   width: 100%;
-  max-width: 800px;
 }
 
 /* Settings Section Headers */
@@ -655,7 +654,6 @@
 }
 
 @media (max-width: 640px) {
-
   .pref-setting-row,
   .api-input-row {
     flex-direction: column;

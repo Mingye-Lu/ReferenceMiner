@@ -974,7 +974,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => { });
+onUnmounted(() => {});
 </script>
 
 <template>
@@ -982,7 +982,14 @@ onUnmounted(() => { });
     <header class="hub-header">
       <div class="header-left">
         <div class="logo">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
           <span>ReferenceMiner</span>
@@ -1004,24 +1011,39 @@ onUnmounted(() => { });
     <!-- Tabs -->
     <div class="hub-tabs">
       <div class="tabs-left">
-        <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'projects' }"
+          @click="activeTab = 'projects'"
+        >
           <Search :size="16" />
           <span>Projects</span>
         </button>
-        <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'bank' }"
+          @click="switchToBank"
+        >
           <FileText :size="16" />
           <span>Reference Bank</span>
         </button>
       </div>
       <div class="tabs-right">
-        <button class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'settings' }"
+          @click="activeTab = 'settings'"
+        >
           <Settings :size="16" />
           <span>Settings</span>
         </button>
       </div>
     </div>
 
-    <main class="hub-content" :class="{ 'settings-active': activeTab === 'settings' }">
+    <main
+      class="hub-content"
+      :class="{ 'settings-active': activeTab === 'settings' }"
+    >
       <!-- Projects Tab -->
       <div v-if="activeTab === 'projects'">
         <div v-if="loading" class="loading-state">
@@ -1040,8 +1062,13 @@ onUnmounted(() => { });
         </div>
 
         <div v-else class="project-grid">
-          <ProjectCard v-for="p in projects" :key="p.id" :project="p" @open="openProject"
-            @delete="handleDeleteProject" />
+          <ProjectCard
+            v-for="p in projects"
+            :key="p.id"
+            :project="p"
+            @open="openProject"
+            @delete="handleDeleteProject"
+          />
 
           <div class="create-card" @click="showCreateModal = true">
             <div class="plus-icon">
@@ -1067,10 +1094,14 @@ onUnmounted(() => { });
               <Search :size="14" />
               <span>Search Online</span>
             </button>
-            <button class="bank-action-btn" :disabled="isReprocessing || bankLoading" @click="
-              handleReprocessConfirm($event);
-            showReprocessConfirm = true;
-            ">
+            <button
+              class="bank-action-btn"
+              :disabled="isReprocessing || bankLoading"
+              @click="
+                handleReprocessConfirm($event);
+                showReprocessConfirm = true;
+              "
+            >
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
               <span>{{
                 isReprocessing ? "Reprocessing..." : "Reprocess All"
@@ -1079,41 +1110,65 @@ onUnmounted(() => { });
           </div>
         </div>
 
-        <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete" />
+        <FileUploader
+          upload-mode="bank"
+          @upload-complete="handleUploadComplete"
+        />
 
         <!-- Search & Filter Section -->
         <div v-if="bankFiles.length > 0" class="bank-search-section">
           <div class="bank-search-wrapper">
             <Search :size="16" class="bank-search-icon" />
-            <input v-model="bankSearchQuery" type="text" placeholder="Search by title, author, or filename..."
-              class="bank-search-input" />
+            <input
+              v-model="bankSearchQuery"
+              type="text"
+              placeholder="Search by title, author, or filename..."
+              class="bank-search-input"
+            />
           </div>
 
           <!-- Filter Chips -->
           <div class="bank-filter-chips">
             <!-- File Type Chips -->
-            <button v-for="type in availableBankTypes" :key="type" class="bank-filter-chip"
-              :class="{ active: bankFilters.fileTypes.has(type) }" @click="toggleBankFilter('fileTypes', type)">
+            <button
+              v-for="type in availableBankTypes"
+              :key="type"
+              class="bank-filter-chip"
+              :class="{ active: bankFilters.fileTypes.has(type) }"
+              @click="toggleBankFilter('fileTypes', type)"
+            >
               {{ type.toUpperCase() }}
             </button>
 
             <!-- Year Chips -->
-            <button v-for="year in availableBankYears" :key="year" class="bank-filter-chip"
-              :class="{ active: bankFilters.years.has(year) }" @click="toggleBankFilter('years', year)">
+            <button
+              v-for="year in availableBankYears"
+              :key="year"
+              class="bank-filter-chip"
+              :class="{ active: bankFilters.years.has(year) }"
+              @click="toggleBankFilter('years', year)"
+            >
               {{ year }}
             </button>
 
             <!-- Language Toggle -->
-            <button class="bank-filter-chip" :class="{ active: bankFilters.language === 'zh' }" @click="
-              bankFilters.language =
-              bankFilters.language === 'zh' ? null : 'zh'
-              ">
+            <button
+              class="bank-filter-chip"
+              :class="{ active: bankFilters.language === 'zh' }"
+              @click="
+                bankFilters.language =
+                  bankFilters.language === 'zh' ? null : 'zh'
+              "
+            >
               中文
             </button>
 
             <!-- Clear All Filters -->
-            <button v-if="hasActiveBankFilters || bankSearchQuery" class="bank-filter-chip clear-filters"
-              @click="clearAllBankFilters">
+            <button
+              v-if="hasActiveBankFilters || bankSearchQuery"
+              class="bank-filter-chip clear-filters"
+              @click="clearAllBankFilters"
+            >
               <X :size="12" />
               Clear
             </button>
@@ -1123,7 +1178,11 @@ onUnmounted(() => { });
           <div class="bank-controls-row">
             <div class="bank-sort-controls">
               <span>Sort:</span>
-              <CustomSelect v-model="bankSortBy" :options="bankSortOptions" class="bank-sort-select" />
+              <CustomSelect
+                v-model="bankSortBy"
+                :options="bankSortOptions"
+                class="bank-sort-select"
+              />
             </div>
             <div class="bank-file-count">
               {{ sortedBankFiles.length }}
@@ -1146,13 +1205,27 @@ onUnmounted(() => { });
           <p>Upload files using the button above to get started.</p>
         </div>
 
-        <div v-else-if="sortedBankFiles.length === 0" class="empty-state empty-state-compact">
+        <div
+          v-else-if="sortedBankFiles.length === 0"
+          class="empty-state empty-state-compact"
+        >
           <FileText :size="36" class="empty-icon-svg" />
           <p>No files match your search or filters</p>
         </div>
 
-        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
-          <div v-for="file in sortedBankFiles" :key="file.relPath" class="file-card" @click="handlePreview(file)">
+        <TransitionGroup
+          v-else
+          name="file-list"
+          tag="div"
+          class="file-grid"
+          @before-leave="handleBeforeLeave"
+        >
+          <div
+            v-for="file in sortedBankFiles"
+            :key="file.relPath"
+            class="file-card"
+            @click="handlePreview(file)"
+          >
             <div class="file-icon">
               <FileText :size="24" />
             </div>
@@ -1160,15 +1233,24 @@ onUnmounted(() => { });
               <div class="file-name" :title="getFileName(file.relPath)">
                 {{ getFileName(file.relPath) }}
               </div>
-              <div v-if="file.bibliography?.title" class="file-title" :title="file.bibliography.title">
+              <div
+                v-if="file.bibliography?.title"
+                class="file-title"
+                :title="file.bibliography.title"
+              >
                 {{ truncateText(file.bibliography.title, 60) }}
               </div>
-              <div v-if="file.bibliography?.authors || file.bibliography?.year" class="file-authors">
+              <div
+                v-if="file.bibliography?.authors || file.bibliography?.year"
+                class="file-authors"
+              >
                 {{ formatAuthors(file.bibliography?.authors) }}
-                <span v-if="
-                  formatAuthors(file.bibliography?.authors) &&
-                  file.bibliography?.year
-                ">
+                <span
+                  v-if="
+                    formatAuthors(file.bibliography?.authors) &&
+                    file.bibliography?.year
+                  "
+                >
                   ·
                 </span>
                 {{ file.bibliography?.year }}
@@ -1176,7 +1258,10 @@ onUnmounted(() => { });
               <div class="file-meta">
                 {{ file.fileType }} ·
                 {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
-                <span v-if="bankFileStats[file.relPath]?.usage_count" class="usage-badge">
+                <span
+                  v-if="bankFileStats[file.relPath]?.usage_count"
+                  class="usage-badge"
+                >
                   {{ bankFileStats[file.relPath].usage_count }} project{{
                     bankFileStats[file.relPath].usage_count > 1 ? "s" : ""
                   }}
@@ -1184,11 +1269,18 @@ onUnmounted(() => { });
               </div>
             </div>
             <div class="file-actions">
-              <button class="btn-icon tooltip" data-tooltip="Reprocess file"
-                @click.stop="handleReprocessFile(file, $event)">
+              <button
+                class="btn-icon tooltip"
+                data-tooltip="Reprocess file"
+                @click.stop="handleReprocessFile(file, $event)"
+              >
                 <RefreshCw :size="16" />
               </button>
-              <button class="btn-icon delete tooltip" data-tooltip="Delete file" @click.stop="requestDelete(file)">
+              <button
+                class="btn-icon delete tooltip"
+                data-tooltip="Delete file"
+                @click.stop="requestDelete(file)"
+              >
                 <Trash2 :size="16" />
               </button>
             </div>
@@ -1200,18 +1292,27 @@ onUnmounted(() => { });
       <div v-else-if="activeTab === 'settings'" class="settings-container">
         <aside class="settings-sidebar">
           <nav class="settings-nav">
-            <button class="settings-nav-item" :class="{ active: settingsSection === 'preferences' }"
-              @click="settingsSection = 'preferences'">
+            <button
+              class="settings-nav-item"
+              :class="{ active: settingsSection === 'preferences' }"
+              @click="settingsSection = 'preferences'"
+            >
               <Settings :size="18" />
               <span>Preferences</span>
             </button>
-            <button class="settings-nav-item" :class="{ active: settingsSection === 'crawler' }"
-              @click="settingsSection = 'crawler'">
+            <button
+              class="settings-nav-item"
+              :class="{ active: settingsSection === 'crawler' }"
+              @click="settingsSection = 'crawler'"
+            >
               <Globe :size="18" />
               <span>Crawler</span>
             </button>
-            <button class="settings-nav-item" :class="{ active: settingsSection === 'advanced' }"
-              @click="settingsSection = 'advanced'">
+            <button
+              class="settings-nav-item"
+              :class="{ active: settingsSection === 'advanced' }"
+              @click="settingsSection = 'advanced'"
+            >
               <LayoutGrid :size="18" />
               <span>Advanced</span>
             </button>
@@ -1219,35 +1320,77 @@ onUnmounted(() => { });
         </aside>
 
         <main class="settings-content">
-          <SettingsPreferencesSection v-if="settingsSection === 'preferences'" :current-theme="currentTheme"
-            :theme-options="themeOptions" :on-theme-change="setTheme" :view-mode="viewMode"
-            :pdf-view-options="pdfViewOptions" :on-view-mode-change="setViewMode"
-            :citation-copy-format="citationCopyFormat" :citation-format-options="citationFormatOptions"
-            :is-saving-citation="isSavingCitation" :on-citation-format-change="handleCitationFormatChange"
-            :files-per-page="filesPerPage" :notes-per-page="notesPerPage" :chats-per-page="chatsPerPage"
-            :on-display-setting-change="saveDisplaySetting" />
+          <SettingsPreferencesSection
+            v-if="settingsSection === 'preferences'"
+            :current-theme="currentTheme"
+            :theme-options="themeOptions"
+            :on-theme-change="setTheme"
+            :view-mode="viewMode"
+            :pdf-view-options="pdfViewOptions"
+            :on-view-mode-change="setViewMode"
+            :citation-copy-format="citationCopyFormat"
+            :citation-format-options="citationFormatOptions"
+            :is-saving-citation="isSavingCitation"
+            :on-citation-format-change="handleCitationFormatChange"
+            :files-per-page="filesPerPage"
+            :notes-per-page="notesPerPage"
+            :chats-per-page="chatsPerPage"
+            :on-display-setting-change="saveDisplaySetting"
+          />
 
-          <SettingsCrawlerSection v-else-if="settingsSection === 'crawler'" :crawler-config="crawlerConfig"
-            :on-update="handleCrawlerConfigUpdate" />
+          <SettingsCrawlerSection
+            v-else-if="settingsSection === 'crawler'"
+            :crawler-config="crawlerConfig"
+            :on-update="handleCrawlerConfigUpdate"
+          />
 
-          <SettingsAdvancedSection v-else-if="settingsSection === 'advanced'" :is-loading-settings="isLoadingSettings"
-            :is-saving="isSaving" :is-saving-llm="isSavingLlm" :is-validating="isValidating"
-            :is-checking-update="isCheckingUpdate" :is-resetting="isResetting" :validation-status="validationStatus"
-            :validation-error="validationError" :api-key-status-message="apiKeyStatusMessage"
-            :balance-infos="balanceInfos" :balance-available="balanceAvailable" :save-error="saveError"
-            :llm-save-error="llmSaveError" :llm-save-success="llmSaveSuccess" :reset-error="resetError"
-            :reset-success="resetSuccess" :base-url-input="baseUrlInput" :model-input="modelInput"
-            :update-info="updateInfo" :update-error="updateError" :current-version-label="currentVersionLabel"
-            :last-checked-label="lastCheckedLabel" :update-badge-text="updateBadgeText"
-            :update-badge-class="updateBadgeClass" :provider-options="providerOptions"
-            :selected-provider="selectedProvider" :current-provider-link="currentProviderLink"
-            :current-provider-key="currentProviderKey" :show-api-key="showApiKey" :api-key-input="apiKeyInput"
-            :model-options="modelOptions" :is-loading-models="isLoadingModels" :on-set-provider="setProvider"
-            :on-validate="handleValidate" :on-save-api-key="handleSave" :on-delete-api-key="handleDeleteApiKey"
-            :on-load-models="handleLoadModels" :on-save-llm-settings="handleSaveLlmSettings"
-            :on-update-check="handleUpdateCheck" :on-reset-click="handleResetClick"
-            :on-toggle-show-api-key="toggleShowApiKey" :on-api-key-input="updateApiKeyInput"
-            :on-base-url-input="updateBaseUrlInput" :on-model-input="updateModelInput" />
+          <SettingsAdvancedSection
+            v-else-if="settingsSection === 'advanced'"
+            :is-loading-settings="isLoadingSettings"
+            :is-saving="isSaving"
+            :is-saving-llm="isSavingLlm"
+            :is-validating="isValidating"
+            :is-checking-update="isCheckingUpdate"
+            :is-resetting="isResetting"
+            :validation-status="validationStatus"
+            :validation-error="validationError"
+            :api-key-status-message="apiKeyStatusMessage"
+            :balance-infos="balanceInfos"
+            :balance-available="balanceAvailable"
+            :save-error="saveError"
+            :llm-save-error="llmSaveError"
+            :llm-save-success="llmSaveSuccess"
+            :reset-error="resetError"
+            :reset-success="resetSuccess"
+            :base-url-input="baseUrlInput"
+            :model-input="modelInput"
+            :update-info="updateInfo"
+            :update-error="updateError"
+            :current-version-label="currentVersionLabel"
+            :last-checked-label="lastCheckedLabel"
+            :update-badge-text="updateBadgeText"
+            :update-badge-class="updateBadgeClass"
+            :provider-options="providerOptions"
+            :selected-provider="selectedProvider"
+            :current-provider-link="currentProviderLink"
+            :current-provider-key="currentProviderKey"
+            :show-api-key="showApiKey"
+            :api-key-input="apiKeyInput"
+            :model-options="modelOptions"
+            :is-loading-models="isLoadingModels"
+            :on-set-provider="setProvider"
+            :on-validate="handleValidate"
+            :on-save-api-key="handleSave"
+            :on-delete-api-key="handleDeleteApiKey"
+            :on-load-models="handleLoadModels"
+            :on-save-llm-settings="handleSaveLlmSettings"
+            :on-update-check="handleUpdateCheck"
+            :on-reset-click="handleResetClick"
+            :on-toggle-show-api-key="toggleShowApiKey"
+            :on-api-key-input="updateApiKeyInput"
+            :on-base-url-input="updateBaseUrlInput"
+            :on-model-input="updateModelInput"
+          />
         </main>
       </div>
     </main>
@@ -1255,16 +1398,28 @@ onUnmounted(() => { });
 
   <!-- Create Modal -->
   <Transition name="fade">
-    <div v-if="showCreateModal" class="modal-mask" @click.self="showCreateModal = false">
+    <div
+      v-if="showCreateModal"
+      class="modal-mask"
+      @click.self="showCreateModal = false"
+    >
       <div class="modal-container">
         <h2>Create New Study</h2>
         <div class="form-group">
           <label>Project Name</label>
-          <input v-model="newProjectName" placeholder="e.g. Photovoltaic Research" autofocus />
+          <input
+            v-model="newProjectName"
+            placeholder="e.g. Photovoltaic Research"
+            autofocus
+          />
         </div>
         <div class="form-group">
           <label>Description (Optional)</label>
-          <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
+          <textarea
+            v-model="newProjectDesc"
+            placeholder="What is this study about?"
+            rows="3"
+          ></textarea>
         </div>
         <div class="form-group">
           <label>Initial Content (Optional)</label>
@@ -1284,7 +1439,11 @@ onUnmounted(() => { });
           <button class="btn-secondary" @click="showCreateModal = false">
             Cancel
           </button>
-          <button class="btn-primary" :disabled="!newProjectName.trim() || creating" @click="handleCreate">
+          <button
+            class="btn-primary"
+            :disabled="!newProjectName.trim() || creating"
+            @click="handleCreate"
+          >
             <Loader2 v-if="creating" class="spinner" :size="16" />
             <span>{{ creating ? "Creating..." : "Create Project" }}</span>
           </button>
@@ -1297,34 +1456,66 @@ onUnmounted(() => { });
   <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
   <!-- Delete Confirmation Modal -->
-  <ConfirmationModal v-model="showDeleteModal" title="Delete File?" :message="fileToDelete
-    ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
-    : ''
-    " confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
+  <ConfirmationModal
+    v-model="showDeleteModal"
+    title="Delete File?"
+    :message="
+      fileToDelete
+        ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
+        : ''
+    "
+    confirmText="Delete"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 
   <!-- Delete Project Confirmation Modal -->
-  <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?" :message="projectToDelete
-    ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
-    : ''
-    " confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
+  <ConfirmationModal
+    v-model="showDeleteProjectModal"
+    title="Delete Project?"
+    :message="
+      projectToDelete
+        ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
+        : ''
+    "
+    confirmText="Delete"
+    @confirm="confirmDeleteProject"
+    @cancel="cancelDeleteProject"
+  />
 
   <!-- Initial File Selector -->
-  <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
-    @confirm="handleInitialFilesSelected" />
+  <BankFileSelectorModal
+    v-model="showFileSelectorForCreate"
+    :selected-files="selectedFilesForCreate"
+    @confirm="handleInitialFilesSelected"
+  />
 
   <!-- Reset Confirmation Modal -->
-  <ConfirmationModal v-model="showResetConfirm" title="Clear All Data?"
+  <ConfirmationModal
+    v-model="showResetConfirm"
+    title="Clear All Data?"
     message="This will permanently delete all indexed chunks, search indexes, and chat sessions. Your files will remain in the reference folder. This action cannot be undone."
-    confirm-text="Clear All Data" cancel-text="Cancel" @confirm="handleResetConfirm" />
+    confirm-text="Clear All Data"
+    cancel-text="Cancel"
+    @confirm="handleResetConfirm"
+  />
 
   <!-- Reprocess Reference Bank -->
-  <ConfirmationModal v-model="showReprocessConfirm" title="Reprocess Reference Bank?"
+  <ConfirmationModal
+    v-model="showReprocessConfirm"
+    title="Reprocess Reference Bank?"
     message="This will delete all indexed data and rebuild from files in reference folder. Your files will remain untouched."
-    confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm"
-    @cancel="showReprocessConfirm = false" />
+    confirm-text="Reprocess"
+    cancel-text="Cancel"
+    @confirm="handleReprocessConfirm"
+    @cancel="showReprocessConfirm = false"
+  />
 
   <!-- Crawler Search Modal -->
-  <CrawlerSearchModal v-model="showCrawlerModal" @download-complete="handleCrawlerDownloadComplete" />
+  <CrawlerSearchModal
+    v-model="showCrawlerModal"
+    @download-complete="handleCrawlerDownloadComplete"
+  />
 </template>
 
 <style scoped>

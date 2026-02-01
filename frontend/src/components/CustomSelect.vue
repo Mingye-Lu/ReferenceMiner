@@ -70,8 +70,13 @@ onBeforeUnmount(() => {
     </div>
     <transition name="custom-select">
       <div v-if="isOpen" class="custom-options">
-        <div v-for="option in options" :key="option.value" class="custom-option"
-          :class="{ selected: option.value === modelValue }" @click="selectOption(option)">
+        <div
+          v-for="option in options"
+          :key="option.value"
+          class="custom-option"
+          :class="{ selected: option.value === modelValue }"
+          @click="selectOption(option)"
+        >
           {{ option.label }}
         </div>
       </div>

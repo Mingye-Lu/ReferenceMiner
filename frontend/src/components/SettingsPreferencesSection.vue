@@ -78,8 +78,11 @@ const emitDisplayChange = (
                 Select light, dark, or match your system settings
               </p>
             </div>
-            <CustomSelect :model-value="currentTheme" :options="themeOptions"
-              @update:model-value="(value) => onThemeChange(value as Theme)" />
+            <CustomSelect
+              :model-value="currentTheme"
+              :options="themeOptions"
+              @update:model-value="(value) => onThemeChange(value as Theme)"
+            />
           </div>
         </div>
       </section>
@@ -103,9 +106,13 @@ const emitDisplayChange = (
                 Choose between single page or continuous scrolling
               </p>
             </div>
-            <CustomSelect :model-value="viewMode" :options="pdfViewOptions" @update:model-value="
-              (value) => onViewModeChange(value as 'single' | 'continuous')
-            " />
+            <CustomSelect
+              :model-value="viewMode"
+              :options="pdfViewOptions"
+              @update:model-value="
+                (value) => onViewModeChange(value as 'single' | 'continuous')
+              "
+            />
           </div>
         </div>
       </section>
@@ -114,12 +121,23 @@ const emitDisplayChange = (
       <section class="settings-card">
         <div class="section-header">
           <div class="section-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path
-                d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21" />
+                d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21"
+              />
               <path
-                d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3" />
+                d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3"
+              />
             </svg>
           </div>
           <div>
@@ -135,8 +153,12 @@ const emitDisplayChange = (
                 Replaces [C1] markers when copying responses
               </p>
             </div>
-            <CustomSelect :model-value="citationCopyFormat" :options="citationFormatOptions"
-              :disabled="isSavingCitation" @update:model-value="onCitationFormatChange" />
+            <CustomSelect
+              :model-value="citationCopyFormat"
+              :options="citationFormatOptions"
+              :disabled="isSavingCitation"
+              @update:model-value="onCitationFormatChange"
+            />
           </div>
         </div>
       </section>
@@ -155,14 +177,25 @@ const emitDisplayChange = (
         <div class="section-content">
           <div class="radio-group-vertical">
             <label class="radio-option">
-              <input type="radio" name="submitKey" value="enter" checked @change="$emit('updateShortcut', 'enter')" />
+              <input
+                type="radio"
+                name="submitKey"
+                value="enter"
+                checked
+                @change="$emit('updateShortcut', 'enter')"
+              />
               <div class="radio-option-content">
                 <span class="radio-option-label">Enter to send</span>
                 <span class="radio-option-desc">Shift+Enter for new line</span>
               </div>
             </label>
             <label class="radio-option">
-              <input type="radio" name="submitKey" value="ctrl-enter" @change="$emit('updateShortcut', 'ctrl-enter')" />
+              <input
+                type="radio"
+                name="submitKey"
+                value="ctrl-enter"
+                @change="$emit('updateShortcut', 'ctrl-enter')"
+              />
               <div class="radio-option-content">
                 <span class="radio-option-label">Ctrl+Enter to send</span>
                 <span class="radio-option-desc">Enter for new line</span>
@@ -195,8 +228,13 @@ const emitDisplayChange = (
               </p>
             </div>
             <div class="input-group" style="width: 120px">
-              <input type="number" min="0" class="form-input" :value="filesPerPage"
-                @input="(event) => emitDisplayChange('filesPerPage', event)" />
+              <input
+                type="number"
+                min="0"
+                class="form-input"
+                :value="filesPerPage"
+                @input="(event) => emitDisplayChange('filesPerPage', event)"
+              />
             </div>
           </div>
 
@@ -209,8 +247,13 @@ const emitDisplayChange = (
               </p>
             </div>
             <div class="input-group" style="width: 120px">
-              <input type="number" min="0" class="form-input" :value="notesPerPage"
-                @input="(event) => emitDisplayChange('notesPerPage', event)" />
+              <input
+                type="number"
+                min="0"
+                class="form-input"
+                :value="notesPerPage"
+                @input="(event) => emitDisplayChange('notesPerPage', event)"
+              />
             </div>
           </div>
 
@@ -223,8 +266,13 @@ const emitDisplayChange = (
               </p>
             </div>
             <div class="input-group" style="width: 120px">
-              <input type="number" min="0" class="form-input" :value="chatsPerPage"
-                @input="(event) => emitDisplayChange('chatsPerPage', event)" />
+              <input
+                type="number"
+                min="0"
+                class="form-input"
+                :value="chatsPerPage"
+                @input="(event) => emitDisplayChange('chatsPerPage', event)"
+              />
             </div>
           </div>
         </div>

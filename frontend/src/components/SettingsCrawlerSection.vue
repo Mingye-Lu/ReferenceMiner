@@ -120,8 +120,13 @@ async function autoSave(config: CrawlerConfig) {
             </div>
             <div class="setting-control">
               <div class="input-group" style="width: 120px">
-                <input type="number" v-model.number="localConfig.max_results_per_engine" min="5" max="100"
-                  class="form-input" />
+                <input
+                  type="number"
+                  v-model.number="localConfig.max_results_per_engine"
+                  min="5"
+                  max="100"
+                  class="form-input"
+                />
               </div>
             </div>
           </div>
@@ -135,8 +140,13 @@ async function autoSave(config: CrawlerConfig) {
             </div>
             <div class="setting-control">
               <div class="input-group" style="width: 120px">
-                <input type="number" v-model.number="localConfig.timeout_seconds" min="5" max="120"
-                  class="form-input" />
+                <input
+                  type="number"
+                  v-model.number="localConfig.timeout_seconds"
+                  min="5"
+                  max="120"
+                  class="form-input"
+                />
               </div>
             </div>
           </div>
@@ -157,15 +167,25 @@ async function autoSave(config: CrawlerConfig) {
         </div>
 
         <div class="section-content">
-          <div v-for="(engineConfig, engineName) in localConfig.engines" :key="engineName"
-            class="llm-setup-step full-width">
+          <div
+            v-for="(engineConfig, engineName) in localConfig.engines"
+            :key="engineName"
+            class="llm-setup-step full-width"
+          >
             <div class="step-body">
               <div class="step-title">{{ engineName }}</div>
               <p class="step-desc">
                 {{ engineDescriptions[engineName] || "" }}
               </p>
 
-              <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 8px;">
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  gap: 16px;
+                  margin-top: 8px;
+                "
+              >
                 <div class="pref-setting-row">
                   <div class="pref-setting-info">
                     <label class="form-label">Enabled</label>
@@ -181,8 +201,13 @@ async function autoSave(config: CrawlerConfig) {
                   </div>
                   <div class="setting-control">
                     <div class="input-group" style="width: 120px">
-                      <input type="number" v-model.number="engineConfig.rate_limit" min="1" max="60"
-                        class="form-input" />
+                      <input
+                        type="number"
+                        v-model.number="engineConfig.rate_limit"
+                        min="1"
+                        max="60"
+                        class="form-input"
+                      />
                     </div>
                   </div>
                 </div>
@@ -193,7 +218,13 @@ async function autoSave(config: CrawlerConfig) {
                   </div>
                   <div class="setting-control">
                     <div class="input-group" style="width: 120px">
-                      <input type="number" v-model.number="engineConfig.timeout" min="5" max="120" class="form-input" />
+                      <input
+                        type="number"
+                        v-model.number="engineConfig.timeout"
+                        min="5"
+                        max="120"
+                        class="form-input"
+                      />
                     </div>
                   </div>
                 </div>
