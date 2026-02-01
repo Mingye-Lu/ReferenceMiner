@@ -12,8 +12,66 @@ import httpx
 from bs4 import BeautifulSoup
 
 from refminer.crawler.models import SearchResult
+from refminer.crawler.selector_engine import FieldSelector, SelectorEngine, SelectorStrategy, SelectorType
 
 logger = logging.getLogger(__name__)
+
+
+PDF_LINK_SELECTORS = FieldSelector(
+    field_name="pdf_link",
+    strategies=[
+        SelectorStrategy(
+            selector="a[href$='.pdf']",
+            selector_type=SelectorType.CSS,
+            priority=100,
+            description="Direct PDF link",
+        ),
+        SelectorStrategy(
+            selector="a[href*='.pdf?']",
+            selector_type=SelectorType.CSS,
+            priority=90,
+            description="PDF link with query params",
+        ),
+        SelectorStrategy(
+            selector="//a[contains(@href, '.pdf')]",
+            selector_type=SelectorType.XPATH,
+            priority=80,
+            description="XPath for PDF links",
+        ),
+        SelectorStrategy(
+            selector="a[href*='download']",
+            selector_type=SelectorType.CSS,
+            priority=50,
+            description="Download link",
+        ),
+    ],
+    required=False,
+)
+
+CITATION_PDF_META = FieldSelector(
+    field_name="citation_pdf_meta",
+    strategies=[
+        SelectorStrategy(
+            selector="meta[name='citation_pdf_url']",
+            selector_type=SelectorType.CSS,
+            priority=100,
+            description="Standard citation PDF meta tag",
+        ),
+        SelectorStrategy(
+            selector="//meta[@name='citation_pdf_url']",
+            selector_type=SelectorType.XPATH,
+            priority=90,
+            description="XPath for citation PDF meta",
+        ),
+        SelectorStrategy(
+            selector="meta[property='citation_pdf_url']",
+            selector_type=SelectorType.CSS,
+            priority=80,
+            description="OpenGraph citation PDF meta",
+        ),
+    ],
+    required=False,
+)
 
 
 class PDFDownloader:
@@ -149,11 +207,12 @@ class PDFDownloader:
             return None
 
     async def _extract_pdf_from_html(self, html: str, base_url: str) -> Optional[str]:
-        """Extract PDF URL from HTML content."""
+        """Extract PDF URL from HTML content using multiple selector strategies."""
         try:
             soup = BeautifulSoup(html, "html.parser")
+            engine = SelectorEngine(soup)
 
-            pdf_links = soup.find_all("a", href=re.compile(r"\.pdf$", re.I))
+            pdf_links = engine.find_elements(PDF_LINK_SELECTORS)
             if pdf_links:
                 href = pdf_links[0].get("href", "")
                 if href.startswith("http"):
@@ -164,7 +223,7 @@ class PDFDownloader:
                     parsed = urlparse(base_url)
                     return f"{parsed.scheme}://{parsed.netloc}{href}"
 
-            meta_pdf = soup.find("meta", attrs={"name": "citation_pdf_url"})
+            meta_pdf = engine.find_element(CITATION_PDF_META)
             if meta_pdf:
                 return meta_pdf.get("content")
 

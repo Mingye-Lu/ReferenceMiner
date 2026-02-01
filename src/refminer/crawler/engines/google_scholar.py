@@ -15,6 +15,8 @@ from bs4 import BeautifulSoup
 
 from refminer.crawler.base import BaseCrawler
 from refminer.crawler.models import SearchQuery, SearchResult
+from refminer.crawler.selector_engine import SelectorEngine
+from refminer.crawler.selectors.google_scholar import GoogleScholarSelectors
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +40,16 @@ class GoogleScholarCrawler(BaseCrawler):
             search_url = self._build_search_url(query)
             response = await self._fetch(search_url)
             soup = BeautifulSoup(response.text, "html.parser")
-            results = self._parse_results(soup, query)
-
+            
+            engine = SelectorEngine(soup)
+            results = self._parse_results(engine, query)
+            
+            successful = engine.get_successful_selectors()
+            if successful:
+                logger.info(
+                    f"[{self.name}] Successful selectors: {list(successful.keys())}"
+                )
+            
             logger.info(f"[{self.name}] Found {len(results)} results")
         except Exception as e:
             logger.error(f"[{self.name}] Search failed: {e}", exc_info=True)
@@ -63,14 +73,16 @@ class GoogleScholarCrawler(BaseCrawler):
         return f"{self.base_url}/scholar?{encoded_params}"
 
     def _parse_results(
-        self, soup: BeautifulSoup, query: SearchQuery
+        self, engine: SelectorEngine, query: SearchQuery
     ) -> list[SearchResult]:
-        """Parse search results from HTML."""
+        """Parse search results from HTML using selector engine."""
         results: list[SearchResult] = []
 
-        for div in soup.find_all("div", class_="gs_r gs_or gs_scl"):
+        result_divs = engine.find_elements(GoogleScholarSelectors.RESULT_CONTAINER)
+        
+        for div in result_divs:
             try:
-                result = self._parse_single_result(div, query)
+                result = self._parse_single_result(div, engine, query)
                 if result:
                     results.append(result)
             except Exception as e:
@@ -80,19 +92,21 @@ class GoogleScholarCrawler(BaseCrawler):
         return results
 
     def _parse_single_result(
-        self, div: BeautifulSoup, query: SearchQuery
+        self, div: BeautifulSoup, engine: SelectorEngine, query: SearchQuery
     ) -> Optional[SearchResult]:
-        """Parse a single search result."""
-        title_div = div.find("h3", class_="gs_rt")
-        if not title_div:
+        """Parse a single search result using selector engine."""
+        result_engine = SelectorEngine(div)
+        
+        title_element = result_engine.find_element(GoogleScholarSelectors.TITLE)
+        if not title_element:
             return None
 
-        title_link = title_div.find("a")
+        title_link = result_engine.find_element(GoogleScholarSelectors.TITLE_LINK)
         if title_link:
             title = title_link.get_text(strip=True)
             url = title_link.get("href", "")
         else:
-            title = title_div.get_text(strip=True)
+            title = title_element.get_text(strip=True)
             url = None
 
         if not title:
