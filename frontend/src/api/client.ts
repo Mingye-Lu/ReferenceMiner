@@ -1668,3 +1668,57 @@ export async function downloadPapersQueueStream(
     count: data.count ?? 0,
   };
 }
+
+export async function testCrawlerEngine(
+  engine: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/crawler/engines/${encodeURIComponent(engine)}/test`,
+      {
+        method: "POST",
+      },
+    );
+
+    if (response.ok) {
+      return { success: true };
+    } else {
+      const detail = await response.text();
+      return { success: false, error: detail || "Connection failed" };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+export async function fetchCrawlerStats(): Promise<{
+  totalSearches: number;
+  totalDownloads: number;
+  failedDownloads: number;
+  perEngineStats: Record<
+    string,
+    { searches: number; downloads: number; failures: number }
+  >;
+  lastUpdated: number | null;
+}> {
+  const data = await fetchJson<{
+    total_searches: number;
+    total_downloads: number;
+    failed_downloads: number;
+    per_engine_stats: Record<
+      string,
+      { searches: number; downloads: number; failures: number }
+    >;
+    last_updated: number | null;
+  }>("/api/crawler/stats");
+  return {
+    totalSearches: data.total_searches ?? 0,
+    totalDownloads: data.total_downloads ?? 0,
+    failedDownloads: data.failed_downloads ?? 0,
+    perEngineStats: data.per_engine_stats ?? {},
+    lastUpdated: data.last_updated ?? null,
+  };
+}

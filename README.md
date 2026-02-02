@@ -1,8 +1,8 @@
 # ReferenceMiner
 
-ReferenceMiner is a local-first research assistant designed to deliver deep, evidence-grounded analysis over a curated set of references you provide.
+ReferenceMiner is a local research assistant designed to deliver deep, evidence-grounded analysis over a curated set of references you provide.
 
-Instead of crawling the web (which introduces legal, ethical, and reproducibility issues), ReferenceMiner operates exclusively on a local `references/` folder containing PDFs, DOCX files, images, charts, and other research artifacts. Every claim it produces is traceable to a specific file, page, section, or figure.
+ReferenceMiner operates primarily on your local `references/` folder containing PDFs, DOCX files, images, charts, and other research artifacts. Every claim it produces is traceable to a specific file, page, section, or figure.
 
 **Principle: If it is not in `references/`, it does not exist.**
 
@@ -20,16 +20,54 @@ Instead of crawling the web (which introduces legal, ethical, and reproducibilit
 
 ---
 
-## Non-Goals (By Design)
+## Design Philosophy
 
-ReferenceMiner intentionally does not:
+ReferenceMiner's core philosophy is **local-first, user-controlled**:
 
-- Crawl the web
-- Query external APIs for content
-- Hallucinate missing sources
-- Make uncited claims
+- **Primary mode**: Analyze documents you explicitly provide in `references/`
+- **Crawler as discovery tool**: Optional web crawler helps discover papers, but requires user responsibility
+- **No external content in analysis**: LLM cannot fetch external content during analysis
+- **No hallucinations**: System never makes uncited claims or invents sources
 
-This keeps the system legally safe, auditable, and suitable for academic or professional use.
+This keeps the system auditable, reproducible, and suitable for academic or professional use.
+
+---
+
+## Web Crawler (Optional Feature)
+
+ReferenceMiner includes an **optional web crawler** to help discover and download research papers. This feature is **disabled by default** and requires explicit user activation.
+
+### User Responsibility
+
+By enabling the crawler, you acknowledge:
+
+- **Terms of Service Compliance**: Google Scholar uses web scraping which may violate their ToS. You are responsible for ensuring compliance.
+- **API Rate Limits**: Other engines use public APIs with rate limits. Respect these limits.
+- **Content Verification**: Downloaded papers should be reviewed before inclusion in your reference collection.
+
+### Available Engines
+
+| Engine           | Type         | API Key Required | Rate Limit (default) |
+| ---------------- | ------------ | ---------------- | -------------------- |
+| Google Scholar   | Web scraping | No               | 5 req/min            |
+| PubMed           | API          | No               | 10 req/min           |
+| Semantic Scholar | API          | No               | 1 req/min            |
+| arXiv            | API          | No               | 10 req/min           |
+| Crossref         | API          | No               | 10 req/min           |
+| OpenAlex         | API          | No               | 10 req/min           |
+| CORE             | API          | **Yes**          | 5 req/min            |
+| Europe PMC       | API          | No               | 10 req/min           |
+| bioRxiv/medRxiv  | API          | No               | 5 req/min            |
+
+### How It Works
+
+1. **Search**: Query multiple engines concurrently, deduplicate results
+2. **Review**: Preview titles, abstracts, authors, and metadata
+3. **Select**: Choose which papers to download
+4. **Download**: PDFs saved to `references/` and automatically indexed
+5. **Analyze**: Papers become part of your local corpus for LLM analysis
+
+**Important**: The crawler is a discovery tool, not a replacement for your curated reference collection. Downloaded papers should be reviewed and organized manually.
 
 ---
 
@@ -56,8 +94,9 @@ graph TB
             RET[retrieve/]
             ANA[analyze/]
             LLM[llm/]
-            PRJ[projects/]
+            PR[projects/]
             CHT[chats/]
+            CRAW[crawler/]
         end
     end
 
@@ -68,13 +107,16 @@ graph TB
 
     subgraph External
         LLMAPI[LLM API<br/>DeepSeek/OpenAI/etc.]
+        CRAWLER[Search Engines<br/>Google Scholar, PubMed, etc.]
     end
 
     UI --> API
     API --> ING
     API --> RET
-    API --> PRJ
+    API --> PR
     API --> CHT
+    API --> CRAW
+    CRAW --> CRAWLER
     ING --> REF
     ING --> IDX
     IDX --> IDX_DIR
@@ -418,6 +460,12 @@ Open `http://localhost:5173` and configure your LLM provider in Settings.
 |              | `POST /api/bank/upload/stream`                           | Upload to bank (SSE)            |
 |              | `POST /api/bank/reprocess/stream`                        | Rebuild all indexes (SSE)       |
 |              | `POST /api/bank/files/{rel_path}/reprocess/stream`       | Reprocess single file (SSE)     |
+| **Crawler**  | `GET /api/crawler/engines`                               | List available engines          |
+|              | `GET /api/crawler/config`                                | Get crawler configuration       |
+|              | `POST /api/crawler/config`                               | Update crawler configuration    |
+|              | `POST /api/crawler/search`                               | Search across engines           |
+|              | `POST /api/crawler/download`                             | Download PDFs from results      |
+|              | `POST /api/crawler/batch-download/stream`                | Batch download (SSE)            |
 | **Settings** | `GET /api/settings`                                      | Get current settings            |
 |              | `GET /api/settings/version`                              | Get app version                 |
 |              | `GET /api/settings/update-check`                         | Check for updates               |

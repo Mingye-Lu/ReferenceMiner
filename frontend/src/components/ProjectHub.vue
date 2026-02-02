@@ -22,7 +22,6 @@ import {
   fetchUpdateCheck,
   saveCitationCopyFormat,
   fetchCrawlerConfig,
-  updateCrawlerConfig,
 } from "../api/client";
 import type {
   Project,
@@ -639,10 +638,9 @@ async function handleDataReset() {
 
 async function handleCrawlerConfigUpdate(config: CrawlerConfig) {
   try {
-    await updateCrawlerConfig(config);
     crawlerConfig.value = config;
   } catch (e) {
-    console.error("Failed to save crawler config:", e);
+    console.error("Failed to update crawler config:", e);
   }
 }
 
@@ -1515,6 +1513,10 @@ onUnmounted(() => {});
   <CrawlerSearchModal
     v-model="showCrawlerModal"
     @download-complete="handleCrawlerDownloadComplete"
+    @open-settings="
+      activeTab = 'settings';
+      settingsSection = 'crawler';
+    "
   />
 </template>
 

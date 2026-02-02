@@ -329,6 +329,7 @@ export interface CrawlerConfig {
   auto_download: boolean;
   max_results_per_engine: number;
   timeout_seconds: number;
+  preset: CrawlerPresetName;
   engines: Record<string, CrawlerEngineConfig>;
 }
 
@@ -361,3 +362,34 @@ export interface CrawlerDownloadResult {
   path: string | null;
   error: string | null;
 }
+
+export type CrawlerPresetName =
+  | "balanced"
+  | "fast"
+  | "thorough"
+  | "minimal"
+  | "custom";
+
+export interface CrawlerPreset {
+  name: CrawlerPresetName;
+  label: string;
+  description: string;
+  enabledEngines: string[];
+  rateLimit: number;
+  timeout: number;
+  maxResults: number;
+  isCustom?: boolean;
+}
+
+export interface CrawlerStats {
+  totalSearches: number;
+  totalDownloads: number;
+  failedDownloads: number;
+  perEngineStats: Record<
+    string,
+    { searches: number; downloads: number; failures: number }
+  >;
+  lastUpdated: number | null;
+}
+
+export type ConnectionStatus = "unknown" | "testing" | "success" | "failed";

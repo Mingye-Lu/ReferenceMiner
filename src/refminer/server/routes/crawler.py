@@ -12,7 +12,12 @@ from pydantic import BaseModel
 from refminer.crawler import CrawlerManager, PDFDownloader, SearchQuery
 from refminer.crawler.models import CrawlerConfig, SearchResult
 from refminer.ingest.incremental import full_ingest_single_file
-from refminer.server.globals import get_bank_paths, queue_events, queue_store
+from refminer.server.globals import (
+    get_bank_paths,
+    queue_events,
+    queue_store,
+    settings_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +30,19 @@ class BatchDownloadRequest(BaseModel):
 router = APIRouter(prefix="/api/crawler", tags=["crawler"])
 
 
+def _load_crawler_config() -> CrawlerConfig:
+    """Load crawler config from settings manager."""
+    crawler_data = settings_manager.get_crawler_config()
+    if crawler_data:
+        return CrawlerConfig.from_dict(crawler_data)
+    return CrawlerConfig()
+
+
 @router.get("/engines")
 async def list_engines() -> dict[str, Any]:
     """List available crawler engines."""
-    manager = CrawlerManager()
+    config = _load_crawler_config()
+    manager = CrawlerManager(config)
     return {
         "engines": manager.list_engines(),
         "enabled": manager.list_enabled_engines(),
@@ -38,22 +52,21 @@ async def list_engines() -> dict[str, Any]:
 @router.get("/config")
 async def get_config() -> CrawlerConfig:
     """Get crawler configuration."""
-    manager = CrawlerManager()
-    return manager.config
+    return _load_crawler_config()
 
 
 @router.post("/config")
 async def update_config(config: CrawlerConfig) -> CrawlerConfig:
     """Update crawler configuration."""
-    manager = CrawlerManager()
-    manager.config = config
-    return manager.config
+    settings_manager.set_crawler_config(config.model_dump())
+    return config
 
 
 @router.post("/search")
 async def search_papers(query: SearchQuery) -> list[SearchResult]:
     """Search for papers across enabled engines."""
-    manager = CrawlerManager()
+    config = _load_crawler_config()
+    manager = CrawlerManager(config)
 
     try:
         async with manager:

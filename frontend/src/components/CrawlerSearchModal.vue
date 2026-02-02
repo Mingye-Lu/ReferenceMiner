@@ -25,6 +25,7 @@ import {
   ChevronUp,
   ExternalLink,
   ArrowUpDown,
+  Settings,
 } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -33,6 +34,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
+  (e: "openSettings"): void;
 }>();
 
 useQueue();
@@ -378,6 +380,16 @@ async function confirmDownload() {
     :close-on-esc="!isSearching"
     :close-on-click-outside="!isSearching"
   >
+    <template #header-actions>
+      <button
+        class="configure-btn"
+        @click="emit('openSettings')"
+        title="Configure crawler settings"
+      >
+        <Settings :size="14" />
+        Configure
+      </button>
+    </template>
     <div class="crawler-modal">
       <!-- Search Section -->
       <div class="search-section">
@@ -928,6 +940,27 @@ async function confirmDownload() {
 
 .btn-text:hover {
   text-decoration: underline;
+}
+
+.configure-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.configure-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
 }
 
 .search-options {

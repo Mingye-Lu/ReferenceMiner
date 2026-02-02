@@ -993,6 +993,20 @@ input[type="checkbox"].custom-checkbox:checked::after {
   transform: rotate(180deg);
 }
 
+/* --- Spin Animation --- */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* --- Global Form Elements --- */
 .form-label {
   font-weight: 600;

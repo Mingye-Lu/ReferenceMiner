@@ -1,10 +1,28 @@
-# Crawler Implementation Summary
+# Web Crawler
 
-## Implementation Complete
+ReferenceMiner includes an optional web crawler to help discover and download research papers from multiple academic sources.
 
-The crawler backend has been successfully implemented for ReferenceMiner. Here's what was built:
+## User Responsibility
 
-## Module Structure
+**⚠️ Important**: By enabling and using the crawler, you acknowledge:
+
+1. **Terms of Service Compliance**:
+   - Google Scholar uses web scraping which may violate their Terms of Service
+   - You are responsible for ensuring your use complies with all applicable ToS
+   - Consider using API-based engines (PubMed, Semantic Scholar, etc.) for better compliance
+
+2. **API Rate Limits**:
+   - Each engine has configurable rate limits
+   - Respect rate limits to avoid being blocked
+   - Some engines may require API keys for higher limits
+
+3. **Content Verification**:
+   - Downloaded papers should be reviewed before inclusion in your reference collection
+   - The crawler is a discovery tool, not a replacement for curation
+
+## Architecture
+
+### Module Structure
 
 ```
 src/refminer/crawler/
@@ -13,36 +31,39 @@ src/refminer/crawler/
 ├── models.py            # Pydantic models (SearchResult, SearchQuery, CrawlerConfig)
 ├── manager.py           # Crawler manager for orchestrating engines
 ├── downloader.py        # PDF downloader to references/
+├── deep_crawler.py      # Citation-based expansion
 └── engines/
     ├── __init__.py
-    ├── google_scholar.py      # Web scraping (user responsibility)
+    ├── google_scholar.py      # Web scraping (requires user responsibility)
     ├── pubmed.py              # NCBI E-utilities API
-    └── semantic_scholar.py   # Free API
+    ├── semantic_scholar.py   # Free API
+    ├── arxiv.py              # arXiv API
+    ├── crossref.py           # Crossref API
+    ├── openalex.py           # OpenAlex API
+    ├── core.py               # CORE API (requires API key)
+    ├── europe_pmc.py         # Europe PMC API
+    └── biorxiv_medrxiv.py   # bioRxiv/medRxiv API
 ```
 
-## API Endpoints
+### Available Engines
 
-All endpoints are available at `/api/crawler/`:
+| Engine           | Type         | API Key Required | Default Rate Limit | Notes                         |
+| ---------------- | ------------ | ---------------- | ------------------ | ----------------------------- |
+| google_scholar   | Web scraping | No               | 5 req/min          | May violate ToS               |
+| pubmed           | API          | No               | 10 req/min         | Biomedical literature         |
+| semantic_scholar | API          | No               | 1 req/min          | AI-powered search             |
+| arxiv            | API          | No               | 10 req/min         | Preprints (CS, physics, math) |
+| crossrefra       | API          | No               | 10 req/min         | DOI metadata                  |
+| openalex         | API          | No               | 10 req/min         | 200M+ works, citation data    |
+| core             | API          | **Yes**          | 5 req/min          | Open access papers            |
+| europe_pmc       | API          | No               | 10 req/min         | Life sciences, open access    |
+| biorxiv_medrxiv  | API          | No               | 5 req/min          | Biology/medicine preprints    |
 
-- `GET /engines` - List available and enabled engines
-- `GET /config` - Get crawler configuration
-- `POST /config` - Update crawler configuration
-- `POST /search` - Search across enabled engines
-- `POST /download` - Download PDFs from search results
-- `POST /batch-download/stream` - Batch download with SSE streaming
+## Configuration
 
-## Settings Integration
+### Compact Settings Structure
 
-Added to `src/refminer/settings/manager.py`:
-
-- `get_crawler_config()` - Get crawler settings
-- `set_crawler_config()` - Save crawler settings
-- `is_crawler_enabled()` - Check if crawler is enabled
-- `set_crawler_enabled()` - Enable/disable crawler
-- `is_auto_download_enabled()` - Check auto-download setting
-- `set_auto_download_enabled()` - Enable/disable auto-download
-
-## Configuration Structure
+The crawler uses a compact configuration to minimize `settings.json` size:
 
 ```json
 {
@@ -51,65 +72,98 @@ Added to `src/refminer/settings/manager.py`:
     "auto_download": false,
     "max_results_per_engine": 20,
     "timeout_seconds": 30,
-    "engines": {
+    "enabled_engines": [
+      "google_scholar",
+      "pubmed",
+      "semantic_scholar",
+      "arxiv",
+      "crossref",
+      "openalex",
+      "europe_pmc"
+    ],
+    "engine_settings": {
+      "core": {
+        "api_key": "your-core-api-key-here"
+      },
       "google_scholar": {
-        "enabled": true,
-        "rate_limit": 5,
-        "api_key": null,
-        "timeout": 30,
-        "max_retries": 3
-      },
-      "pubmed": {
-        "enabled": true,
-        "rate_limit": 10,
-        "api_key": null,
-        "timeout": 30,
-        "max_retries": 3
-      },
-      "semantic_scholar": {
-        "enabled": true,
-        "rate_limit": 10,
-        "api_key": null,
-        "timeout": 30,
-        "max_retries": 3
+        "rate_limit": 3
       }
     }
   }
 }
 ```
 
-## Features
+### Configuration Fields
 
-1. **Multi-engine search** - Search across Google Scholar, PubMed, and Semantic Scholar concurrently
-2. **Rate limiting** - Per-engine rate limits to avoid blocking
-3. **Deduplication** - Automatic removal of duplicate results
-4. **PDF downloading** - Optional download to `references/` directory
-5. **Queue integration** - SSE streaming for long-running operations
-6. **Settings persistence** - Configuration saved to `.index/settings.json`
+| Field                    | Type    | Default | Description                                        |
+| ------------------------ | ------- | ------- | -------------------------------------------------- |
+| `enabled`                | boolean | `true`  | Enable/disable crawler globally                    |
+| `auto_download`          | boolean | `false` | Auto-download after search (requires confirmation) |
+| `max_results_per_engine` | integer | `20`    | Max results to fetch per engine                    |
+| `timeout_seconds`        | integer | `30`    | Default timeout for all operations                 |
+| `enabled_engines`        | array   | `[...]` | List of enabled engine names                       |
+| `engine_settings`        | object  | `{}`    | Per-engine overrides (rate limits, API keys)       |
 
-## Test Results
+### Engine-Specific Settings
 
-Successfully tested crawler search:
+Override defaults per engine in `engine_settings`:
 
-- Google Scholar: Working (web scraping)
-- PubMed: Available (API)
-- Semantic Scholar: Available (API, may hit rate limits)
-
-## Dependencies Added
-
-```txt
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
+```json
+{
+  "engine_settings": {
+    "google_scholar": {
+      "enabled": true,
+      "rate_limit": 3,
+      "timeout": 30,
+      "max_retries": 3
+    },
+    "core": {
+      "enabled": true,
+      "api_key": "your-api-key",
+      "rate_limit": 5
+    }
+  }
+}
 ```
 
-## Usage Example
+## API Endpoints
+
+All endpoints are available at `/api/crawler/`:
+
+| Method | Endpoint                 | Description                                        |
+| ------ | ------------------------ | -------------------------------------------------- |
+| GET    | `/engines`               | List available and enabled engines                 |
+| GET    | `/config`                | Get crawler configuration                          |
+| POST   | `/config`                | Update crawler configuration (affects persistence) |
+| POST   | `/search`                | Search across enabled engines                      |
+| POST   | `/download`              | Download PDFs from search results                  |
+| POST   | `/batch-download/stream` | Batch download with SSE streaming                  |
+
+## Usage
+
+### From Web UI
+
+1. Open **ProjectHub** → **Reference Bank** tab
+2. Click **"Search Online"** button
+3. Enter search query and select engines
+4. Review results (title, abstract, authors, source)
+5. Select papers to download
+6. Click **"Download Selected"**
+7. Papers are saved to `references/` and automatically indexed
+
+### From Python API
 
 ```python
 from refminer.crawler import CrawlerManager, SearchQuery
 import asyncio
 
 async def search_papers():
-    manager = CrawlerManager()
+    # Load config from settings
+    from refminer.server.globals import settings_manager
+    config_dict = settings_manager.get_crawler_config()
+    config = CrawlerConfig(**config_dict)
+
+    manager = CrawlerManager(config)
     query = SearchQuery(
         query="machine learning",
         max_results=10,
@@ -122,24 +176,82 @@ async def search_papers():
     for result in results:
         print(f"{result.title} ({result.year})")
         print(f"  Authors: {', '.join(result.authors[:3])}")
-        print(f"  Source: {result.source}")
+        print(f"  Source: {result.source.source}")
         if result.doi:
             print(f"  DOI: {result.doi}")
 
 asyncio.run(search_papers())
 ```
 
-## Important Notes
+## Features
 
-1. **Google Scholar**: Uses web scraping which may violate terms of service. User responsibility for compliance.
-2. **Auto-download**: Disabled by default. Users must enable in settings.
-3. **Local-first**: Downloaded PDFs go to `references/` and are immediately indexed.
-4. **Rate limits**: Each engine has configurable rate limits to avoid blocking.
+### Multi-Engine Search
 
-## Next Steps (Future)
+- Query multiple engines concurrently
+- Automatic deduplication by title/DOI/year
+- Merge results with source attribution
 
-1. Add `search_papers` tool to agent for automatic paper discovery
-2. Implement frontend: crawler search interface, results display, download controls
-3. Add more engines: arXiv, CORE, DOAJ, Zenodo
-4. Implement citation export functionality
-5. Add batch operations for bulk download
+### Rate Limiting
+
+- Per-engine rate limits to avoid blocking
+- Configurable via settings
+- Automatic retry with exponential backoff
+
+### PDF Download
+
+- Direct PDF URL extraction
+- Fallback to DOI resolution
+- Landing page scraping for PDF links
+- Automatic ingestion after download
+
+### Deep Crawl (Future)
+
+- Citation-based expansion
+- Fetch papers that cite or are cited by seed papers
+- Controlled by max papers limit
+
+## Known Limitations
+
+1. **Google Scholar**: Web scraping is fragile and may break with UI changes
+2. **Rate Limits**: Free APIs have strict limits; may hit errors on frequent searches
+3. **PDF Availability**: Not all papers have open-access PDFs
+4. **Settings Persistence**: Current version has a bug where settings may not persist (to be fixed)
+
+## Troubleshooting
+
+### Crawler Not Working
+
+1. Check if crawler is enabled in Settings → Crawler
+2. Verify at least one engine is enabled
+3. Check rate limits (too aggressive may cause blocking)
+4. Review server logs for specific errors
+
+### PDF Download Failing
+
+1. Some papers are behind paywalls (no PDF available)
+2. Try different engines (same paper may be available elsewhere)
+3. Check if DOI resolver is working
+4. Review downloader logs for specific errors
+
+### Settings Not Persisting
+
+**Known Issue**: Current version has a bug where crawler settings may not persist to disk. This will be fixed in an upcoming update.
+
+**Workaround**: Settings are saved to `.index/settings.json`. You can manually edit this file to update crawler configuration.
+
+## Dependencies
+
+```txt
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+httpx>=0.24.0
+```
+
+## Future Enhancements
+
+- [ ] Fix settings persistence bug
+- [ ] Add `search_papers` tool to LLM agent
+- [ ] Implement citation export (BibTeX, EndNote)
+- [ ] Add batch operations for bulk download
+- [ ] Support for more engines (DOAJ, Zenodo, etc.)
+- [ ] Advanced filtering (open access only, citation count threshold)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +47,9 @@ class SearchResult(BaseModel):
         return hashlib.sha256(content.encode()).hexdigest()
 
 
+CrawlerPresetName = Literal["balanced", "fast", "thorough", "minimal", "custom"]
+
+
 class EngineConfig(BaseModel):
     """Configuration for a single crawler engine."""
 
@@ -64,6 +67,7 @@ class CrawlerConfig(BaseModel):
     auto_download: bool = Field(False, description="Automatically download PDFs")
     max_results_per_engine: int = Field(20, description="Max results per engine")
     timeout_seconds: int = Field(30, description="Default timeout")
+    preset: CrawlerPresetName = Field("balanced", description="Active preset name")
     engines: dict[str, EngineConfig] = Field(
         default_factory=lambda: {
             "google_scholar": EngineConfig(
@@ -105,3 +109,36 @@ class CrawlerConfig(BaseModel):
         """Check if an engine is enabled."""
         config = self.get_engine_config(engine_name)
         return self.enabled and config.enabled
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CrawlerConfig:
+        """Create CrawlerConfig from dict (e.g., from SettingsManager)."""
+        engines_data = data.get("engines", {})
+        
+        default_config = cls()
+        engines = {}
+        
+        for engine_name, default_engine_config in default_config.engines.items():
+            if (engine_name in engines_data):
+                engine_config = engines_data[engine_name]
+                if isinstance(engine_config, dict):
+                    engines[engine_name] = EngineConfig(
+                        enabled=engine_config.get("enabled", True),
+                        rate_limit=engine_config.get("rate_limit", 5),
+                        api_key=engine_config.get("api_key"),
+                        timeout=engine_config.get("timeout", 30),
+                        max_retries=engine_config.get("max_retries", 3),
+                    )
+                else:
+                    engines[engine_name] = default_engine_config
+            else:
+                engines[engine_name] = default_engine_config
+        
+        return cls(
+            enabled=data.get("enabled", True),
+            auto_download=data.get("auto_download", False),
+            max_results_per_engine=data.get("max_results_per_engine", 20),
+            timeout_seconds=data.get("timeout_seconds", 30),
+            preset=data.get("preset", "balanced"),
+            engines=engines,
+        )

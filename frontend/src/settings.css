@@ -457,11 +457,12 @@
   cursor: not-allowed;
 }
 
-/* Updates Badge */
+/* Section Header Actions */
 .section-header-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .update-badge {
