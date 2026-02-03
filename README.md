@@ -519,6 +519,25 @@ uv run python referenceminer.py ask "What evidence supports method X?"
 uv run python referenceminer.py ingest --no-vectors  # Skip vector indexing
 ```
 
+### Crawler Stats Script
+
+The `scripts/pdf_stats.py` utility reports PDF coverage ratios for crawler engines.
+
+```bash
+# List engines
+uv run python scripts/pdf_stats.py --list-engines
+
+# Run enabled engines
+uv run python scripts/pdf_stats.py --query "Distill"
+
+# Run all engines
+uv run python scripts/pdf_stats.py --all --query "Distill"
+
+# Run specific engines (repeatable or comma-separated)
+uv run python scripts/pdf_stats.py --engine pubmed --engine openalex
+uv run python scripts/pdf_stats.py --engine "pubmed,openalex"
+```
+
 ---
 
 ## Version Management

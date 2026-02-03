@@ -124,6 +124,13 @@ class PDFDownloader:
             logger.info(f"[PDFDownloader] File already exists: {filename}")
             return output_path
 
+        if result.source == "airiti":
+            airiti_info = result.metadata.get("airiti_download")
+            if isinstance(airiti_info, dict):
+                download_path = await self._download_airiti(output_path, airiti_info)
+                if download_path:
+                    return download_path
+
         pdf_url = await self._find_pdf_url(result)
         if not pdf_url:
             logger.warning(f"[PDFDownloader] No PDF URL found for: {result.title}")
@@ -163,6 +170,49 @@ class PDFDownloader:
                 f"[PDFDownloader] Failed to download {result.title}: {e}",
                 exc_info=True,
             )
+            return None
+
+    async def _download_airiti(
+        self, output_path: Path, airiti_info: dict[str, Any]
+    ) -> Optional[Path]:
+        download_url = airiti_info.get("download_url")
+        download_token = airiti_info.get("download_token")
+        doc_id = airiti_info.get("download_doc_id")
+        if not (download_url and download_token and doc_id):
+            return None
+
+        try:
+            client = await self._get_client()
+            headers = {
+                "X-Requested-With": "XMLHttpRequest",
+                "AjaxRequestVerificationToken": download_token,
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+            response = await client.post(
+                download_url, data={"docID": doc_id}, headers=headers
+            )
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").lower()
+
+            if (
+                "application/pdf" in content_type
+                or "application/octet-stream" in content_type
+            ):
+                output_path.write_bytes(response.content)
+                logger.info(f"[PDFDownloader] Downloaded (Airiti): {output_path.name}")
+                return output_path
+
+            if response.content.startswith(b"%PDF"):
+                output_path.write_bytes(response.content)
+                logger.info(f"[PDFDownloader] Downloaded (Airiti): {output_path.name}")
+                return output_path
+
+            logger.warning(
+                f"[PDFDownloader] Airiti download returned content type: {content_type}"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"[PDFDownloader] Airiti download failed: {e}", exc_info=True)
             return None
 
     async def _find_pdf_url(self, result: SearchResult) -> Optional[str]:
@@ -219,7 +269,8 @@ class PDFDownloader:
 
             pdf_links = engine.find_elements(PDF_LINK_SELECTORS)
             if pdf_links:
-                href = pdf_links[0].get("href", "")
+                href_value = pdf_links[0].get("href")
+                href = href_value if isinstance(href_value, str) else ""
                 if href.startswith("http"):
                     return href
                 if href.startswith("/"):
@@ -230,7 +281,8 @@ class PDFDownloader:
 
             meta_pdf = engine.find_element(CITATION_PDF_META)
             if meta_pdf:
-                return meta_pdf.get("content")
+                content = meta_pdf.get("content")
+                return content if isinstance(content, str) else None
 
             return None
 
