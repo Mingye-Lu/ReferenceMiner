@@ -29,6 +29,7 @@ const localConfig = ref<CrawlerConfig | null>(
 const isUpdatingFromProp = ref(false);
 
 const engineDescriptions: Record<string, string> = {
+  airiti: "Airiti Library - Chinese journals and theses platform (Taiwan focus)",
   google_scholar: "Google Scholar - Broad academic search across all disciplines",
   pubmed: "PubMed - Biomedical and life sciences literature database",
   semantic_scholar: "Semantic Scholar - AI-powered search with citation analysis",
@@ -38,6 +39,7 @@ const engineDescriptions: Record<string, string> = {
   core: "CORE - Open access research papers with full-text search",
   europe_pmc: "Europe PMC - Life sciences literature with open access full text",
   biorxiv_medrxiv: "bioRxiv/medRxiv - Biology and medical research preprints",
+  nstl: "NSTL - China National Science and Technology Library catalog",
 };
 
 const presets: CrawlerPreset[] = [

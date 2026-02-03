@@ -70,6 +70,9 @@ class CrawlerConfig(BaseModel):
     preset: CrawlerPresetName = Field("balanced", description="Active preset name")
     engines: dict[str, EngineConfig] = Field(
         default_factory=lambda: {
+            "airiti": EngineConfig(
+                enabled=False, rate_limit=2, api_key=None, timeout=30, max_retries=3
+            ),
             "google_scholar": EngineConfig(
                 enabled=True, rate_limit=5, api_key=None, timeout=30, max_retries=3
             ),
@@ -96,6 +99,9 @@ class CrawlerConfig(BaseModel):
             ),
             "biorxiv_medrxiv": EngineConfig(
                 enabled=False, rate_limit=5, api_key=None, timeout=30, max_retries=3
+            ),
+            "nstl": EngineConfig(
+                enabled=False, rate_limit=2, api_key=None, timeout=30, max_retries=3
             ),
         },
         description="Per-engine configurations",

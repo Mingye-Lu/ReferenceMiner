@@ -9,12 +9,14 @@ from typing import Optional
 
 from refminer.crawler.base import BaseCrawler
 from refminer.crawler.engines import (
+    AiritiCrawler,
     ArXivCrawler,
     BiorxivMedrxivCrawler,
     CoreCrawler,
     CrossrefCrawler,
     EuropePmcCrawler,
     GoogleScholarCrawler,
+    NstlCrawler,
     OpenAlexCrawler,
     PubMedCrawler,
     SemanticScholarCrawler,
@@ -35,6 +37,7 @@ class CrawlerManager:
     def _initialize_engines(self) -> None:
         """Initialize all available engines."""
         self._engines = {
+            "airiti": AiritiCrawler(self.config.get_engine_config("airiti")),
             "google_scholar": GoogleScholarCrawler(
                 self.config.get_engine_config("google_scholar")
             ),
@@ -50,6 +53,7 @@ class CrawlerManager:
             "biorxiv_medrxiv": BiorxivMedrxivCrawler(
                 self.config.get_engine_config("biorxiv_medrxiv")
             ),
+            "nstl": NstlCrawler(self.config.get_engine_config("nstl")),
         }
 
     def get_engine(self, name: str) -> Optional[BaseCrawler]:
