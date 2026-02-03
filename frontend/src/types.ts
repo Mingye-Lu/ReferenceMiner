@@ -350,7 +350,8 @@ export interface CrawlerSearchQuery {
   query: string;
   max_results?: number;
   engines?: string[];
-  year_range?: [number, number] | null;
+  year_from?: number | null;
+  year_to?: number | null;
   sort_by?: "relevance" | "date" | "citations";
   deep_crawl?: boolean;
   deep_crawl_max_papers?: number;

@@ -12,6 +12,9 @@ class SearchQuery(BaseModel):
     """Search query parameters."""
 
     query: str = Field(..., description="Search query string")
+    engines: Optional[list[str]] = Field(
+        None, description="Specific engines to search (overrides settings)"
+    )
     year_from: Optional[int] = Field(None, description="Minimum publication year")
     year_to: Optional[int] = Field(None, description="Maximum publication year")
     max_results: int = Field(20, description="Maximum results per engine")
@@ -120,12 +123,12 @@ class CrawlerConfig(BaseModel):
     def from_dict(cls, data: dict) -> CrawlerConfig:
         """Create CrawlerConfig from dict (e.g., from SettingsManager)."""
         engines_data = data.get("engines", {})
-        
+
         default_config = cls()
         engines = {}
-        
+
         for engine_name, default_engine_config in default_config.engines.items():
-            if (engine_name in engines_data):
+            if engine_name in engines_data:
                 engine_config = engines_data[engine_name]
                 if isinstance(engine_config, dict):
                     engines[engine_name] = EngineConfig(
@@ -139,7 +142,7 @@ class CrawlerConfig(BaseModel):
                     engines[engine_name] = default_engine_config
             else:
                 engines[engine_name] = default_engine_config
-        
+
         return cls(
             enabled=data.get("enabled", True),
             auto_download=data.get("auto_download", False),

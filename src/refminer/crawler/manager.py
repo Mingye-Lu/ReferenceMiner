@@ -74,6 +74,7 @@ class CrawlerManager:
         self,
         query: SearchQuery,
         engines: Optional[list[str]] = None,
+        allow_disabled: bool = False,
     ) -> list[SearchResult]:
         """Search across multiple engines concurrently.
 
@@ -86,6 +87,8 @@ class CrawlerManager:
         """
         if engines is None:
             engines = self.list_enabled_engines()
+        else:
+            engines = list(dict.fromkeys(engines))
 
         if not engines:
             logger.warning("[CrawlerManager] No enabled engines")
@@ -95,7 +98,7 @@ class CrawlerManager:
 
         tasks = []
         for engine_name in engines:
-            if not self.config.is_engine_enabled(engine_name):
+            if not allow_disabled and not self.config.is_engine_enabled(engine_name):
                 logger.info(f"[CrawlerManager] Skipping disabled engine: {engine_name}")
                 continue
 

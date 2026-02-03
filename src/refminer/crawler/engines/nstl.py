@@ -63,10 +63,14 @@ class NstlCrawler(BaseCrawler):
         params = self._build_api_params()
         page_size = self._normalize_page_size(query.max_results)
         query_payload = self._build_query_payload(query, page_size)
-        query_string = json.dumps(query_payload, ensure_ascii=True, separators=(",", ":"))
+        query_string = json.dumps(
+            query_payload, ensure_ascii=True, separators=(",", ":")
+        )
         search_word = urllib.parse.quote(query.query, safe="")
         search_word_id, search_id = self._build_search_ids(search_word, nck)
-        payload = self._build_api_payload(query_string, search_word_id, search_id, page_size)
+        payload = self._build_api_payload(
+            query_string, search_word_id, search_id, page_size
+        )
         headers = {
             "Accept": "application/json, text/plain, */*",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -117,7 +121,9 @@ class NstlCrawler(BaseCrawler):
             "tid": tid,
         }
 
-    def _build_query_payload(self, query: SearchQuery, page_size: int) -> dict[str, Any]:
+    def _build_query_payload(
+        self, query: SearchQuery, page_size: int
+    ) -> dict[str, Any]:
         return {
             "c": page_size,
             "st": "",
@@ -370,14 +376,10 @@ class NstlCrawler(BaseCrawler):
         doi = self._normalize_identifier(fields.get("doi") or fields.get("DOI"))
         abstract = None
         if query.include_abstract:
-            abstract = self._normalize_text(
-                fields.get("abs") or fields.get("abstract")
-            )
+            abstract = self._normalize_text(fields.get("abs") or fields.get("abstract"))
 
         journal = self._normalize_text(
-            fields.get("hasSotit")
-            or fields.get("journal")
-            or fields.get("sourceTitle")
+            fields.get("hasSotit") or fields.get("journal") or fields.get("sourceTitle")
         )
         volume = self._normalize_text(fields.get("vol") or fields.get("volume"))
         issue = self._normalize_text(fields.get("iss") or fields.get("issue"))
@@ -385,9 +387,7 @@ class NstlCrawler(BaseCrawler):
             fields.get("pageRange") or fields.get("pages") or fields.get("pag")
         )
         citation_count = self._normalize_int(
-            fields.get("citationCount")
-            or fields.get("cited")
-            or fields.get("cit")
+            fields.get("citationCount") or fields.get("cited") or fields.get("cit")
         )
 
         url = self._normalize_text(
@@ -572,7 +572,11 @@ class NstlCrawler(BaseCrawler):
 
     def _extract_title(self, entry: dict[str, Any]) -> Optional[str]:
         """Extract title from JSON-LD."""
-        title = entry.get("name") or entry.get("headline") or entry.get("alternativeHeadline")
+        title = (
+            entry.get("name")
+            or entry.get("headline")
+            or entry.get("alternativeHeadline")
+        )
         if isinstance(title, list):
             title = title[0] if title else None
         return title.strip() if isinstance(title, str) else None
@@ -580,7 +584,9 @@ class NstlCrawler(BaseCrawler):
     def _extract_authors(self, entry: dict[str, Any]) -> list[str]:
         """Extract authors from JSON-LD."""
         authors: list[str] = []
-        raw_authors = entry.get("author") or entry.get("creator") or entry.get("authors") or []
+        raw_authors = (
+            entry.get("author") or entry.get("creator") or entry.get("authors") or []
+        )
         if isinstance(raw_authors, dict):
             raw_authors = [raw_authors]
         elif isinstance(raw_authors, str):
@@ -675,9 +681,11 @@ class NstlCrawler(BaseCrawler):
                 content_url = item.get("contentUrl") or item.get("url")
                 if isinstance(content_url, str):
                     content_lower = content_url.lower()
-                    if "pdf" in str(file_format).lower() or content_lower.endswith(
-                        ".pdf"
-                    ) or "pdf" in content_lower:
+                    if (
+                        "pdf" in str(file_format).lower()
+                        or content_lower.endswith(".pdf")
+                        or "pdf" in content_lower
+                    ):
                         return urllib.parse.urljoin(self.base_url, content_url)
 
         return None
@@ -700,8 +708,8 @@ class NstlCrawler(BaseCrawler):
 
     def _extract_pages(self, entry: dict[str, Any]) -> Optional[str]:
         """Extract page range from JSON-LD."""
-        pagination = entry.get("pagination") or entry.get("pageRange") or entry.get(
-            "pages"
+        pagination = (
+            entry.get("pagination") or entry.get("pageRange") or entry.get("pages")
         )
         normalized = self._normalize_text(pagination)
         if normalized:

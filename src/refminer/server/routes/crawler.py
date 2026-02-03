@@ -66,11 +66,20 @@ async def update_config(config: CrawlerConfig) -> CrawlerConfig:
 async def search_papers(query: SearchQuery) -> list[SearchResult]:
     """Search for papers across enabled engines."""
     config = _load_crawler_config()
+    if not config.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Crawler is disabled in settings",
+        )
     manager = CrawlerManager(config)
 
     try:
         async with manager:
-            results = await manager.search(query)
+            results = await manager.search(
+                query,
+                engines=query.engines,
+                allow_disabled=bool(query.engines),
+            )
         return results
     except Exception as e:
         logger.error(f"[Crawler] Search failed: {e}", exc_info=True)

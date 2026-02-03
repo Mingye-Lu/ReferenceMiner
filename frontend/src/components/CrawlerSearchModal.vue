@@ -42,11 +42,13 @@ useQueue();
 
 const searchQuery = ref("");
 const selectedEngines = ref<Set<string>>(new Set());
-const yearRange = ref<[number, number] | null>(null);
+const yearFrom = ref<number | null>(null);
+const yearTo = ref<number | null>(null);
 const sortBy = ref<"relevance" | "date" | "citations">("relevance");
 const deepCrawl = ref(false);
 const deepCrawlMaxPapers = ref(100);
 const maxResults = ref(20);
+const crawlerEnabled = ref(true);
 
 const searchResults = ref<CrawlerSearchResult[]>([]);
 const selectedResults = ref<Set<string>>(new Set());
@@ -200,6 +202,8 @@ async function loadEngines() {
       (e) => config.engines[e].enabled,
     );
     selectedEngines.value = new Set(enabledEngines.value);
+    maxResults.value = config.max_results_per_engine;
+    crawlerEnabled.value = config.enabled;
   } catch (e) {
     console.error("Failed to load engines:", e);
   } finally {
@@ -217,6 +221,9 @@ function resetState() {
   isSearching.value = false;
   searchError.value = null;
   isLoadingEngines.value = false;
+  yearFrom.value = null;
+  yearTo.value = null;
+  crawlerEnabled.value = true;
   resetFilters();
 }
 
@@ -232,6 +239,11 @@ function resetFilters() {
 async function handleSearch() {
   if (!searchQuery.value.trim()) {
     searchError.value = "Please enter a search query";
+    return;
+  }
+
+  if (!crawlerEnabled.value) {
+    searchError.value = "Crawler is disabled in Settings";
     return;
   }
 
@@ -251,7 +263,8 @@ async function handleSearch() {
       query: searchQuery.value.trim(),
       max_results: maxResults.value,
       engines: Array.from(selectedEngines.value),
-      year_range: yearRange.value,
+      year_from: yearFrom.value,
+      year_to: yearTo.value,
       sort_by: sortBy.value,
       deep_crawl: deepCrawl.value,
       deep_crawl_max_papers: deepCrawl.value
@@ -272,7 +285,7 @@ function toggleAllEngines() {
   if (selectedEngines.value.size === availableEngines.value.length) {
     selectedEngines.value = new Set();
   } else {
-    selectedEngines.value = new Set(enabledEngines.value);
+    selectedEngines.value = new Set(availableEngines.value);
   }
 }
 
@@ -354,6 +367,21 @@ function formatAuthors(authors: string[]): string {
 
 function getEngineIcon(engine: string): string | undefined {
   return engineIcons[engine];
+}
+
+function updateYearInput(target: "from" | "to", value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    if (target === "from") yearFrom.value = null;
+    else yearTo.value = null;
+    return;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  if (Number.isNaN(parsed)) return;
+
+  if (target === "from") yearFrom.value = parsed;
+  else yearTo.value = parsed;
 }
 
 async function confirmDownload() {
@@ -487,14 +515,12 @@ async function confirmDownload() {
               <label class="form-label">Year Range</label>
               <div class="year-inputs">
                 <input
-                  :value="yearRange?.[0]"
+                  :value="yearFrom ?? ''"
                   @input="
-                    (e) => {
-                      if (yearRange)
-                        yearRange[0] = parseInt(
-                          (e.target as HTMLInputElement).value,
-                        );
-                    }
+                    updateYearInput(
+                      'from',
+                      ($event.target as HTMLInputElement).value,
+                    )
                   "
                   type="number"
                   placeholder="From"
@@ -502,14 +528,12 @@ async function confirmDownload() {
                 />
                 <span class="year-separator">to</span>
                 <input
-                  :value="yearRange?.[1]"
+                  :value="yearTo ?? ''"
                   @input="
-                    (e) => {
-                      if (yearRange)
-                        yearRange[1] = parseInt(
-                          (e.target as HTMLInputElement).value,
-                        );
-                    }
+                    updateYearInput(
+                      'to',
+                      ($event.target as HTMLInputElement).value,
+                    )
                   "
                   type="number"
                   placeholder="To"
