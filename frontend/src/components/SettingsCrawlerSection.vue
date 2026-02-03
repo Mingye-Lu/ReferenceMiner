@@ -29,15 +29,21 @@ const localConfig = ref<CrawlerConfig | null>(
 const isUpdatingFromProp = ref(false);
 
 const engineDescriptions: Record<string, string> = {
-  airiti: "Airiti Library - Chinese journals and theses platform (Taiwan focus)",
-  google_scholar: "Google Scholar - Broad academic search across all disciplines",
+  airiti:
+    "Airiti Library - Chinese journals and theses platform (Taiwan focus)",
+  google_scholar:
+    "Google Scholar - Broad academic search across all disciplines",
   pubmed: "PubMed - Biomedical and life sciences literature database",
-  semantic_scholar: "Semantic Scholar - AI-powered search with citation analysis",
-  arxiv: "ArXiv - Preprint repository for computer science, physics, and mathematics",
+  semantic_scholar:
+    "Semantic Scholar - AI-powered search with citation analysis",
+  arxiv:
+    "ArXiv - Preprint repository for computer science, physics, and mathematics",
   crossref: "Crossref - Comprehensive metadata for scholarly works with DOIs",
-  openalex: "OpenAlex - Open scholarly catalog with 200M+ works and citation data",
+  openalex:
+    "OpenAlex - Open scholarly catalog with 200M+ works and citation data",
   core: "CORE - Open access research papers with full-text search",
-  europe_pmc: "Europe PMC - Life sciences literature with open access full text",
+  europe_pmc:
+    "Europe PMC - Life sciences literature with open access full text",
   biorxiv_medrxiv: "bioRxiv/medRxiv - Biology and medical research preprints",
   nstl: "NSTL - China National Science and Technology Library catalog",
 };
@@ -290,7 +296,10 @@ const totalEngineCount = computed(() => {
                 </p>
               </div>
               <div class="setting-control">
-                <BaseToggle v-model="localConfig.enabled" @update:model-value="markAsCustom" />
+                <BaseToggle
+                  v-model="localConfig.enabled"
+                  @update:model-value="markAsCustom"
+                />
               </div>
             </div>
 
@@ -302,7 +311,10 @@ const totalEngineCount = computed(() => {
                 </p>
               </div>
               <div class="setting-control">
-                <BaseToggle v-model="localConfig.auto_download" @update:model-value="markAsCustom" />
+                <BaseToggle
+                  v-model="localConfig.auto_download"
+                  @update:model-value="markAsCustom"
+                />
               </div>
             </div>
 
@@ -390,7 +402,9 @@ const totalEngineCount = computed(() => {
                 <div class="engine-info">
                   <BaseToggle
                     :model-value="engineConfig.enabled"
-                    @update:model-value="toggleEngine(engineName as string, $event)"
+                    @update:model-value="
+                      toggleEngine(engineName as string, $event)
+                    "
                     @click.stop
                   />
                   <div class="engine-details">
@@ -427,7 +441,12 @@ const totalEngineCount = computed(() => {
                   <input
                     type="number"
                     :value="engineConfig.rate_limit"
-                    @input="updateEngineRateLimit(engineName as string, Number(($event.target as HTMLInputElement).value))"
+                    @input="
+                      updateEngineRateLimit(
+                        engineName as string,
+                        Number(($event.target as HTMLInputElement).value),
+                      )
+                    "
                     min="1"
                     max="60"
                     class="form-input"
@@ -464,7 +483,12 @@ const totalEngineCount = computed(() => {
                   <input
                     type="number"
                     :value="engineConfig.timeout"
-                    @input="updateEngineTimeout(engineName as string, Number(($event.target as HTMLInputElement).value))"
+                    @input="
+                      updateEngineTimeout(
+                        engineName as string,
+                        Number(($event.target as HTMLInputElement).value),
+                      )
+                    "
                     min="5"
                     max="120"
                     class="form-input"
@@ -480,7 +504,6 @@ const totalEngineCount = computed(() => {
 </template>
 
 <style scoped>
-
 /* Layout container for crawler settings cards */
 .crawler-settings-content {
   display: flex;

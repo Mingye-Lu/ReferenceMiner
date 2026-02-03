@@ -118,6 +118,7 @@ uv run python -m unittest tests.test_selector_engine -v
 ```
 
 All 8 tests pass:
+
 - `test_find_element_with_primary_strategy`
 - `test_find_element_with_fallback_strategy`
 - `test_find_elements_with_multiple_strategies`

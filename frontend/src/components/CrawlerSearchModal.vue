@@ -12,6 +12,7 @@ import coreIcon from "../assets/core.svg";
 import crossrefIcon from "../assets/crossref.svg";
 import europePmcIcon from "../assets/europe-pmc.svg";
 import openalexIcon from "../assets/openalex.svg";
+import airitiIcon from "../assets/airiti.svg";
 import type { CrawlerSearchResult, CrawlerSearchQuery } from "../types";
 import {
   searchPapers,
@@ -76,6 +77,7 @@ const engineIcons: Record<string, string> = {
   core: coreIcon,
   europe_pmc: europePmcIcon,
   biorxiv_medrxiv: biorxivIcon,
+  airiti: airitiIcon,
 };
 
 const showFilters = ref(false);
