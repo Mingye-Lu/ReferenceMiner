@@ -38,7 +38,8 @@ const emit = defineEmits<{
   (e: "openSettings"): void;
 }>();
 
-useQueue();
+const { launchQueueEject } = useQueue();
+const downloadAllButtonRef = ref<HTMLButtonElement | null>(null);
 
 const searchQuery = ref("");
 const selectedEngines = ref<Set<string>>(new Set());
@@ -88,6 +89,9 @@ const filterPdfOnly = ref<boolean | null>(null);
 const filterYearRange = ref<[number, number] | null>(null);
 const filterMinCitations = ref<number | null>(null);
 const filterKeywords = ref<string>("");
+const downloadQueueing = ref<Set<string>>(new Set());
+const downloadQueued = ref<Set<string>>(new Set());
+const downloadErrors = ref<Record<string, string>>({});
 
 const selectedCount = computed(() => selectedResults.value.size);
 
@@ -216,6 +220,9 @@ function resetState() {
   searchResults.value = [];
   selectedResults.value.clear();
   expandedAbstracts.value.clear();
+  downloadQueueing.value = new Set();
+  downloadQueued.value = new Set();
+  downloadErrors.value = {};
   showAdvanced.value = false;
   hasSearched.value = false;
   isSearching.value = false;
@@ -257,6 +264,9 @@ async function handleSearch() {
   searchError.value = null;
   searchResults.value = [];
   selectedResults.value.clear();
+  downloadQueueing.value = new Set();
+  downloadQueued.value = new Set();
+  downloadErrors.value = {};
 
   try {
     const query: CrawlerSearchQuery = {
@@ -369,6 +379,42 @@ function getEngineIcon(engine: string): string | undefined {
   return engineIcons[engine];
 }
 
+async function queueSingleDownload(
+  key: string,
+  result: CrawlerSearchResult,
+  event?: MouseEvent,
+) {
+  if (!result.pdf_url) return;
+  if (downloadQueueing.value.has(key) || downloadQueued.value.has(key)) return;
+
+  const target = event?.currentTarget as HTMLElement | null;
+  const rect = target?.getBoundingClientRect();
+  const startX = rect ? rect.left + rect.width / 2 : null;
+  const startY = rect ? rect.top + rect.height / 2 : null;
+
+  const nextQueueing = new Set(downloadQueueing.value);
+  nextQueueing.add(key);
+  downloadQueueing.value = nextQueueing;
+  downloadErrors.value = { ...downloadErrors.value, [key]: "" };
+
+  try {
+    await downloadPapersQueueStream([result], false);
+    const nextQueued = new Set(downloadQueued.value);
+    nextQueued.add(key);
+    downloadQueued.value = nextQueued;
+    if (startX !== null && startY !== null) {
+      launchQueueEject(startX, startY);
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Queueing failed";
+    downloadErrors.value = { ...downloadErrors.value, [key]: message };
+  } finally {
+    const next = new Set(downloadQueueing.value);
+    next.delete(key);
+    downloadQueueing.value = next;
+  }
+}
+
 function updateYearInput(target: "from" | "to", value: string) {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -393,6 +439,10 @@ async function confirmDownload() {
 
   try {
     await downloadPapersQueueStream(selectedPapers, false);
+    const rect = downloadAllButtonRef.value?.getBoundingClientRect();
+    if (rect) {
+      launchQueueEject(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
     emit("update:modelValue", false);
   } catch (e) {
     console.error("Download failed:", e);
@@ -615,6 +665,7 @@ async function confirmDownload() {
                 class="btn-primary"
                 @click="confirmDownload"
                 :disabled="selectedCount === 0"
+                ref="downloadAllButtonRef"
               >
                 Download Selected ({{ selectedCount }})
               </button>
@@ -814,6 +865,29 @@ async function confirmDownload() {
               >
                 Source <ExternalLink :size="12" />
               </a>
+              <button
+                v-if="item.result.pdf_url"
+                class="result-download-btn"
+                type="button"
+                :disabled="
+                  downloadQueueing.has(item.key) ||
+                  downloadQueued.has(item.key)
+                "
+                @click.stop="queueSingleDownload(item.key, item.result, $event)"
+              >
+                <span v-if="downloadQueueing.has(item.key)">
+                  Queueing...
+                </span>
+                <span v-else-if="downloadQueued.has(item.key)">Queued</span>
+                <span v-else-if="downloadErrors[item.key]">Retry</span>
+                <span v-else>Download PDF</span>
+              </button>
+            </div>
+            <div
+              v-if="downloadErrors[item.key]"
+              class="result-download-error"
+            >
+              {{ downloadErrors[item.key] }}
             </div>
 
             <div
@@ -1371,6 +1445,7 @@ async function confirmDownload() {
   display: flex;
   gap: 12px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 .result-link {
@@ -1384,6 +1459,33 @@ async function confirmDownload() {
 
 .result-link:hover {
   text-decoration: underline;
+}
+
+.result-download-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.result-download-btn:hover:not(:disabled) {
+  border-color: var(--accent-bright);
+  color: var(--accent-color);
+}
+
+.result-download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.result-download-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-danger-700);
 }
 
 .result-abstract {

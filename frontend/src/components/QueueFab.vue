@@ -309,7 +309,7 @@ watch(queueItems, (items) => {
   flex-direction: column-reverse;
   align-items: flex-end;
   gap: 8px;
-  z-index: 900;
+  z-index: 2000;
 }
 
 .queue-toggle {
@@ -504,7 +504,7 @@ watch(queueItems, (items) => {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 880;
+  z-index: 2000;
 }
 
 .queue-eject-ball {
