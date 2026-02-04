@@ -12,6 +12,8 @@ from refminer.crawler.engines import (
     AiritiCrawler,
     ArXivCrawler,
     BiorxivMedrxivCrawler,
+    ChinaXivCrawler,
+    CnkiCrawler,
     CoreCrawler,
     CrossrefCrawler,
     EuropePmcCrawler,
@@ -38,6 +40,8 @@ class CrawlerManager:
         """Initialize all available engines."""
         self._engines = {
             "airiti": AiritiCrawler(self.config.get_engine_config("airiti")),
+            "chinaxiv": ChinaXivCrawler(self.config.get_engine_config("chinaxiv")),
+            "cnki": CnkiCrawler(self.config.get_engine_config("cnki")),
             "google_scholar": GoogleScholarCrawler(
                 self.config.get_engine_config("google_scholar")
             ),

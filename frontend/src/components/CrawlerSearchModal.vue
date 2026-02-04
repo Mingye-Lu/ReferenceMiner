@@ -13,6 +13,9 @@ import crossrefIcon from "../assets/crossref.svg";
 import europePmcIcon from "../assets/europe-pmc.svg";
 import openalexIcon from "../assets/openalex.svg";
 import airitiIcon from "../assets/airiti.svg";
+import chinaxivIcon from "../assets/chinaXiv.png";
+import cnkiIcon from "../assets/cnki.png";
+import nstlIcon from "../assets/nstl.png";
 import type { CrawlerSearchResult, CrawlerSearchQuery } from "../types";
 import {
   searchPapers,
@@ -81,6 +84,9 @@ const engineIcons: Record<string, string> = {
   europe_pmc: europePmcIcon,
   biorxiv_medrxiv: biorxivIcon,
   airiti: airitiIcon,
+  chinaxiv: chinaxivIcon,
+  cnki: cnkiIcon,
+  nstl: nstlIcon,
 };
 
 const showFilters = ref(false);

@@ -76,6 +76,12 @@ class CrawlerConfig(BaseModel):
             "airiti": EngineConfig(
                 enabled=False, rate_limit=2, api_key=None, timeout=30, max_retries=3
             ),
+            "chinaxiv": EngineConfig(
+                enabled=True, rate_limit=3, api_key=None, timeout=30, max_retries=3
+            ),
+            "cnki": EngineConfig(
+                enabled=False, rate_limit=2, api_key=None, timeout=30, max_retries=3
+            ),
             "google_scholar": EngineConfig(
                 enabled=True, rate_limit=5, api_key=None, timeout=30, max_retries=3
             ),

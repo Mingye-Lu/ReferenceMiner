@@ -34,22 +34,29 @@ src/refminer/crawler/
 ├── deep_crawler.py      # Citation-based expansion
 └── engines/
     ├── __init__.py
+    ├── airiti.py              # Airiti Library (web scraping)
+    ├── nstl.py                # NSTL (web scraping)
     ├── google_scholar.py      # Web scraping (requires user responsibility)
     ├── pubmed.py              # NCBI E-utilities API
-    ├── semantic_scholar.py   # Free API
-    ├── arxiv.py              # arXiv API
-    ├── crossref.py           # Crossref API
-    ├── openalex.py           # OpenAlex API
-    ├── core.py               # CORE API (requires API key)
-    ├── europe_pmc.py         # Europe PMC API
-    └── biorxiv_medrxiv.py   # bioRxiv/medRxiv API
+    ├── semantic_scholar.py    # Free API
+    ├── arxiv.py               # arXiv API
+    ├── crossref.py            # Crossref API
+    ├── openalex.py            # OpenAlex API
+    ├── core.py                # CORE API (requires API key)
+    ├── europe_pmc.py          # Europe PMC API
+    ├── biorxiv_medrxiv.py     # bioRxiv/medRxiv API
+    ├── chinaxiv.py            # ChinaXiv (web scraping)
+    └── cnki.py                # CNKI API (requires API key)
 ```
 
 ### Available Engines
 
 | Engine           | Type         | API Key Required | Default Rate Limit | Notes                         |
 | ---------------- | ------------ | ---------------- | ------------------ | ----------------------------- |
+| airiti           | Web scraping | No               | 2 req/min          | Airiti Library                |
 | google_scholar   | Web scraping | No               | 5 req/min          | May violate ToS               |
+| chinaxiv         | Web scraping | No               | 3 req/min          | ChinaXiv preprints            |
+| nstl             | Web scraping | No               | 2 req/min          | NSTL portal                   |
 | pubmed           | API          | No               | 10 req/min         | Biomedical literature         |
 | semantic_scholar | API          | No               | 1 req/min          | AI-powered search             |
 | arxiv            | API          | No               | 10 req/min         | Preprints (CS, physics, math) |
@@ -58,6 +65,7 @@ src/refminer/crawler/
 | core             | API          | **Yes**          | 5 req/min          | Open access papers            |
 | europe_pmc       | API          | No               | 10 req/min         | Life sciences, open access    |
 | biorxiv_medrxiv  | API          | No               | 5 req/min          | Biology/medicine preprints    |
+| cnki             | API          | **Yes**          | 2 req/min          | Licensed API required         |
 
 ## Configuration
 
