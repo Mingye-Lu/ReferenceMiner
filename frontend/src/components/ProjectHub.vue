@@ -885,12 +885,15 @@ function updateModelInput(value: string) {
 
 function syncLlmInputs(next: AppSettings | null) {
   if (!next) return;
-  const provider = next.activeProvider || "deepseek";
-  const defaults = providerDefaults[provider] ?? providerDefaults.custom;
-  const stored = next.providerSettings?.[provider];
-  selectedProvider.value = provider;
-  baseUrlInput.value = stored?.baseUrl || next.baseUrl || defaults.baseUrl;
-  modelInput.value = stored?.model || next.model || defaults.model;
+  const activeProvider = next.activeProvider || "deepseek";
+  const currentProvider = selectedProvider.value || activeProvider;
+  const defaults = providerDefaults[currentProvider] ?? providerDefaults.custom;
+  const stored = next.providerSettings?.[currentProvider];
+  if (selectedProvider.value === "custom") {
+    selectedProvider.value = activeProvider;
+  }
+  baseUrlInput.value = stored?.baseUrl || defaults.baseUrl;
+  modelInput.value = stored?.model || defaults.model;
 }
 
 function saveDisplaySetting(

@@ -45,8 +45,6 @@ class SettingsManager:
         self.index_dir = index_dir
         self.settings_file = self.index_dir / "settings.json"
         self._settings: dict = self._load()
-        if self._migrate_provider_settings():
-            self._save()
 
     def _load(self) -> dict:
         """Load settings from disk."""
@@ -57,38 +55,6 @@ class SettingsManager:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return {}
-
-    def _migrate_provider_settings(self) -> bool:
-        """Migrate legacy base URL/model keys into per-provider settings."""
-        settings = self._settings
-        provider_settings = settings.get("provider_settings")
-        if provider_settings is None or not isinstance(provider_settings, dict):
-            provider_settings = {}
-
-        provider = settings.get("llm_provider")
-        provider = provider if provider in PROVIDERS else "deepseek"
-
-        legacy_base_url = settings.get("llm_base_url") or settings.get(
-            "deepseek_base_url"
-        )
-        legacy_model = settings.get("llm_model") or settings.get("deepseek_model")
-
-        if provider not in provider_settings and (legacy_base_url or legacy_model):
-            provider_settings[provider] = {}
-        if provider in provider_settings:
-            entry = dict(provider_settings.get(provider, {}))
-            changed = False
-            if legacy_base_url and not entry.get("base_url"):
-                entry["base_url"] = legacy_base_url
-                changed = True
-            if legacy_model and not entry.get("model"):
-                entry["model"] = legacy_model
-                changed = True
-            if changed:
-                provider_settings[provider] = entry
-                settings["provider_settings"] = provider_settings
-                return True
-        return False
 
     def _save(self) -> None:
         """Persist settings to disk."""
@@ -123,13 +89,6 @@ class SettingsManager:
         key = keys.get(provider)
         if key:
             return key.strip()
-
-        # Check legacy deepseek key location
-        if provider == "deepseek":
-            legacy = self._settings.get("deepseek_api_key")
-            if legacy:
-                return legacy.strip()
-
         return None
 
     def set_api_key(self, api_key: str, provider: Optional[str] = None) -> None:
@@ -140,8 +99,6 @@ class SettingsManager:
         keys = dict(self._get_provider_keys())
         keys[provider] = api_key.strip()
         self._settings["provider_keys"] = keys
-        if provider == "deepseek":
-            self._settings["deepseek_api_key"] = api_key.strip()
         self._save()
 
     def get_base_url(self, provider: Optional[str] = None) -> str:
@@ -153,11 +110,7 @@ class SettingsManager:
             if isinstance(provider_settings, dict)
             else {}
         )
-        stored = (
-            provider_entry.get("base_url")
-            or self._settings.get("llm_base_url")
-            or self._settings.get("deepseek_base_url")
-        )
+        stored = provider_entry.get("base_url")
         if stored:
             return stored
         return DEFAULT_BASE_URLS.get(provider, DEFAULT_BASE_URLS["custom"])
@@ -170,10 +123,6 @@ class SettingsManager:
         entry["base_url"] = base_url
         provider_settings[provider] = entry
         self._settings["provider_settings"] = provider_settings
-        if provider == self.get_provider():
-            self._settings["llm_base_url"] = base_url
-        if provider == "deepseek":
-            self._settings["deepseek_base_url"] = base_url
         self._save()
 
     def get_model(self, provider: Optional[str] = None) -> str:
@@ -185,11 +134,7 @@ class SettingsManager:
             if isinstance(provider_settings, dict)
             else {}
         )
-        stored = (
-            provider_entry.get("model")
-            or self._settings.get("llm_model")
-            or self._settings.get("deepseek_model")
-        )
+        stored = provider_entry.get("model")
         if stored:
             return stored
         return DEFAULT_MODELS.get(provider, DEFAULT_MODELS["custom"])
@@ -202,23 +147,12 @@ class SettingsManager:
         entry["model"] = model
         provider_settings[provider] = entry
         self._settings["provider_settings"] = provider_settings
-        if provider == self.get_provider():
-            self._settings["llm_model"] = model
-        if provider == "deepseek":
-            self._settings["deepseek_model"] = model
         self._save()
 
     def get_provider_settings(self) -> dict[str, dict[str, str]]:
         """Get per-provider base URL and model settings."""
         settings: dict[str, dict[str, str]] = {}
         provider_settings = self._get_provider_settings()
-        active_provider = self.get_provider()
-        legacy_base_url = self._settings.get("llm_base_url") or self._settings.get(
-            "deepseek_base_url"
-        )
-        legacy_model = self._settings.get("llm_model") or self._settings.get(
-            "deepseek_model"
-        )
 
         for provider in PROVIDERS:
             entry = (
@@ -228,12 +162,6 @@ class SettingsManager:
             )
             base_url = entry.get("base_url")
             model = entry.get("model")
-
-            if provider == active_provider:
-                if not base_url:
-                    base_url = legacy_base_url
-                if not model:
-                    model = legacy_model
 
             if not base_url:
                 base_url = DEFAULT_BASE_URLS.get(provider, DEFAULT_BASE_URLS["custom"])
@@ -276,8 +204,6 @@ class SettingsManager:
         if provider in keys:
             del keys[provider]
             self._settings["provider_keys"] = keys
-        if provider == "deepseek" and "deepseek_api_key" in self._settings:
-            del self._settings["deepseek_api_key"]
         self._save()
 
     def get_citation_copy_format(self) -> str:
