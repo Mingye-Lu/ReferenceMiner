@@ -159,6 +159,8 @@ function mapAnswerBlock(item: any): AnswerBlock {
 }
 
 function mapQueueJob(item: any): QueueJob {
+  const rawStatus = item.status ?? "pending";
+  const status = rawStatus === "failed" ? "error" : rawStatus;
   return {
     id: item.id ?? "",
     type: item.type ?? "upload",
@@ -166,7 +168,7 @@ function mapQueueJob(item: any): QueueJob {
     projectId: item.project_id ?? item.projectId ?? null,
     name: item.name ?? null,
     relPath: item.rel_path ?? item.relPath ?? null,
-    status: item.status ?? "pending",
+    status,
     phase: item.phase ?? null,
     progress: item.progress ?? null,
     error: item.error ?? null,
@@ -385,17 +387,26 @@ export async function fetchQueueJobs(params?: {
   scope?: string;
   projectId?: string;
   includeCompleted?: boolean;
+  includeDismissed?: boolean;
   limit?: number;
 }): Promise<QueueJob[]> {
   const search = new URLSearchParams();
   if (params?.scope) search.set("scope", params.scope);
   if (params?.projectId) search.set("project_id", params.projectId);
   if (params?.includeCompleted) search.set("include_completed", "true");
+  if (params?.includeDismissed) search.set("include_dismissed", "true");
   if (params?.limit) search.set("limit", String(params.limit));
   const query = search.toString();
   const path = query ? `/api/queue/jobs?${query}` : "/api/queue/jobs";
   const data = await fetchJson<any[]>(path);
   return (data ?? []).map(mapQueueJob);
+}
+
+export async function dismissQueueJob(jobId: string): Promise<QueueJob> {
+  const data = await fetchJson<any>(`/api/queue/jobs/${jobId}/dismiss`, {
+    method: "POST",
+  });
+  return mapQueueJob(data);
 }
 
 export async function streamQueueJobs(

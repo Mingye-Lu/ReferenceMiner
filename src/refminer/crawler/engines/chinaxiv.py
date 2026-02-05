@@ -346,7 +346,9 @@ class ChinaXivCrawler(BaseCrawler):
             needs_pdf = not result.pdf_url
             needs_authors = not result.authors
             needs_year = result.year is None
-            if not (needs_abstract or needs_doi or needs_pdf or needs_authors or needs_year):
+            if not (
+                needs_abstract or needs_doi or needs_pdf or needs_authors or needs_year
+            ):
                 continue
 
             try:
@@ -401,7 +403,9 @@ class ChinaXivCrawler(BaseCrawler):
 
     def _extract_detail_authors(self, soup: BeautifulSoup) -> list[str]:
         authors: list[str] = []
-        for link in soup.select("div.paper div.content div.bd ul li a[href*='field=author']"):
+        for link in soup.select(
+            "div.paper div.content div.bd ul li a[href*='field=author']"
+        ):
             name = self._normalize_text(link.get_text(" ", strip=True))
             if name:
                 authors.append(name)
@@ -422,7 +426,9 @@ class ChinaXivCrawler(BaseCrawler):
         return None
 
     def _extract_detail_pdf_url(self, soup: BeautifulSoup) -> Optional[str]:
-        for link in soup.select("div.paper div.content div.ft a[href*='/user/download.htm']"):
+        for link in soup.select(
+            "div.paper div.content div.ft a[href*='/user/download.htm']"
+        ):
             href = link.get("href")
             if isinstance(href, str):
                 return urllib.parse.urljoin(self.base_url, href)

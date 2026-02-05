@@ -876,23 +876,17 @@ async function confirmDownload() {
                 class="result-download-btn"
                 type="button"
                 :disabled="
-                  downloadQueueing.has(item.key) ||
-                  downloadQueued.has(item.key)
+                  downloadQueueing.has(item.key) || downloadQueued.has(item.key)
                 "
                 @click.stop="queueSingleDownload(item.key, item.result, $event)"
               >
-                <span v-if="downloadQueueing.has(item.key)">
-                  Queueing...
-                </span>
+                <span v-if="downloadQueueing.has(item.key)"> Queueing... </span>
                 <span v-else-if="downloadQueued.has(item.key)">Queued</span>
                 <span v-else-if="downloadErrors[item.key]">Retry</span>
                 <span v-else>Download PDF</span>
               </button>
             </div>
-            <div
-              v-if="downloadErrors[item.key]"
-              class="result-download-error"
-            >
+            <div v-if="downloadErrors[item.key]" class="result-download-error">
               {{ downloadErrors[item.key] }}
             </div>
 

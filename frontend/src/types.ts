@@ -145,7 +145,7 @@ export type QueuePhase =
   | "scanning"
   | "resetting"
   | "downloading";
-export type QueueStatus = UploadStatus | "cancelled";
+export type QueueStatus = UploadStatus | "cancelled" | "dismissed";
 export type QueueType = "upload" | "reprocess" | "delete" | "crawler_download";
 export type QueueScope = "bank" | "project";
 

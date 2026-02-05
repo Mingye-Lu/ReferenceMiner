@@ -1,6 +1,10 @@
 import { computed, ref } from "vue";
 import type { QueueJob } from "../types";
-import { fetchQueueJobs, streamQueueJobs } from "../api/client";
+import {
+  dismissQueueJob,
+  fetchQueueJobs,
+  streamQueueJobs,
+} from "../api/client";
 
 const queueJobs = ref<QueueJob[]>([]);
 const ejectBursts = ref<{ id: string; x: number; y: number }[]>([]);
@@ -16,7 +20,7 @@ const COMPLETED_GRACE_SECONDS = 15;
 const queueItems = computed(() => {
   const now = Date.now() / 1000;
   return queueJobs.value.filter((item: QueueJob) => {
-    if (item.status === "cancelled") return false;
+    if (item.status === "dismissed") return false;
     if (item.status === "complete") {
       const updatedAt = item.updatedAt ?? 0;
       return now - updatedAt <= COMPLETED_GRACE_SECONDS;
@@ -163,6 +167,11 @@ function clearQueueEject(id: string) {
   ejectBursts.value = ejectBursts.value.filter((item) => item.id !== id);
 }
 
+async function dismissJob(jobId: string) {
+  const job = await dismissQueueJob(jobId);
+  upsertQueueJob(job);
+}
+
 export function useQueue() {
   return {
     queueJobs,
@@ -175,5 +184,6 @@ export function useQueue() {
     stopQueueStream,
     launchQueueEject,
     clearQueueEject,
+    dismissJob,
   };
 }

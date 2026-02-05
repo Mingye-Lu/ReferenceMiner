@@ -25,12 +25,14 @@ def list_queue_jobs(
     scope: Optional[str] = None,
     project_id: Optional[str] = None,
     include_completed: bool = False,
+    include_dismissed: bool = False,
     limit: int = 200,
 ):
     return queue_store.list_jobs(
         scope=scope,
         project_id=project_id,
         include_completed=include_completed,
+        include_dismissed=include_dismissed,
         limit=limit,
     )
 
@@ -41,6 +43,25 @@ def get_queue_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.post("/jobs/{job_id}/dismiss")
+def dismiss_queue_job(job_id: str):
+    job = queue_store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("status") not in {
+        "complete",
+        "error",
+        "failed",
+        "duplicate",
+        "cancelled",
+    }:
+        raise HTTPException(status_code=409, detail="Job not dismissable")
+    updated = queue_store.update_job(job_id, status="dismissed", phase=None)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return updated
 
 
 @router.post("/jobs")

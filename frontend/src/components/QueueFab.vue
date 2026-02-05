@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
-import { ListOrdered } from "lucide-vue-next";
-import type { QueueStatus } from "../types";
+import { ListOrdered, X } from "lucide-vue-next";
+import type { QueueJob, QueueStatus } from "../types";
 import { useQueue } from "../composables/useQueue";
 
 const {
@@ -10,6 +10,7 @@ const {
   ejectBursts,
   clearQueueEject,
   launchQueueEject,
+  dismissJob,
 } = useQueue();
 
 const isQueueOpen = ref(false);
@@ -54,8 +55,27 @@ function formatQueueStatus(status: QueueStatus): string {
       return "Duplicate";
     case "cancelled":
       return "Cancelled";
+    case "dismissed":
+      return "Dismissed";
     default:
       return status;
+  }
+}
+
+function isDismissable(item: QueueJob): boolean {
+  return (
+    item.status === "complete" ||
+    item.status === "error" ||
+    item.status === "duplicate" ||
+    item.status === "cancelled"
+  );
+}
+
+async function handleDismiss(item: QueueJob) {
+  try {
+    await dismissJob(item.id);
+  } catch (error) {
+    console.error("[queue] dismiss failed:", error);
   }
 }
 
@@ -245,8 +265,17 @@ watch(queueItems, (items) => {
         </div>
         <div v-else class="queue-list">
           <div v-for="item in queueItems" :key="item.id" class="queue-item">
-            <div class="queue-name" :title="item.name ?? ''">
-              {{ item.name ?? "Untitled job" }}
+            <div class="queue-header">
+              <div class="queue-name" :title="item.name ?? ''">
+                {{ item.name ?? "Untitled job" }}
+              </div>
+              <button
+                v-if="isDismissable(item)"
+                class="queue-dismiss"
+                @click.stop="handleDismiss(item)"
+              >
+                <X :size="14" />
+              </button>
             </div>
             <div class="queue-meta">
               <span class="queue-status" :class="item.status">{{
@@ -406,6 +435,12 @@ watch(queueItems, (items) => {
   border-radius: 10px;
 }
 
+.queue-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 [data-theme="dark"] .queue-item {
   background: var(--color-neutral-105);
   border-color: var(--color-neutral-150);
@@ -418,6 +453,22 @@ watch(queueItems, (items) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.queue-dismiss {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.queue-dismiss:hover {
+  color: var(--text-primary);
 }
 
 .queue-meta {

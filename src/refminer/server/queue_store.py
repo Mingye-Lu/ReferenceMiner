@@ -235,6 +235,7 @@ class QueueStore:
         scope: Optional[str] = None,
         project_id: Optional[str] = None,
         include_completed: bool = False,
+        include_dismissed: bool = False,
         limit: Optional[int] = None,
     ) -> list[dict[str, Any]]:
         with self._lock:
@@ -250,6 +251,8 @@ class QueueStore:
                 "complete",
                 "cancelled",
             }:
+                return False
+            if not include_dismissed and item.get("status") == "dismissed":
                 return False
             return True
 

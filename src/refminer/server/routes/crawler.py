@@ -145,8 +145,8 @@ async def batch_download_stream(
             if not pdf_path:
                 queue_store.update_job(
                     job_id,
-                    status="failed",
-                    phase="error",
+                    status="error",
+                    phase=None,
                     error="Failed to download PDF",
                     progress=100,
                 )
@@ -156,7 +156,7 @@ async def batch_download_stream(
             queue_store.update_job(
                 job_id,
                 status="processing",
-                phase="ingesting",
+                phase="indexing",
                 progress=30,
             )
 
@@ -170,7 +170,7 @@ async def batch_download_stream(
             queue_store.update_job(
                 job_id,
                 status="complete",
-                phase="done",
+                phase=None,
                 progress=100,
                 rel_path=entry.rel_path,
                 name=Path(entry.rel_path).name,
@@ -184,8 +184,8 @@ async def batch_download_stream(
             )
             queue_store.update_job(
                 job_id,
-                status="failed",
-                phase="error",
+                status="error",
+                phase=None,
                 error=str(e),
                 progress=100,
             )
@@ -198,7 +198,7 @@ async def batch_download_stream(
             scope="bank",
             name=result.title[:100],
             status="pending",
-            phase="initializing",
+            phase="downloading",
         )
         job_ids.append(job["id"])
         asyncio.create_task(_run_single_download(result, job["id"]))
