@@ -237,6 +237,10 @@ class PDFDownloader:
 
     async def _resolve_doi_to_pdf(self, doi: str) -> Optional[str]:
         """Try to resolve DOI to PDF URL."""
+        if "arxiv" in doi.lower() and "10.48550" in doi:
+            arxiv_id = doi.split("arXiv.")[-1]
+            return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+
         try:
             client = await self._get_client()
 
@@ -248,6 +252,9 @@ class PDFDownloader:
                 if location:
                     if location.endswith(".pdf"):
                         return location
+                    
+                    if "arxiv.org/abs/" in location:
+                        return location.replace("/abs/", "/pdf/") + ".pdf"
 
                     pdf_link = await self._extract_pdf_from_html(
                         (await client.get(location)).text, location

@@ -251,6 +251,8 @@ def stream_agent(
                     "list_files",
                     "keyword_search",
                     "get_document_outline",
+                    "search_papers",
+                    "download_paper",
                 }:
                     summary = f"Unknown tool requested: {tool or 'empty'}."
                     yield from emit_error_step("LLM_ERROR", summary)
@@ -364,6 +366,26 @@ def stream_agent(
                         ]
                     )
                     step_title = "Loading Outline"
+                elif tool == "search_papers":
+                    pre_query = (action.get("args") or {}).get("query") or question
+                    pre_details = format_details(
+                        [
+                            "Tool: search_papers",
+                            f"Query: {pre_query}",
+                        ]
+                    )
+                    step_title = "Searching Online Papers"
+                elif tool == "download_paper":
+                    pre_doi = (action.get("args") or {}).get("doi") or ""
+                    pre_title = (action.get("args") or {}).get("title") or ""
+                    pre_details = format_details(
+                        [
+                            "Tool: download_paper",
+                            f"DOI: {pre_doi}",
+                            f"Title: {pre_title}",
+                        ]
+                    )
+                    step_title = "Downloading Paper"
                 else:
                     if not manifest_path().exists():
                         summary = "Manifest not found. Run ingest first."
@@ -420,6 +442,20 @@ def stream_agent(
                     )
                 elif tool == "get_document_outline":
                     tool_result = execute_get_document_outline_tool(
+                        args=action.get("args") or {},
+                        index_dir=idx_dir,
+                    )
+                elif tool == "search_papers":
+                    from refminer.llm.tools import execute_search_papers_tool
+                    tool_result = execute_search_papers_tool(
+                        question=question,
+                        args=action.get("args") or {},
+                        index_dir=idx_dir,
+                    )
+                elif tool == "download_paper":
+                    from refminer.llm.tools import execute_download_paper_tool
+                    tool_result = execute_download_paper_tool(
+                        question=question,
                         args=action.get("args") or {},
                         index_dir=idx_dir,
                     )
@@ -494,6 +530,24 @@ def stream_agent(
                         f"File: {meta.get('rel_path', '')}",
                         f"Found: {meta.get('outline_count', 0)}",
                         f"Source: {meta.get('source', 'unknown')}",
+                        f"Runtime: {format_ms(float(meta.get('retrieve_ms') or 0.0))}",
+                    ]
+                elif tool == "search_papers":
+                    research_lines = [
+                        f"Tool: {meta.get('tool', 'search_papers')}",
+                        f"Query: {meta.get('query', '')}",
+                        f"Count: {meta.get('count', 0)}",
+                        f"Runtime: {format_ms(float(meta.get('retrieve_ms') or 0.0))}",
+                    ]
+                    if meta.get("error"):
+                         research_lines.append(f"Error: {meta.get('error')}")
+                elif tool == "download_paper":
+                    status = "Success" if meta.get("success") else "Failed"
+                    if meta.get("error"):
+                        status += f" ({meta.get('error')})"
+                    research_lines = [
+                        f"Tool: {meta.get('tool', 'download_paper')}",
+                        f"Status: {status}",
                         f"Runtime: {format_ms(float(meta.get('retrieve_ms') or 0.0))}",
                     ]
                 else:

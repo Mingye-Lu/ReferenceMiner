@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import {
   ref,
   inject,
@@ -420,10 +420,7 @@ async function handleCopyWithoutExtraction() {
     <div v-else class="ai-container">
       <!-- 2. THINKING ACCORDION -->
       <div v-if="message.timeline?.length" class="timeline-container">
-        <div
-          class="timeline-trigger"
-          @click="isTimelineExpanded = !isTimelineExpanded"
-        >
+        <div class="timeline-trigger" @click="isTimelineExpanded = !isTimelineExpanded">
           <div class="trigger-left">
             <Loader2 v-if="message.isStreaming" class="spinner" :size="14" />
             <CircleCheck v-else class="check-icon" :size="14" />
@@ -433,67 +430,36 @@ async function handleCopyWithoutExtraction() {
           </div>
           <div class="trigger-right">
             <span class="elapsed-time">{{ formatElapsed(totalElapsed) }}</span>
-            <svg
-              class="chevron"
-              :class="{ 'rotate-180': isTimelineExpanded }"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg class="chevron" :class="{ 'rotate-180': isTimelineExpanded }" width="16" height="16"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
               <path d="m6 9 6 6 6-6" />
             </svg>
           </div>
         </div>
         <transition name="slide">
           <div v-if="isTimelineExpanded" class="timeline-content">
-            <div
-              v-for="(step, i) in message.timeline"
-              :key="i"
-              class="step-item"
-              :class="{ expandable: !!step.details }"
-              @click="toggleStepDetails(i, step.details)"
-            >
+            <div v-for="(step, i) in message.timeline" :key="i" class="step-item"
+              :class="{ expandable: !!step.details }" @click="toggleStepDetails(i, step.details)">
               <div class="step-row">
                 <div class="step-indicator">
-                  <Loader2
-                    v-if="
-                      message.isStreaming && i === message.timeline!.length - 1
-                    "
-                    class="step-spinner"
-                    :size="10"
-                  />
+                  <Loader2 v-if="
+                    message.isStreaming && i === message.timeline!.length - 1
+                  " class="step-spinner" :size="10" />
                   <span v-else class="step-dot"></span>
                 </div>
                 <span class="step-msg">{{ step.message }}</span>
                 <span class="step-time">{{
                   formatElapsed(getStepElapsed(step))
                 }}</span>
-                <svg
-                  v-if="step.details"
-                  class="step-chevron"
-                  :class="{ 'rotate-180': isStepExpanded(i) }"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
+                <svg v-if="step.details" class="step-chevron" :class="{ 'rotate-180': isStepExpanded(i) }" width="14"
+                  height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
               </div>
               <transition name="fade">
-                <div
-                  v-if="step.details && isStepExpanded(i)"
-                  class="step-details"
-                >
+                <div v-if="step.details && isStepExpanded(i)" class="step-details">
                   <div class="step-details-text">{{ step.details }}</div>
                 </div>
               </transition>
@@ -512,37 +478,21 @@ async function handleCopyWithoutExtraction() {
       <!-- 3. MARKDOWN BODY WITH COPY BUTTON -->
       <div class="markdown-body-wrapper">
         <!-- Copy Button - sticky to follow scroll -->
-        <button
-          v-if="message.content && !message.isStreaming"
-          class="ai-copy-btn"
-          :class="{ copied: showCopied }"
-          @click="copyWithCitations"
-          title="Copy with formatted citations"
-        >
+        <button v-if="message.content && !message.isStreaming" class="ai-copy-btn" :class="{ copied: showCopied }"
+          @click="copyWithCitations" title="Copy with formatted citations">
           <Copy v-if="!showCopied" :size="14" />
           <Check v-else :size="14" />
         </button>
-        <div
-          ref="markdownBodyRef"
-          class="markdown-body"
-          v-html="processMarkdown(message.content)"
-          @click="handleBodyClick"
-        ></div>
+        <div ref="markdownBodyRef" class="markdown-body" v-html="processMarkdown(message.content)"
+          @click="handleBodyClick"></div>
       </div>
 
       <!-- 4. EVIDENCE STREAM (CARDS) -->
-      <div
-        v-if="!message.isStreaming && displaySources.length"
-        class="evidence-stream-container"
-      >
+      <div v-if="!message.isStreaming && displaySources.length" class="evidence-stream-container">
         <div class="stream-label">References</div>
         <div class="stream-scroll">
-          <div
-            v-for="(source, idx) in displaySources"
-            :key="source.chunkId"
-            class="stream-card"
-            @click="handleEvidenceClick(source)"
-          >
+          <div v-for="(source, idx) in displaySources" :key="source.chunkId" class="stream-card"
+            @click="handleEvidenceClick(source)">
             <div class="card-header">
               <span class="card-idx">{{ idx + 1 }}</span>
               <span class="card-title" :title="source.path">{{
@@ -551,43 +501,16 @@ async function handleCopyWithoutExtraction() {
             </div>
             <div class="card-snippet">{{ source.text.slice(0, 60) }}...</div>
             <div class="card-footer">
-              <span class="card-loc" v-if="source.page"
-                >p.{{ source.page }}</span
-              >
-              <button
-                class="card-pin"
-                :class="{ active: isPinned && isPinned(source.chunkId) }"
-                @click.stop.prevent="togglePin && togglePin(source)"
-                title="Pin Evidence"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  stroke="none"
-                  v-if="isPinned && isPinned(source.chunkId)"
-                >
-                  <path
-                    d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z"
-                  />
+              <span class="card-loc" v-if="source.page">p.{{ source.page }}</span>
+              <button class="card-pin" :class="{ active: isPinned && isPinned(source.chunkId) }"
+                @click.stop.prevent="togglePin && togglePin(source)" title="Pin Evidence">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+                  stroke="none" v-if="isPinned && isPinned(source.chunkId)">
+                  <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
                 </svg>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  v-else
-                >
-                  <path
-                    d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z"
-                  />
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-else>
+                  <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11V22H13V16H18V14L16 12Z" />
                 </svg>
               </button>
             </div>
@@ -596,14 +519,9 @@ async function handleCopyWithoutExtraction() {
       </div>
     </div>
 
-    <ConfirmExtractMetadataModal
-      v-model="showMetadataConfirm"
-      action-label="copy"
-      :missing-count="missingMetadataPaths.length"
-      @confirm="handleExtractMetadataAndCopy"
-      @skip="handleCopyWithoutExtraction"
-      @cancel="resetMetadataPrompt"
-    />
+    <ConfirmExtractMetadataModal v-model="showMetadataConfirm" action-label="copy"
+      :missing-count="missingMetadataPaths.length" @confirm="handleExtractMetadataAndCopy"
+      @skip="handleCopyWithoutExtraction" @cancel="resetMetadataPrompt" />
   </div>
 </template>
 
@@ -645,7 +563,7 @@ async function handleCopyWithoutExtraction() {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 20px;
-  background: var(--color-white);
+  background: var(--color-neutral-95);
   overflow: hidden;
 }
 
@@ -923,7 +841,8 @@ async function handleCopyWithoutExtraction() {
 .ai-copy-btn {
   float: right;
   position: sticky;
-  top: 72px; /* Account for top nav height */
+  top: 72px;
+  /* Account for top nav height */
   margin-left: 12px;
   margin-bottom: 4px;
   display: flex;

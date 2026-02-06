@@ -249,25 +249,15 @@ const totalEngineCount = computed(() => {
           <div class="preset-selector">
             <label class="form-label">Configuration Preset</label>
             <div class="preset-grid">
-              <div
-                v-for="preset in presets.filter(
-                  (p) => !p.isCustom || selectedPreset === 'custom',
-                )"
-                :key="preset.name"
-                class="preset-card"
-                :class="{
-                  active: selectedPreset === preset.name,
-                  'custom-preset': preset.isCustom,
-                }"
-                @click="!preset.isCustom && applyPreset(preset)"
-              >
+              <div v-for="preset in presets.filter(
+                (p) => !p.isCustom || selectedPreset === 'custom',
+              )" :key="preset.name" class="preset-card" :class="{
+                active: selectedPreset === preset.name,
+                'custom-preset': preset.isCustom,
+              }" @click="!preset.isCustom && applyPreset(preset)">
                 <div class="preset-header">
                   <span class="preset-label">{{ preset.label }}</span>
-                  <Check
-                    v-if="selectedPreset === preset.name"
-                    :size="14"
-                    class="preset-check"
-                  />
+                  <Check v-if="selectedPreset === preset.name" :size="14" class="preset-check" />
                 </div>
                 <p class="preset-desc">{{ preset.description }}</p>
                 <div v-if="!preset.isCustom" class="preset-stats">
@@ -276,12 +266,10 @@ const totalEngineCount = computed(() => {
                 </div>
                 <div v-else class="preset-stats">
                   <span>{{ enabledEngineCount }} engines enabled</span>
-                  <span
-                    >{{
-                      localConfig?.max_results_per_engine
-                    }}
-                    results/engine</span
-                  >
+                  <span>{{
+                    localConfig?.max_results_per_engine
+                  }}
+                    results/engine</span>
                 </div>
               </div>
             </div>
@@ -296,10 +284,7 @@ const totalEngineCount = computed(() => {
                 </p>
               </div>
               <div class="setting-control">
-                <BaseToggle
-                  v-model="localConfig.enabled"
-                  @update:model-value="markAsCustom"
-                />
+                <BaseToggle v-model="localConfig.enabled" @update:model-value="markAsCustom" />
               </div>
             </div>
 
@@ -311,10 +296,7 @@ const totalEngineCount = computed(() => {
                 </p>
               </div>
               <div class="setting-control">
-                <BaseToggle
-                  v-model="localConfig.auto_download"
-                  @update:model-value="markAsCustom"
-                />
+                <BaseToggle v-model="localConfig.auto_download" @update:model-value="markAsCustom" />
               </div>
             </div>
 
@@ -327,14 +309,8 @@ const totalEngineCount = computed(() => {
               </div>
               <div class="setting-control">
                 <div class="input-group" style="width: 120px">
-                  <input
-                    type="number"
-                    v-model.number="localConfig.max_results_per_engine"
-                    min="5"
-                    max="100"
-                    class="form-input"
-                    @input="markAsCustom"
-                  />
+                  <input type="number" v-model.number="localConfig.max_results_per_engine" min="5" max="100"
+                    class="form-input" @input="markAsCustom" />
                 </div>
               </div>
             </div>
@@ -348,14 +324,8 @@ const totalEngineCount = computed(() => {
               </div>
               <div class="setting-control">
                 <div class="input-group" style="width: 120px">
-                  <input
-                    type="number"
-                    v-model.number="localConfig.timeout_seconds"
-                    min="5"
-                    max="120"
-                    class="form-input"
-                    @input="markAsCustom"
-                  />
+                  <input type="number" v-model.number="localConfig.timeout_seconds" min="5" max="120" class="form-input"
+                    @input="markAsCustom" />
                 </div>
               </div>
             </div>
@@ -392,21 +362,13 @@ const totalEngineCount = computed(() => {
               <div class="col-rate">Rate Limit</div>
               <div class="col-actions">Actions</div>
             </div>
-            <div
-              v-for="(engineConfig, engineName) in localConfig.engines"
-              :key="engineName"
-              class="engine-row"
-              :class="{ disabled: !engineConfig.enabled }"
-            >
+            <div v-for="(engineConfig, engineName) in localConfig.engines" :key="engineName" class="engine-row"
+              :class="{ disabled: !engineConfig.enabled }">
               <div class="col-engine">
                 <div class="engine-info">
-                  <BaseToggle
-                    :model-value="engineConfig.enabled"
-                    @update:model-value="
-                      toggleEngine(engineName as string, $event)
-                    "
-                    @click.stop
-                  />
+                  <BaseToggle :model-value="engineConfig.enabled" @update:model-value="
+                    toggleEngine(engineName as string, $event)
+                    " @click.stop />
                   <div class="engine-details">
                     <span class="engine-name">{{ engineName }}</span>
                     <p class="engine-desc">
@@ -417,82 +379,45 @@ const totalEngineCount = computed(() => {
               </div>
               <div class="col-status">
                 <div class="connection-indicator">
-                  <span
-                    v-if="testingConnections[engineName]"
-                    class="status-testing"
-                  >
+                  <span v-if="testingConnections[engineName]" class="status-testing">
                     <RefreshCw :size="12" class="spin" />
                   </span>
-                  <Check
-                    v-else-if="connectionStatus[engineName] === 'success'"
-                    :size="14"
-                    class="status-success"
-                  />
-                  <X
-                    v-else-if="connectionStatus[engineName] === 'failed'"
-                    :size="14"
-                    class="status-failed"
-                  />
+                  <Check v-else-if="connectionStatus[engineName] === 'success'" :size="14" class="status-success" />
+                  <X v-else-if="connectionStatus[engineName] === 'failed'" :size="14" class="status-failed" />
                   <span v-else class="status-unknown">—</span>
                 </div>
               </div>
               <div class="col-rate">
                 <div class="setting-control setting-control--sm">
-                  <input
-                    type="number"
-                    :value="engineConfig.rate_limit"
-                    @input="
-                      updateEngineRateLimit(
-                        engineName as string,
-                        Number(($event.target as HTMLInputElement).value),
-                      )
-                    "
-                    min="1"
-                    max="60"
-                    class="form-input"
-                  />
+                  <input type="number" :value="engineConfig.rate_limit" @input="
+                    updateEngineRateLimit(
+                      engineName as string,
+                      Number(($event.target as HTMLInputElement).value),
+                    )
+                    " min="1" max="60" class="form-input" />
                 </div>
               </div>
               <div class="col-actions">
-                <button
-                  class="btn-icon"
-                  @click="testConnection(engineName)"
-                  title="Test connection"
-                >
+                <button class="btn-icon" @click="testConnection(engineName)" title="Test connection">
                   <RefreshCw :size="14" />
                 </button>
-                <button
-                  class="btn-icon"
-                  @click="toggleAdvanced(engineName)"
-                  :title="
-                    expandedEngine === engineName
-                      ? 'Hide advanced'
-                      : 'Show advanced'
-                  "
-                >
-                  <ChevronDown
-                    v-if="expandedEngine !== engineName"
-                    :size="14"
-                  />
+                <button class="btn-icon" @click="toggleAdvanced(engineName)" :title="expandedEngine === engineName
+                  ? 'Hide advanced'
+                  : 'Show advanced'
+                  ">
+                  <ChevronDown v-if="expandedEngine !== engineName" :size="14" />
                   <ChevronUp v-else :size="14" />
                 </button>
               </div>
               <div v-if="expandedEngine === engineName" class="engine-advanced">
                 <div class="advanced-row">
                   <label class="form-label">Timeout (seconds)</label>
-                  <input
-                    type="number"
-                    :value="engineConfig.timeout"
-                    @input="
-                      updateEngineTimeout(
-                        engineName as string,
-                        Number(($event.target as HTMLInputElement).value),
-                      )
-                    "
-                    min="5"
-                    max="120"
-                    class="form-input"
-                  />
+                  <input type="number" :value="engineConfig.timeout" @input="
+                    updateEngineTimeout(
+                      engineName as string,
+                      Number(($event.target as HTMLInputElement).value),
+                    )
+                    " min="5" max="120" class="form-input" />
                 </div>
               </div>
             </div>
@@ -641,6 +566,7 @@ const totalEngineCount = computed(() => {
 
 /* Table column alignment */
 .col-engine {
+  overflow: hidden;
   display: flex;
   align-items: center;
 }
@@ -678,7 +604,7 @@ const totalEngineCount = computed(() => {
   font-size: 11px;
   color: var(--text-secondary);
   margin: 0;
-  white-space: nowrap;
+  white-space: wrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 300px;

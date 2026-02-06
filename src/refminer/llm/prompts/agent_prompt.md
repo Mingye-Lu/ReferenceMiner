@@ -117,6 +117,36 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 | k              | int            | Number of results (default: 10)          |
 | filter_files   | list           | Restrict to specific files               |
 
+
+### 7. search_papers
+
+Search for external research papers using online engines (Google Scholar, arXiv, PubMed, etc.). Use when local documents are insufficient.
+
+```json
+{ "tool": "search_papers", "args": { "query": "agentic workflow" } }
+{ "tool": "search_papers", "args": { "query": "LLM evaluation", "limit": 5, "year_from": 2024 } }
+```
+
+| Arg       | Type   | Description                                |
+| --------- | ------ | ------------------------------------------ |
+| query     | string | Search query (required)                    |
+| limit     | int    | Max results to return (default: 5)         |
+| year_from | int    | Filter by publication year (e.g., 2023)    |
+
+### 8. download_paper
+
+Download a specific paper found via search. This saves the PDF to the Reference Bank and indexes it for analysis.
+
+```json
+{ "tool": "download_paper", "args": { "doi": "10.1234/example" } }
+{ "tool": "download_paper", "args": { "title": "Paper Title" } }
+```
+
+| Arg   | Type   | Description                                     |
+| ----- | ------ | ----------------------------------------------- |
+| doi   | string | DOI of the paper (preferred for accuracy)       |
+| title | string | Title of the paper (fallback if DOI unknown)    |
+
 ---
 
 ## Tool Selection Guide
@@ -132,6 +162,8 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 | "Compare papers A and B on topic X"    | `rag_search` with filter_files for each       |
 | "Tell me more about [chunk reference]" | `read_chunk` with radius                      |
 | "What PDFs are available?"             | `list_files` with file_type="pdf"             |
+| "Find NEW papers about X"              | `search_papers`                               |
+| "Get/Download this paper"              | `download_paper`                              |
 
 ### When to use `keyword_search` vs `rag_search`
 
@@ -150,6 +182,7 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 - **Overview then deep-dive**: `get_abstract` → `rag_search` (for document-specific questions)
 - **Outline then target**: `get_document_outline` → `rag_search` with filter_files (to search within a section)
 - **Precise then broad**: `keyword_search` → `rag_search` (find exact term, then explore context)
+- **Find external then download**: `search_papers` → `download_paper` (fetch new knowledge)
 
 ---
 
@@ -168,6 +201,7 @@ Exact term matching in document text. Better than `rag_search` for precise terms
 3. **Explicit uncertainty**: Say "not found" rather than guess
 4. **Targeted queries**: Specific searches beat broad ones
 5. **Iterate if needed**: Multiple tool calls are fine
+6. **Handle Download Failures**: If `download_paper` fails but provides a URL, you MUST give this URL to the user so they can access it manually. Do NOT just say "failed".
 
 ---
 
@@ -186,6 +220,9 @@ User question
     │
     ├─ Need document overview? ──→ get_abstract
     ├─ Need document outline? ──→ get_document_outline
+    │
+    ├─ Need NEW info from web? ──→ search_papers
+    ├─ Want to download paper? ──→ download_paper
     │
     └─ Have sufficient evidence? ──→ respond with citations
 ```

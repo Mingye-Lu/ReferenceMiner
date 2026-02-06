@@ -16,6 +16,8 @@ from refminer.llm.tools import (
     execute_list_files_tool,
     execute_read_chunk_tool,
     execute_retrieve_tool,
+    execute_search_papers_tool,
+    execute_download_paper_tool,
 )
 
 AGENT_PROMPT_PATH = Path(__file__).parent / "prompts" / "agent_prompt.md"
@@ -243,6 +245,8 @@ def run_agent(
                     "list_files",
                     "keyword_search",
                     "get_document_outline",
+                    "search_papers",
+                    "download_paper",
                 }:
                     return AgentResult(
                         response_text="",
@@ -293,6 +297,18 @@ def run_agent(
                     )
                 elif tool == "get_document_outline":
                     tool_result = execute_get_document_outline_tool(
+                        args=action.get("args") or {},
+                        index_dir=index_dir,
+                    )
+                elif tool == "search_papers":
+                    tool_result = execute_search_papers_tool(
+                        question=question,
+                        args=action.get("args") or {},
+                        index_dir=index_dir,
+                    )
+                elif tool == "download_paper":
+                    tool_result = execute_download_paper_tool(
+                        question=question,
                         args=action.get("args") or {},
                         index_dir=index_dir,
                     )
