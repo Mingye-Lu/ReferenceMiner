@@ -15,6 +15,7 @@ VERSION_FILES = [
 ]
 
 PYTHON_VERSION_FILE = ROOT / "src" / "refminer" / "version.py"
+PYPROJECT_FILE = ROOT / "pyproject.toml"
 
 
 def update_json(path: Path, version: str) -> None:
@@ -40,6 +41,20 @@ def update_python(path: Path, version: str) -> None:
     print(f"  {path.relative_to(ROOT)}: {old} -> {version}")
 
 
+def update_pyproject(path: Path, version: str) -> None:
+    """Update version in pyproject.toml."""
+    content = path.read_text(encoding="utf-8")
+    old_match = re.search(r'version\s*=\s*"([^"]+)"', content)
+    old = old_match.group(1) if old_match else "unknown"
+    new_content = re.sub(
+        r'version\s*=\s*"[^"]+"',
+        f'version = "{version}"',
+        content,
+    )
+    path.write_text(new_content, encoding="utf-8")
+    print(f"  {path.relative_to(ROOT)}: {old} -> {version}")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         print("Usage: python set_version.py <version>")
@@ -58,6 +73,12 @@ def main() -> None:
 
     # Update Python version
     update_python(PYTHON_VERSION_FILE, version)
+
+    # Update pyproject.toml
+    if PYPROJECT_FILE.exists():
+        update_pyproject(PYPROJECT_FILE, version)
+    else:
+        print(f"  {PYPROJECT_FILE.relative_to(ROOT)}: SKIPPED (not found)")
 
     # Update JSON files
     for path in VERSION_FILES:
