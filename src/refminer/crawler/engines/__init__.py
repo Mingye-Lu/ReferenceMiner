@@ -5,6 +5,7 @@ from __future__ import annotations
 from refminer.crawler.engines.airiti import AiritiCrawler
 from refminer.crawler.engines.arxiv import ArXivCrawler
 from refminer.crawler.engines.biorxiv_medrxiv import BiorxivMedrxivCrawler
+from refminer.crawler.engines.chaoxing import ChaoxingCrawler
 from refminer.crawler.engines.chinaxiv import ChinaXivCrawler
 from refminer.crawler.engines.cnki import CnkiCrawler
 from refminer.crawler.engines.core import CoreCrawler
@@ -15,11 +16,13 @@ from refminer.crawler.engines.nstl import NstlCrawler
 from refminer.crawler.engines.openalex import OpenAlexCrawler
 from refminer.crawler.engines.pubmed import PubMedCrawler
 from refminer.crawler.engines.semantic_scholar import SemanticScholarCrawler
+from refminer.crawler.engines.wanfang import WanfangCrawler
 
 __all__ = [
     "AiritiCrawler",
     "ArXivCrawler",
     "BiorxivMedrxivCrawler",
+    "ChaoxingCrawler",
     "ChinaXivCrawler",
     "CnkiCrawler",
     "CoreCrawler",
@@ -30,4 +33,5 @@ __all__ = [
     "OpenAlexCrawler",
     "PubMedCrawler",
     "SemanticScholarCrawler",
+    "WanfangCrawler",
 ]

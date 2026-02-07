@@ -112,6 +112,12 @@ class CrawlerConfig(BaseModel):
             "nstl": EngineConfig(
                 enabled=False, rate_limit=2, api_key=None, timeout=30, max_retries=3
             ),
+            "wanfang": EngineConfig(
+                enabled=True, rate_limit=2, api_key=None, timeout=30, max_retries=3
+            ),
+            "chaoxing": EngineConfig(
+                enabled=True, rate_limit=2, api_key=None, timeout=30, max_retries=3
+            ),
         },
         description="Per-engine configurations",
     )

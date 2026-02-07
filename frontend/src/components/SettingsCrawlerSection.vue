@@ -46,6 +46,10 @@ const engineDescriptions: Record<string, string> = {
     "Europe PMC - Life sciences literature with open access full text",
   biorxiv_medrxiv: "bioRxiv/medRxiv - Biology and medical research preprints",
   nstl: "NSTL - China National Science and Technology Library catalog",
+  wanfang: "Wanfang Data - Chinese academic journals and conference papers",
+  cnki: "CNKI - China National Knowledge Infrastructure comprehensive database",
+  chinaxiv: "ChinaXiv - Chinese preprint server for scientific research",
+  chaoxing: "Chaoxing - Comprehensive Chinese academic platform with books, journals, and theses",
 };
 
 const presets: CrawlerPreset[] = [

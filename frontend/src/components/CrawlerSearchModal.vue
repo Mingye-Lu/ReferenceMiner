@@ -16,6 +16,8 @@ import airitiIcon from "../assets/airiti.svg";
 import chinaxivIcon from "../assets/chinaXiv.png";
 import cnkiIcon from "../assets/cnki.png";
 import nstlIcon from "../assets/nstl.png";
+import wanfangIcon from "../assets/wanfang.png";
+import chaoxingIcon from "../assets/chaoxing.png";
 import type { CrawlerSearchResult, CrawlerSearchQuery } from "../types";
 import {
   searchPapers,
@@ -87,6 +89,8 @@ const engineIcons: Record<string, string> = {
   chinaxiv: chinaxivIcon,
   cnki: cnkiIcon,
   nstl: nstlIcon,
+  wanfang: wanfangIcon,
+  chaoxing: chaoxingIcon,
 };
 
 const showFilters = ref(false);

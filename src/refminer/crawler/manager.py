@@ -12,6 +12,7 @@ from refminer.crawler.engines import (
     AiritiCrawler,
     ArXivCrawler,
     BiorxivMedrxivCrawler,
+    ChaoxingCrawler,
     ChinaXivCrawler,
     CnkiCrawler,
     CoreCrawler,
@@ -22,6 +23,7 @@ from refminer.crawler.engines import (
     OpenAlexCrawler,
     PubMedCrawler,
     SemanticScholarCrawler,
+    WanfangCrawler,
 )
 from refminer.crawler.models import CrawlerConfig, SearchQuery, SearchResult
 
@@ -40,6 +42,7 @@ class CrawlerManager:
         """Initialize all available engines."""
         self._engines = {
             "airiti": AiritiCrawler(self.config.get_engine_config("airiti")),
+            "chaoxing": ChaoxingCrawler(self.config.get_engine_config("chaoxing")),
             "chinaxiv": ChinaXivCrawler(self.config.get_engine_config("chinaxiv")),
             "cnki": CnkiCrawler(self.config.get_engine_config("cnki")),
             "google_scholar": GoogleScholarCrawler(
@@ -58,6 +61,7 @@ class CrawlerManager:
                 self.config.get_engine_config("biorxiv_medrxiv")
             ),
             "nstl": NstlCrawler(self.config.get_engine_config("nstl")),
+            "wanfang": WanfangCrawler(self.config.get_engine_config("wanfang")),
         }
 
     def get_engine(self, name: str) -> Optional[BaseCrawler]:
