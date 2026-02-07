@@ -376,11 +376,10 @@ def execute_list_files_tool(
     context: Optional[list[str]] = None,
     index_dir: Optional[Path] = None,
 ) -> ToolResult:
-    """List available files in the reference bank with metadata."""
+    """List available files in the corpus with metadata."""
     idx_dir = index_dir or get_index_dir(None)
     file_type_filter = (args.get("file_type") or "").strip().lower()
     pattern = (args.get("pattern") or "").strip().lower()
-    only_selected = args.get("only_selected", False)
 
     retrieve_start = perf_counter()
     manifest = load_manifest(index_dir=idx_dir)
@@ -397,8 +396,8 @@ def execute_list_files_tool(
             title_match = entry.title and pattern in entry.title.lower()
             if not (name_match or title_match):
                 continue
-        # Filter to only selected files if requested
-        if only_selected and context:
+        # Filter to only files in corpus
+        if context:
             if entry.rel_path not in context:
                 continue
         filtered.append(entry)
@@ -432,7 +431,6 @@ def execute_list_files_tool(
         "tool": "list_files",
         "file_type_filter": file_type_filter or None,
         "pattern": pattern or None,
-        "only_selected": only_selected,
         "total_in_bank": len(manifest),
         "matched_count": len(filtered),
         "by_type": by_type,
