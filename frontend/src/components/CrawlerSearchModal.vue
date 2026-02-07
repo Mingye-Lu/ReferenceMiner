@@ -16,7 +16,7 @@ import airitiIcon from "../assets/airiti.svg";
 import chinaxivIcon from "../assets/chinaXiv.png";
 import cnkiIcon from "../assets/cnki.png";
 import nstlIcon from "../assets/nstl.png";
-import wanfangIcon from "../assets/wanfang.png";
+import wanfangIcon from "../assets/wanfang.svg";
 import chaoxingIcon from "../assets/chaoxing.png";
 import type { CrawlerSearchResult, CrawlerSearchQuery } from "../types";
 import {
