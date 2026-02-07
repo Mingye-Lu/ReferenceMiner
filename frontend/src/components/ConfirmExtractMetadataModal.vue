@@ -34,12 +34,7 @@ function handleSkip() {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    title="Extract missing metadata?"
-    size="small"
-    @update:model-value="handleClose"
-  >
+  <BaseModal :model-value="modelValue" title="Extract missing metadata?" size="small" @update:model-value="handleClose">
     <p class="message">
       Some references in this {{ actionText }} do not have citation metadata
       yet. Extract metadata now to improve citation quality.
@@ -62,6 +57,7 @@ function handleSkip() {
 
 <style scoped>
 .message {
+  padding: 20px;
   margin: 0;
   color: var(--text-primary);
   font-size: 14px;
@@ -69,6 +65,7 @@ function handleSkip() {
 }
 
 .hint {
+  padding: 0 20px;
   margin: 8px 0 0;
   color: var(--text-secondary);
   font-size: 12px;

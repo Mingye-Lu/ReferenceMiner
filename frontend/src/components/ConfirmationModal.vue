@@ -27,12 +27,7 @@ function handleConfirm() {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    :title="title || 'Confirm'"
-    size="small"
-    @update:model-value="handleClose"
-  >
+  <BaseModal :model-value="modelValue" :title="title || 'Confirm'" size="small" @update:model-value="handleClose">
     <p class="message">{{ message }}</p>
 
     <template #footer>
@@ -48,6 +43,7 @@ function handleConfirm() {
 
 <style scoped>
 .message {
+  padding: 20px;
   margin: 0;
   color: var(--text-primary);
   font-size: 14px;

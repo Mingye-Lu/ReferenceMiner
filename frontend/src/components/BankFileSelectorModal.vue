@@ -361,13 +361,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    title="Manage Project Files"
-    size="xlarge"
-    @update:model-value="handleClose"
-    :hide-header="true"
-  >
+  <BaseModal :model-value="modelValue" title="Manage Project Files" size="xlarge" @update:model-value="handleClose"
+    :hide-header="true">
     <!-- Custom Header with Search -->
     <div class="custom-modal-layout">
       <div class="modal-header-custom">
@@ -381,64 +376,39 @@ onUnmounted(() => {
       <div class="search-section">
         <div class="search-input-wrapper">
           <Search :size="16" class="search-icon" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Search by title, author, or filename..."
-            class="search-input"
-          />
+          <input v-model="searchQuery" type="text" placeholder="Search by title, author, or filename..."
+            class="search-input" />
         </div>
 
         <!-- Filter Chips -->
         <div class="filter-chips" v-if="bankFiles.length > 0">
           <!-- File Type Chips -->
-          <button
-            v-for="type in availableTypes"
-            :key="type"
-            class="filter-chip"
-            :class="{ active: filters.fileTypes.has(type) }"
-            @click="toggleFilter('fileTypes', type)"
-          >
+          <button v-for="type in availableTypes" :key="type" class="filter-chip"
+            :class="{ active: filters.fileTypes.has(type) }" @click="toggleFilter('fileTypes', type)">
             {{ type.toUpperCase() }}
           </button>
 
           <!-- Year Chips -->
-          <button
-            v-for="year in availableYears"
-            :key="year"
-            class="filter-chip"
-            :class="{ active: filters.years.has(year) }"
-            @click="toggleFilter('years', year)"
-          >
+          <button v-for="year in availableYears" :key="year" class="filter-chip"
+            :class="{ active: filters.years.has(year) }" @click="toggleFilter('years', year)">
             {{ year }}
           </button>
 
           <!-- Language Toggle -->
-          <button
-            class="filter-chip"
-            :class="{ active: filters.language === 'zh' }"
-            @click="filters.language = filters.language === 'zh' ? null : 'zh'"
-          >
+          <button class="filter-chip" :class="{ active: filters.language === 'zh' }"
+            @click="filters.language = filters.language === 'zh' ? null : 'zh'">
             中文
           </button>
 
           <!-- In-Project Toggle -->
-          <button
-            class="filter-chip"
-            :class="{ active: filters.inProject === true }"
-            @click="
-              filters.inProject = filters.inProject === true ? null : true
-            "
-          >
+          <button class="filter-chip" :class="{ active: filters.inProject === true }" @click="
+            filters.inProject = filters.inProject === true ? null : true
+            ">
             In Project
           </button>
 
           <!-- Clear All Filters -->
-          <button
-            v-if="hasActiveFilters"
-            class="filter-chip clear-filters"
-            @click="clearAllFilters"
-          >
+          <button v-if="hasActiveFilters" class="filter-chip clear-filters" @click="clearAllFilters">
             <X :size="12" />
             Clear
           </button>
@@ -448,11 +418,7 @@ onUnmounted(() => {
         <div class="controls-row">
           <div class="sort-controls">
             <span>Sort:</span>
-            <CustomSelect
-              v-model="sortBy"
-              :options="sortOptions"
-              class="sort-select"
-            />
+            <CustomSelect v-model="sortBy" :options="sortOptions" class="sort-select" />
           </div>
           <div class="selection-info">
             <span>{{ filteredFiles.length }} files</span>
@@ -473,24 +439,11 @@ onUnmounted(() => {
           <p v-else>No files in Reference Bank</p>
         </div>
 
-        <TransitionGroup
-          v-else
-          name="file-list"
-          tag="div"
-          class="file-grid"
-          @before-leave="handleBeforeLeave"
-        >
-          <div
-            v-for="(file, index) in filteredFiles"
-            :key="file.relPath"
-            :data-index="index"
-            class="file-card"
-            :class="{
-              selected: localSelected.has(file.relPath),
-              focused: focusedIndex === index,
-            }"
-            @click="toggleSelection(file.relPath)"
-          >
+        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
+          <div v-for="(file, index) in filteredFiles" :key="file.relPath" :data-index="index" class="file-card" :class="{
+            selected: localSelected.has(file.relPath),
+            focused: focusedIndex === index,
+          }" @click="toggleSelection(file.relPath)">
             <div class="file-icon">
               <FileText :size="20" />
             </div>
@@ -498,24 +451,15 @@ onUnmounted(() => {
               <div class="file-name" :title="displayName(file.relPath)">
                 {{ displayName(file.relPath) }}
               </div>
-              <div
-                class="file-title"
-                v-if="file.bibliography?.title"
-                :title="file.bibliography.title"
-              >
+              <div class="file-title" v-if="file.bibliography?.title" :title="file.bibliography.title">
                 {{ truncate(file.bibliography.title, 50) }}
               </div>
-              <div
-                class="file-authors"
-                v-if="file.bibliography?.authors || file.bibliography?.year"
-              >
+              <div class="file-authors" v-if="file.bibliography?.authors || file.bibliography?.year">
                 {{ formatAuthors(file.bibliography?.authors) }}
-                <span
-                  v-if="
-                    formatAuthors(file.bibliography?.authors) &&
-                    file.bibliography?.year
-                  "
-                >
+                <span v-if="
+                  formatAuthors(file.bibliography?.authors) &&
+                  file.bibliography?.year
+                ">
                   ·
                 </span>
                 {{ file.bibliography?.year }}
@@ -523,21 +467,14 @@ onUnmounted(() => {
               <div class="file-meta">
                 {{ file.fileType }} ·
                 {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
-                <span
-                  v-if="fileStats[file.relPath]?.usage_count"
-                  class="usage-badge"
-                >
+                <span v-if="fileStats[file.relPath]?.usage_count" class="usage-badge">
                   {{ fileStats[file.relPath].usage_count }} project{{
                     fileStats[file.relPath].usage_count > 1 ? "s" : ""
                   }}
                 </span>
               </div>
             </div>
-            <button
-              class="preview-btn"
-              @click="(e) => handlePreview(file, e)"
-              title="Preview"
-            >
+            <button class="preview-btn" @click="(e) => handlePreview(file, e)" title="Preview">
               <Search :size="14" />
             </button>
           </div>
@@ -565,29 +502,19 @@ onUnmounted(() => {
       <div class="modal-footer-custom">
         <button class="btn-secondary" @click="handleClose">Cancel</button>
         <button class="btn-primary" @click="handleConfirm" :disabled="loading">
-          <Loader2
-            v-if="loading"
-            class="spin"
-            :size="16"
-            style="margin-right: 6px"
-          />
+          <Loader2 v-if="loading" class="spin" :size="16" style="margin-right: 6px" />
           Update
         </button>
       </div>
     </div>
 
     <!-- Preview Modal -->
-    <FilePreviewModal
-      v-model="showPreview"
-      :file="previewFile"
-      @close="closePreview"
-    />
+    <FilePreviewModal v-model="showPreview" :file="previewFile" @close="closePreview" />
   </BaseModal>
 </template>
 
 <style scoped>
 .custom-modal-layout {
-  margin: -24px -20px;
   display: flex;
   flex-direction: column;
   height: calc(85vh - 48px);

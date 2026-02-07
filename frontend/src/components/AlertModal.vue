@@ -21,74 +21,29 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    size="small"
-    @update:model-value="handleClose"
-  >
+  <BaseModal :model-value="modelValue" size="small" @update:model-value="handleClose">
     <template #header-content>
       <span class="icon" :class="type || 'error'">
-        <svg
-          v-if="type === 'success'"
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
+        <svg v-if="type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
           <polyline points="22 4 12 14.01 9 11.01" />
         </svg>
-        <svg
-          v-else-if="type === 'warning'"
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
-          />
+        <svg v-else-if="type === 'warning'" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
           <line x1="12" x2="12" y1="9" y2="13" />
           <line x1="12" x2="12.01" y1="17" y2="17" />
         </svg>
-        <svg
-          v-else-if="type === 'info'"
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
+        <svg v-else-if="type === 'info'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10" />
           <path d="M12 16v-4" />
           <path d="M12 8h.01" />
         </svg>
-        <svg
-          v-else
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10" />
           <line x1="15" x2="9" y1="9" y2="15" />
           <line x1="9" x2="15" y1="9" y2="15" />
@@ -100,11 +55,7 @@ function handleClose() {
     <p class="message">{{ message }}</p>
 
     <template #footer>
-      <button
-        class="btn"
-        :class="'btn-' + (type || 'error')"
-        @click="handleClose"
-      >
+      <button class="btn" :class="'btn-' + (type || 'error')" @click="handleClose">
         {{ buttonText || "OK" }}
       </button>
     </template>
@@ -142,6 +93,7 @@ function handleClose() {
 }
 
 .message {
+  padding: 20px;
   margin: 0;
   word-break: break-word;
   color: var(--text-primary);

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { watch, onMounted, onUnmounted, nextTick } from "vue";
 
 const props = withDefaults(
@@ -102,19 +102,8 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div
-        v-if="modelValue"
-        class="modal-backdrop"
-        :style="{ zIndex: props.zIndex }"
-        @click.self="handleBackdropClick"
-      >
-        <div
-          class="modal-box"
-          :class="[`modal-${size}`]"
-          role="dialog"
-          aria-modal="true"
-          tabindex="-1"
-        >
+      <div v-if="modelValue" class="modal-backdrop" :style="{ zIndex: props.zIndex }" @click.self="handleBackdropClick">
+        <div class="modal-box" :class="[`modal-${size}`]" role="dialog" aria-modal="true" tabindex="-1">
           <!-- Header -->
           <div v-if="!hideHeader" class="modal-header">
             <slot name="header">
@@ -123,23 +112,9 @@ onUnmounted(() => {
                   <h3 v-if="title" class="modal-title">{{ title }}</h3>
                 </slot>
               </div>
-              <button
-                v-if="!hideCloseButton"
-                class="close-btn"
-                @click="handleClose"
-                aria-label="Close modal"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
+              <button v-if="!hideCloseButton" class="close-btn" @click="handleClose" aria-label="Close modal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
@@ -278,7 +253,6 @@ onUnmounted(() => {
 
 /* Body */
 .modal-body {
-  padding: 24px 20px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;

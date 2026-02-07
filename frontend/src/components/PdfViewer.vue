@@ -11,6 +11,8 @@ import {
 import * as pdfjsLib from "pdfjs-dist";
 import type { HighlightGroup } from "../types";
 import { usePdfSettings } from "../composables/usePdfSettings";
+import ReferenceListModal from "./ReferenceListModal.vue";
+import { BookOpen } from "lucide-vue-next";
 
 // Setup PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.mjs";
@@ -38,6 +40,48 @@ const highlightEnabled = ref(true);
 const pageInput = ref("1");
 const fitMode = ref<"custom" | "width">("custom");
 const zoomInput = ref("100");
+
+// Reference Modal State
+const showReferenceModal = ref(false);
+const references = ref<any[]>([]);
+const isLoadingReferences = ref(false);
+
+const openReferences = async () => {
+  showReferenceModal.value = true;
+  if (references.value.length === 0) {
+    await fetchReferences();
+  }
+};
+
+const fetchReferences = async () => {
+  isLoadingReferences.value = true;
+  try {
+    let relPath = "";
+    // Handle both /files/ and /api/files/ URL formats
+    const url = props.fileUrl;
+    if (url.includes("/files/")) {
+      const parts = url.split("/files/");
+      if (parts.length > 1) {
+        // Decode the URL-encoded filename and remove any trailing paths
+        relPath = decodeURIComponent(parts[1].split("/content")[0]);
+      }
+    }
+
+    if (!relPath) {
+      console.error("Could not determine file path for references. URL:", url);
+      return;
+    }
+
+    const res = await fetch(`/api/files/${encodeURIComponent(relPath)}/references`);
+    if (!res.ok) throw new Error("Failed to fetch references");
+    const data = await res.json();
+    references.value = data.references || [];
+  } catch (e) {
+    console.error("Error fetching references:", e);
+  } finally {
+    isLoadingReferences.value = false;
+  }
+};
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null;
 let renderTask: pdfjsLib.RenderTask | null = null;
@@ -112,6 +156,8 @@ const loadPdf = async () => {
     }
     isLoading.value = true;
     error.value = undefined;
+    // Reset references on new file load
+    references.value = [];
 
     const resp = await fetch(props.fileUrl);
     if (!resp.ok) {
@@ -172,14 +218,14 @@ const renderPage = async () => {
       viewMode.value === "single"
         ? canvasRef.value
         : (pageRefs.value[currentPage.value - 1]?.querySelector(
-            "canvas",
-          ) as HTMLCanvasElement);
+          "canvas",
+        ) as HTMLCanvasElement);
     const overlay =
       viewMode.value === "single"
         ? overlayRef.value
         : (pageRefs.value[currentPage.value - 1]?.querySelector(
-            ".pdf-overlay",
-          ) as HTMLDivElement);
+          ".pdf-overlay",
+        ) as HTMLDivElement);
     if (!canvas || !overlay) return;
     const context = canvas.getContext("2d");
     if (!context) return;
@@ -812,7 +858,7 @@ onUnmounted(() => {
     renderTask = null;
   }
   if (pdfDoc) {
-    pdfDoc.destroy().catch(() => {});
+    pdfDoc.destroy().catch(() => { });
     pdfDoc = null;
   }
   window.removeEventListener("keydown", handleKeyDown);
@@ -830,11 +876,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="pdf-viewer"
-    :style="{ '--pdf-progress': progressPercent + '%' }"
-  >
+  <div ref="containerRef" class="pdf-viewer" :style="{ '--pdf-progress': progressPercent + '%' }">
     <div v-if="isLoading" class="pdf-loading">
       <div class="spinner"></div>
       <p>Loading PDF...</p>
@@ -847,113 +889,57 @@ onUnmounted(() => {
     <div v-else class="pdf-content">
       <div class="pdf-controls">
         <div class="control-group">
-          <button
-            class="nav-btn"
-            @click="prevPage"
-            :disabled="currentPage <= 1"
-            title="Previous page (←)"
-          >
+          <button class="nav-btn" @click="prevPage" :disabled="currentPage <= 1" title="Previous page (←)">
             Prev
           </button>
           <div class="page-input">
-            <input
-              v-model="pageInput"
-              type="number"
-              min="1"
-              :max="totalPages"
-              @keydown.enter="goToPage"
-              @blur="goToPage"
-              aria-label="Page number"
-            />
+            <input v-model="pageInput" type="number" min="1" :max="totalPages" @keydown.enter="goToPage"
+              @blur="goToPage" aria-label="Page number" />
             <span class="separator">/</span>
             <span class="total">{{ totalPages }}</span>
           </div>
-          <button
-            class="nav-btn"
-            @click="nextPage"
-            :disabled="currentPage >= totalPages"
-            title="Next page (→)"
-          >
+          <button class="nav-btn" @click="nextPage" :disabled="currentPage >= totalPages" title="Next page (→)">
             Next
           </button>
         </div>
 
         <div class="control-group">
-          <button
-            class="nav-btn"
-            @click="zoomOut"
-            :disabled="scale <= 0.5"
-            title="Zoom out"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+          <button class="nav-btn" @click="zoomOut" :disabled="scale <= 0.5" title="Zoom out">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <path d="m21 21-4.35-4.35"></path>
               <line x1="8" y1="11" x2="14" y2="11"></line>
             </svg>
           </button>
           <label class="zoom-input">
-            <input
-              v-model="zoomInput"
-              type="number"
-              min="50"
-              max="300"
-              step="10"
-              @keydown.enter="goToZoom"
-              @blur="goToZoom"
-              aria-label="Zoom percentage"
-            />
+            <input v-model="zoomInput" type="number" min="50" max="300" step="10" @keydown.enter="goToZoom"
+              @blur="goToZoom" aria-label="Zoom percentage" />
             <span>%</span>
           </label>
-          <button
-            class="nav-btn"
-            @click="zoomIn"
-            :disabled="scale >= 3"
-            title="Zoom in"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+          <button class="nav-btn" @click="zoomIn" :disabled="scale >= 3" title="Zoom in">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <path d="m21 21-4.35-4.35"></path>
               <line x1="11" y1="8" x2="11" y2="14"></line>
               <line x1="8" y1="11" x2="14" y2="11"></line>
             </svg>
           </button>
-          <button
-            class="nav-btn"
-            @click="fitToWidth"
-            :disabled="!totalPages"
-            title="Fit page to width"
-          >
+          <button class="nav-btn" @click="fitToWidth" :disabled="!totalPages" title="Fit page to width">
             Fit width
           </button>
         </div>
 
         <div class="control-group end">
-          <button
-            class="highlight-toggle"
-            :class="{ active: highlightEnabled }"
-            @click="toggleHighlights"
-            :title="highlightEnabled ? 'Hide highlights' : 'Show highlights'"
-          >
+          <!-- References Button -->
+          <button class="nav-btn ref-btn" @click="openReferences" title="View References">
+            <BookOpen :size="16" />
+            <span>References</span>
+          </button>
+
+          <button class="highlight-toggle" :class="{ active: highlightEnabled }" @click="toggleHighlights"
+            :title="highlightEnabled ? 'Hide highlights' : 'Show highlights'">
             Highlights
           </button>
           <div class="keyboard-hint" :class="{ active: isDragMode }">
@@ -972,18 +958,11 @@ onUnmounted(() => {
         <div class="pdf-progress-bar"></div>
       </div>
 
-      <div
-        ref="pageContainerRef"
-        class="pdf-page-container"
-        :class="{
-          'drag-mode': isDragMode,
-          dragging: isDragging,
-          'continuous-mode': viewMode === 'continuous',
-        }"
-        @mousedown="handleMouseDown"
-        @mousemove="handleMouseMove"
-        @scroll="viewMode === 'continuous' ? null : null"
-      >
+      <div ref="pageContainerRef" class="pdf-page-container" :class="{
+        'drag-mode': isDragMode,
+        dragging: isDragging,
+        'continuous-mode': viewMode === 'continuous',
+      }" @mousedown="handleMouseDown" @mousemove="handleMouseMove" @scroll="viewMode === 'continuous' ? null : null">
         <!-- Scroll listener can be handled by observer in continuous -->
 
         <!-- Single Page View -->
@@ -994,17 +973,8 @@ onUnmounted(() => {
 
         <!-- Continuous View -->
         <div v-else class="pdf-continuous-list">
-          <div
-            v-for="page in totalPages"
-            :key="page"
-            ref="pageRefs"
-            class="pdf-page-wrapper"
-            :data-page="page"
-            :style="{ minHeight: '800px', marginBottom: '16px' }"
-          >
-            <!-- Height placeholder until loaded? Ideally we know aspect ratio. 
-                      For now just a min-height. Once rendered it snaps to size. 
-                      Better to have a loader or static size if possible. -->
+          <div v-for="page in totalPages" :key="page" ref="pageRefs" class="pdf-page-wrapper" :data-page="page"
+            :style="{ minHeight: '800px', marginBottom: '16px' }">
             <div class="pdf-canvas-wrapper">
               <canvas></canvas>
               <div class="pdf-overlay"></div>
@@ -1013,6 +983,9 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <ReferenceListModal v-model="showReferenceModal" :references="references" :is-loading="isLoadingReferences"
+      :source-file-name="props.fileUrl.split('/').pop()?.split('?')[0] || 'current file'" />
   </div>
 </template>
 
@@ -1298,6 +1271,41 @@ onUnmounted(() => {
   background: var(--bg-card-hover);
   border-color: var(--border-card-hover);
   color: var(--text-primary);
+}
+
+/* References button */
+.ref-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-card);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ref-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-card-hover);
+  color: var(--text-primary);
+}
+
+.ref-btn:active {
+  transform: scale(0.98);
+}
+
+[data-theme="dark"] .ref-btn {
+  border-color: var(--color-neutral-700);
+}
+
+[data-theme="dark"] .ref-btn:hover {
+  background: var(--color-neutral-750);
+  border-color: var(--color-neutral-600);
 }
 
 /* Keyboard hint */

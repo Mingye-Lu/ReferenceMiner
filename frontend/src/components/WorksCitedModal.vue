@@ -230,13 +230,8 @@ function formatHtml(text: string): string {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    title="Works Cited"
-    size="large"
-    @update:model-value="handleClose"
-    :hide-header="true"
-  >
+  <BaseModal :model-value="modelValue" title="Works Cited" size="large" @update:model-value="handleClose"
+    :hide-header="true">
     <div class="custom-modal-layout">
       <!-- Header -->
       <div class="modal-header-custom">
@@ -253,28 +248,19 @@ function formatHtml(text: string): string {
           <CustomSelect v-model="citationStyle" :options="styleOptions" />
         </div>
         <div class="toolbar-actions">
-          <button
-            class="toolbar-btn"
-            @click="requestCopyAll"
-            :disabled="citations.length === 0 && missingFiles.length === 0"
-          >
+          <button class="toolbar-btn" @click="requestCopyAll"
+            :disabled="citations.length === 0 && missingFiles.length === 0">
             <Check v-if="copiedAll" :size="14" class="check-icon" />
             <Copy v-else :size="14" />
             {{ copiedAll ? "Copied!" : "Copy All" }}
           </button>
-          <button
-            class="toolbar-btn"
-            @click="requestDownloadTxt"
-            :disabled="citations.length === 0 && missingFiles.length === 0"
-          >
+          <button class="toolbar-btn" @click="requestDownloadTxt"
+            :disabled="citations.length === 0 && missingFiles.length === 0">
             <Download :size="14" />
             .txt
           </button>
-          <button
-            class="toolbar-btn"
-            @click="requestDownloadBib"
-            :disabled="citations.length === 0 && missingFiles.length === 0"
-          >
+          <button class="toolbar-btn" @click="requestDownloadBib"
+            :disabled="citations.length === 0 && missingFiles.length === 0">
             <Download :size="14" />
             .bib
           </button>
@@ -292,15 +278,8 @@ function formatHtml(text: string): string {
         </div>
 
         <div v-else class="citations-list">
-          <div
-            v-for="item in citations"
-            :key="item.relPath"
-            class="citation-card"
-          >
-            <div
-              class="citation-text"
-              :class="{ 'bibtex-format': citationStyle === 'bibtex' }"
-            >
+          <div v-for="item in citations" :key="item.relPath" class="citation-card">
+            <div class="citation-text" :class="{ 'bibtex-format': citationStyle === 'bibtex' }">
               <template v-if="citationStyle === 'bibtex'">
                 <pre>{{ item.citation }}</pre>
               </template>
@@ -309,11 +288,8 @@ function formatHtml(text: string): string {
               </template>
             </div>
             <div class="citation-footer">
-              <button
-                class="copy-btn"
-                @click="copySingleCitation(item.citation, item.relPath)"
-                :class="{ copied: copiedId === item.relPath }"
-              >
+              <button class="copy-btn" @click="copySingleCitation(item.citation, item.relPath)"
+                :class="{ copied: copiedId === item.relPath }">
                 <Check v-if="copiedId === item.relPath" :size="12" />
                 <Copy v-else :size="12" />
                 {{ copiedId === item.relPath ? "Copied" : "Copy" }}
@@ -328,29 +304,20 @@ function formatHtml(text: string): string {
 
       <!-- Footer -->
       <div class="modal-footer-custom">
-        <span class="reference-count"
-          >{{ citableFiles.length }} reference{{
-            citableFiles.length !== 1 ? "s" : ""
-          }}</span
-        >
+        <span class="reference-count">{{ citableFiles.length }} reference{{
+          citableFiles.length !== 1 ? "s" : ""
+        }}</span>
         <button class="btn-primary" @click="handleClose">Done</button>
       </div>
     </div>
   </BaseModal>
 
-  <ConfirmExtractMetadataModal
-    v-model="showMetadataConfirm"
-    action-label="export"
-    :missing-count="missingFiles.length"
-    @confirm="handleExtractConfirm"
-    @skip="handleExtractSkip"
-    @cancel="handleExtractCancel"
-  />
+  <ConfirmExtractMetadataModal v-model="showMetadataConfirm" action-label="export" :missing-count="missingFiles.length"
+    @confirm="handleExtractConfirm" @skip="handleExtractSkip" @cancel="handleExtractCancel" />
 </template>
 
 <style scoped>
 .custom-modal-layout {
-  margin: -24px -20px;
   display: flex;
   flex-direction: column;
   height: calc(70vh - 48px);

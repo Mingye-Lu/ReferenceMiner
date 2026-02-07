@@ -172,18 +172,18 @@ async function processUpload(item: UploadItem, replace: boolean = false) {
     const result =
       props.uploadMode === "bank"
         ? await uploadFileToBankStream(
-            item.file,
-            handlers,
-            replace,
-            item.bibliography,
-          )
+          item.file,
+          handlers,
+          replace,
+          item.bibliography,
+        )
         : await uploadFileStream(
-            props.projectId!,
-            item.file,
-            handlers,
-            replace,
-            item.bibliography,
-          );
+          props.projectId!,
+          item.file,
+          handlers,
+          replace,
+          item.bibliography,
+        );
 
     const currentItem = uploads.value.find((u) => u.id === item.id);
     if (!result && currentItem) {
@@ -325,34 +325,14 @@ watch(isOpen, (value) => {
   <div class="file-uploader">
     <button class="upload-trigger" @click="openModal">Upload Files</button>
 
-    <BaseModal
-      :model-value="isOpen"
-      size="xlarge"
-      :title="
-        uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project'
-      "
-      @update:model-value="closeModal"
-    >
+    <BaseModal :model-value="isOpen" size="xlarge" :title="uploadMode === 'bank' ? 'Upload to Reference Bank' : 'Upload to Project'
+      " @update:model-value="closeModal">
       <div class="upload-modal-content">
-        <div
-          class="drop-zone"
-          :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
-          @dragover.prevent="isDragOver = true"
-          @dragleave="isDragOver = false"
-          @drop.prevent="handleDrop"
-        >
+        <div class="drop-zone" :class="{ dragover: isDragOver, 'has-items': uploads.length > 0 }"
+          @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop.prevent="handleDrop">
           <template v-if="uploads.length === 0">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" x2="12" y1="3" y2="15" />
@@ -361,39 +341,21 @@ watch(isOpen, (value) => {
             <p class="drop-hint">
               PDF, DOCX, TXT, MD, Images (PNG, JPG). Folder upload supported.
             </p>
-            <input
-              type="file"
-              multiple
-              :accept="SUPPORTED_EXTENSIONS.join(',')"
-              @change="handleFileSelect"
-              ref="fileInput"
-              class="hidden-input"
-            />
-            <input
-              type="file"
-              webkitdirectory
-              directory
-              @change="handleFolderSelect"
-              ref="folderInput"
-              class="hidden-input"
-            />
+            <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect"
+              ref="fileInput" class="hidden-input" />
+            <input type="file" webkitdirectory directory @change="handleFolderSelect" ref="folderInput"
+              class="hidden-input" />
             <div class="upload-actions">
-              <button
-                class="btn-secondary"
-                @click="
-                  setTriggerPoint($event);
-                  fileInput?.click();
-                "
-              >
+              <button class="btn-secondary" @click="
+                setTriggerPoint($event);
+              fileInput?.click();
+              ">
                 Select Files
               </button>
-              <button
-                class="btn-secondary"
-                @click="
-                  setTriggerPoint($event);
-                  folderInput?.click();
-                "
-              >
+              <button class="btn-secondary" @click="
+                setTriggerPoint($event);
+              folderInput?.click();
+              ">
                 Select Folder
               </button>
             </div>
@@ -401,92 +363,49 @@ watch(isOpen, (value) => {
 
           <template v-else>
             <div class="upload-queue">
-              <FileQueueItem
-                v-for="item in uploads"
-                :key="item.id"
-                :item="item"
-                :is-selected="selectedFileId === item.id"
-                @select="selectFile(item)"
-                @remove="removeItem(item)"
-                @replace="replaceFile(item, $event)"
-              />
+              <FileQueueItem v-for="item in uploads" :key="item.id" :item="item"
+                :is-selected="selectedFileId === item.id" @select="selectFile(item)" @remove="removeItem(item)"
+                @replace="replaceFile(item, $event)" />
             </div>
 
             <div class="upload-actions">
-              <button
-                class="btn-secondary"
-                @click="
-                  setTriggerPoint($event);
-                  fileInput?.click();
-                "
-              >
+              <button class="btn-secondary" @click="
+                setTriggerPoint($event);
+              fileInput?.click();
+              ">
                 Add More
               </button>
-              <button
-                class="btn-secondary"
-                @click="
-                  setTriggerPoint($event);
-                  folderInput?.click();
-                "
-              >
+              <button class="btn-secondary" @click="
+                setTriggerPoint($event);
+              folderInput?.click();
+              ">
                 Add Folder
               </button>
-              <button
-                v-if="
-                  uploads.some(
-                    (u) => u.status === 'complete' || u.status === 'error',
-                  )
-                "
-                class="btn-secondary"
-                @click="clearCompleted"
-              >
+              <button v-if="
+                uploads.some(
+                  (u) => u.status === 'complete' || u.status === 'error',
+                )
+              " class="btn-secondary" @click="clearCompleted">
                 Clear Done
               </button>
             </div>
-            <input
-              type="file"
-              multiple
-              :accept="SUPPORTED_EXTENSIONS.join(',')"
-              @change="handleFileSelect"
-              ref="fileInput"
-              class="hidden-input"
-            />
-            <input
-              type="file"
-              webkitdirectory
-              directory
-              @change="handleFolderSelect"
-              ref="folderInput"
-              class="hidden-input"
-            />
+            <input type="file" multiple :accept="SUPPORTED_EXTENSIONS.join(',')" @change="handleFileSelect"
+              ref="fileInput" class="hidden-input" />
+            <input type="file" webkitdirectory directory @change="handleFolderSelect" ref="folderInput"
+              class="hidden-input" />
           </template>
         </div>
 
         <div class="bibliography-panel">
           <template v-if="selectedFile">
-            <BibliographyEditor
-              :model-value="selectedFile.bibliography ?? null"
-              :file="selectedFile.file"
-              compact
-              @update:model-value="updateBibliography"
-            />
+            <BibliographyEditor :model-value="selectedFile.bibliography ?? null" :file="selectedFile.file" compact
+              @update:model-value="updateBibliography" />
           </template>
           <template v-else>
             <div class="empty-state">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
                 <line x1="16" x2="8" y1="13" y2="13" />
                 <line x1="16" x2="8" y1="17" y2="17" />
@@ -501,18 +420,14 @@ watch(isOpen, (value) => {
       <template #footer>
         <div class="footer-info">
           <span v-if="hasFilesWithBibliography" class="info-badge has-bib">
-            {{ uploads.filter((u) => u.bibliography).length }} with bibliography
+            {{uploads.filter((u) => u.bibliography).length}} with bibliography
           </span>
           <span v-if="hasFilesWithoutBibliography" class="info-badge no-bib">
-            {{ uploads.filter((u) => !u.bibliography).length }} without
+            {{uploads.filter((u) => !u.bibliography).length}} without
           </span>
         </div>
         <button class="btn-secondary" @click="closeModal(false)">Cancel</button>
-        <button
-          class="btn-primary"
-          @click="startUploads"
-          :disabled="uploads.length === 0"
-        >
+        <button class="btn-primary" @click="startUploads" :disabled="uploads.length === 0">
           Upload {{ uploads.length }} file{{ uploads.length === 1 ? "" : "s" }}
         </button>
       </template>
@@ -521,6 +436,10 @@ watch(isOpen, (value) => {
 </template>
 
 <style scoped>
+.modal-body {
+  padding: 0 20px;
+}
+
 .file-uploader {
   margin-bottom: 8px;
 }
@@ -543,6 +462,7 @@ watch(isOpen, (value) => {
 
 .upload-modal-content {
   display: grid;
+  padding: 20px;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   min-height: 400px;

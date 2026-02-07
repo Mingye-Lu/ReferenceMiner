@@ -359,7 +359,7 @@ onMounted(async () => {
   const pid = props.id;
   try {
     await activateProject(pid);
-  } catch (e) {}
+  } catch (e) { }
 
   // Load pinned evidence from localStorage (shared across sessions)
   const savedPins = localStorage.getItem(`pinned_evidence_${pid}`);
@@ -367,7 +367,7 @@ onMounted(async () => {
     try {
       const parsed = JSON.parse(savedPins);
       pinnedEvidenceMap.value = new Map(parsed);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Load chat sessions from backend
@@ -492,61 +492,27 @@ watch(
     </header>
 
     <div class="main-layout">
-      <SidePanel
-        :active-chat-id="currentChatId ?? undefined"
-        :highlighted-paths="highlightedPaths"
-        @preview="openPreview"
-        @select-chat="switchChat"
-        @new-chat="handleNewChat"
-      />
+      <SidePanel :active-chat-id="currentChatId ?? undefined" :highlighted-paths="highlightedPaths"
+        @preview="openPreview" @select-chat="switchChat" @new-chat="handleNewChat" />
       <main class="workspace-shell">
-        <ChatWindow
-          v-model:history="chatHistory"
-          :highlight-id="highlightMessageId"
-        />
+        <ChatWindow v-model:history="chatHistory" :highlight-id="highlightMessageId" />
       </main>
     </div>
 
-    <div
-      class="drawer-overlay"
-      :class="{ open: isDrawerOpen }"
-      @click="toggleDrawer(false)"
-    ></div>
-    <RightDrawer
-      :class="{ open: isDrawerOpen }"
-      :is-open="isDrawerOpen"
-      :tab="drawerTab"
-      :evidence="activeEvidence"
-      :related-evidence="activeRelatedEvidence"
-      :highlight-note-id="targetNoteId"
-      @close="toggleDrawer(false)"
-    />
+    <div class="drawer-overlay" :class="{ open: isDrawerOpen }" @click="toggleDrawer(false)"></div>
+    <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
+      :related-evidence="activeRelatedEvidence" :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
     <!-- File Preview Modal -->
-    <FilePreviewModal
-      v-model="showPreviewModal"
-      :file="previewFile"
-      :highlight-groups="previewHighlightGroups"
-    />
+    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlight-groups="previewHighlightGroups" />
 
     <!-- Delete Confirmation Modal -->
-    <ConfirmationModal
-      v-model="showDeleteModal"
-      title="Delete Chat?"
-      message="Are you sure you want to delete this conversation? This action cannot be undone."
-      confirm-text="Delete"
-      @confirm="confirmDeleteChat"
-    />
+    <ConfirmationModal v-model="showDeleteModal" title="Delete Chat?"
+      message="Are you sure you want to delete this conversation? This action cannot be undone." confirm-text="Delete"
+      @confirm="confirmDeleteChat" />
 
-    <CommandPalette
-      :visible="isSearchOpen"
-      :project-files="projectFiles"
-      :pinned-evidence="pinnedEvidenceMap"
-      :chat-store="chatStore"
-      :chat-sessions="chatSessions"
-      :manifest="manifest"
-      @close="isSearchOpen = false"
-      @navigate="handleSearchNavigate"
-    />
+    <CommandPalette :visible="isSearchOpen" :project-files="projectFiles" :pinned-evidence="pinnedEvidenceMap"
+      :chat-store="chatStore" :chat-sessions="chatSessions" :manifest="manifest" @close="isSearchOpen = false"
+      @navigate="handleSearchNavigate" />
   </div>
 </template>
 

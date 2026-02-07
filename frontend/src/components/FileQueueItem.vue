@@ -40,51 +40,28 @@ function getBibliographyStatus(): string {
 </script>
 
 <template>
-  <div
-    class="file-queue-item"
-    :class="[item.status, getBibliographyStatus(), { selected: isSelected }]"
-    @click="emit('select')"
-  >
+  <div class="file-queue-item" :class="[item.status, getBibliographyStatus(), { selected: isSelected }]"
+    @click="emit('select')">
     <div class="item-header">
       <span class="filename">{{ item.file.name }}</span>
       <div class="item-badges">
         <span class="status-badge" :class="item.status">
           {{ getStatusLabel(item.status) }}
         </span>
-        <span
-          v-if="item.bibliography"
-          class="bib-badge"
-          title="Has bibliography"
-        >
+        <span v-if="item.bibliography" class="bib-badge" title="Has bibliography">
           Bib
         </span>
       </div>
-      <button
-        v-if="item.status === 'complete'"
-        class="btn-icon"
-        @click.stop="emit('remove')"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
+      <button v-if="item.status === 'complete'" class="btn-icon" @click.stop="emit('remove')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
     </div>
 
-    <div
-      v-if="item.status === 'uploading' || item.status === 'processing'"
-      class="progress-bar"
-    >
+    <div v-if="item.status === 'uploading' || item.status === 'processing'" class="progress-bar">
       <div class="progress-fill" :style="{ width: item.progress + '%' }"></div>
     </div>
 

@@ -163,50 +163,27 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    :title="file ? getFileName(file.relPath) : 'Preview'"
-    :size="isFullscreen ? 'fullscreen' : 'xlarge'"
-    :fill-body="true"
-    @update:model-value="handleClose"
-  >
+  <BaseModal :model-value="modelValue" :title="file ? getFileName(file.relPath) : 'Preview'"
+    :size="isFullscreen ? 'fullscreen' : 'xlarge'" :fill-body="true" @update:model-value="handleClose">
     <template #header-content>
       <div class="preview-header">
         <h3 class="preview-title">
           {{ file ? getFileName(file.relPath) : "Preview" }}
         </h3>
-        <button
-          class="preview-meta"
-          @click="showMetadataModal = true"
-          :disabled="!file"
-          title="Edit metadata"
-        >
+        <button class="preview-meta" @click="showMetadataModal = true" :disabled="!file" title="Edit metadata">
           Metadata
         </button>
-        <button
-          class="preview-toggle"
-          @click="isFullscreen = !isFullscreen"
-          :title="isFullscreen ? 'Exit full screen' : 'Full screen'"
-        >
+        <button class="preview-toggle" @click="isFullscreen = !isFullscreen"
+          :title="isFullscreen ? 'Exit full screen' : 'Full screen'">
           <Minimize2 v-if="isFullscreen" :size="16" />
           <Maximize2 v-else :size="16" />
         </button>
       </div>
     </template>
     <div class="preview-content">
-      <PdfPreview
-        v-if="isPdf"
-        :key="`pdf-${file?.relPath}`"
-        :file-url="fileUrl"
-        :highlight-groups="activeHighlightGroups"
-        class="pdf-viewer-wrapper"
-      />
-      <img
-        v-else-if="isImage"
-        :key="`img-${file?.relPath}`"
-        :src="fileUrl"
-        class="preview-image"
-      />
+      <PdfPreview v-if="isPdf" :key="`pdf-${file?.relPath}`" :file-url="fileUrl"
+        :highlight-groups="activeHighlightGroups" class="pdf-viewer-wrapper" />
+      <img v-else-if="isImage" :key="`img-${file?.relPath}`" :src="fileUrl" class="preview-image" />
       <div v-else-if="isDocx" class="docx-preview-area">
         <div v-if="isLoading" class="loading">Loading document...</div>
         <div ref="docxContainer" class="docx-container"></div>

@@ -1733,3 +1733,32 @@ export async function fetchCrawlerStats(): Promise<{
     lastUpdated: data.last_updated ?? null,
   };
 }
+
+export interface FetchMetadataRequest {
+  url: string;
+  arxiv_id?: string;
+  doi?: string;
+}
+
+export interface FetchMetadataResponse {
+  title?: string;
+  authors?: string[];
+  year?: number;
+  source: string;
+  pdf_url?: string;
+  is_academic: boolean;
+}
+
+export async function fetchMetadata(
+  req: FetchMetadataRequest,
+): Promise<FetchMetadataResponse> {
+  const data = await fetchJson<FetchMetadataResponse>(
+    "/api/crawler/fetch-metadata",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    },
+  );
+  return data;
+}

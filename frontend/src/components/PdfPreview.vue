@@ -22,13 +22,8 @@ const startPage = computed(() => {
 </script>
 
 <template>
-  <PdfViewer
-    :file-url="fileUrl"
-    :highlight-groups="highlightGroups"
-    :initial-page="startPage"
-    @progress="emit('progress', $event)"
-    class="pdf-preview"
-  />
+  <PdfViewer :file-url="fileUrl" :highlight-groups="highlightGroups" :initial-page="startPage"
+    @progress="emit('progress', $event)" class="pdf-preview" />
 </template>
 
 <style scoped>

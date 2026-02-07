@@ -232,12 +232,8 @@ watch(
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    :title="file ? `${getFileName(file.relPath)} Metadata` : 'Metadata'"
-    size="large"
-    @update:model-value="handleClose"
-  >
+  <BaseModal :model-value="modelValue" :title="file ? `${getFileName(file.relPath)} Metadata` : 'Metadata'" size="large"
+    @update:model-value="handleClose">
     <div class="metadata-modal">
       <div v-if="isLoading" class="metadata-loading">Loading metadata...</div>
       <div v-else-if="!file" class="metadata-empty">
@@ -247,49 +243,21 @@ watch(
         <div class="section-title">Core</div>
         <div class="form-row">
           <label class="form-label">Document Type</label>
-          <CustomSelect
-            :model-value="draft!.docType ?? ''"
-            :options="docTypeOptions"
-            @update:model-value="(value: string) => (draft!.docType = value)"
-            placeholder="Select type"
-          />
+          <CustomSelect :model-value="draft!.docType ?? ''" :options="docTypeOptions"
+            @update:model-value="(value: string) => (draft!.docType = value)" placeholder="Select type" />
         </div>
         <div class="form-row">
           <label class="form-label">Title</label>
-          <input
-            v-model="draft!.title"
-            type="text"
-            placeholder="Paper title"
-            class="form-input"
-          />
+          <input v-model="draft!.title" type="text" placeholder="Paper title" class="form-input" />
         </div>
 
         <div class="form-row">
           <label class="form-label">Authors</label>
           <div class="authors-list">
-            <div
-              v-for="(author, index) in draft!.authors"
-              :key="index"
-              class="author-row"
-            >
-              <input
-                v-model="author.family"
-                type="text"
-                placeholder="Family name"
-                class="form-input"
-              />
-              <input
-                v-model="author.given"
-                type="text"
-                placeholder="Given name"
-                class="form-input"
-              />
-              <input
-                v-model="author.literal"
-                type="text"
-                placeholder="Full name (optional)"
-                class="form-input"
-              />
+            <div v-for="(author, index) in draft!.authors" :key="index" class="author-row">
+              <input v-model="author.family" type="text" placeholder="Family name" class="form-input" />
+              <input v-model="author.given" type="text" placeholder="Given name" class="form-input" />
+              <input v-model="author.literal" type="text" placeholder="Full name (optional)" class="form-input" />
               <button class="btn-danger" @click="removeAuthor(index)">
                 Remove
               </button>
@@ -299,12 +267,7 @@ watch(
         </div>
         <div class="form-row">
           <label class="form-label">Year</label>
-          <input
-            v-model.number="draft!.year"
-            type="number"
-            placeholder="2024"
-            class="form-input"
-          />
+          <input v-model.number="draft!.year" type="number" placeholder="2024" class="form-input" />
         </div>
 
         <div v-if="isJournal" class="form-section">
@@ -312,39 +275,19 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Journal</label>
-              <input
-                v-model="draft!.journal"
-                type="text"
-                placeholder="Journal name"
-                class="form-input"
-              />
+              <input v-model="draft!.journal" type="text" placeholder="Journal name" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Volume</label>
-              <input
-                v-model="draft!.volume"
-                type="text"
-                placeholder="Volume"
-                class="form-input"
-              />
+              <input v-model="draft!.volume" type="text" placeholder="Volume" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Issue</label>
-              <input
-                v-model="draft!.issue"
-                type="text"
-                placeholder="Issue"
-                class="form-input"
-              />
+              <input v-model="draft!.issue" type="text" placeholder="Issue" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Pages</label>
-              <input
-                v-model="draft!.pages"
-                type="text"
-                placeholder="123-130"
-                class="form-input"
-              />
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
             </div>
           </div>
         </div>
@@ -354,21 +297,11 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Conference</label>
-              <input
-                v-model="draft!.conference"
-                type="text"
-                placeholder="Conference name"
-                class="form-input"
-              />
+              <input v-model="draft!.conference" type="text" placeholder="Conference name" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Pages</label>
-              <input
-                v-model="draft!.pages"
-                type="text"
-                placeholder="123-130"
-                class="form-input"
-              />
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
             </div>
           </div>
         </div>
@@ -378,30 +311,15 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Publisher</label>
-              <input
-                v-model="draft!.publisher"
-                type="text"
-                placeholder="Publisher"
-                class="form-input"
-              />
+              <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Place</label>
-              <input
-                v-model="draft!.place"
-                type="text"
-                placeholder="City"
-                class="form-input"
-              />
+              <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Pages</label>
-              <input
-                v-model="draft!.pages"
-                type="text"
-                placeholder="123-130"
-                class="form-input"
-              />
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
             </div>
           </div>
         </div>
@@ -411,21 +329,12 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Institution</label>
-              <input
-                v-model="draft!.institution"
-                type="text"
-                placeholder="University or institute"
-                class="form-input"
-              />
+              <input v-model="draft!.institution" type="text" placeholder="University or institute"
+                class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Place</label>
-              <input
-                v-model="draft!.place"
-                type="text"
-                placeholder="City"
-                class="form-input"
-              />
+              <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
             </div>
           </div>
         </div>
@@ -435,30 +344,16 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Report Number</label>
-              <input
-                v-model="draft!.reportNumber"
-                type="text"
-                placeholder="Report number"
-                class="form-input"
-              />
+              <input v-model="draft!.reportNumber" type="text" placeholder="Report number" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Institution</label>
-              <input
-                v-model="draft!.institution"
-                type="text"
-                placeholder="University or institute"
-                class="form-input"
-              />
+              <input v-model="draft!.institution" type="text" placeholder="University or institute"
+                class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Publisher</label>
-              <input
-                v-model="draft!.publisher"
-                type="text"
-                placeholder="Publisher"
-                class="form-input"
-              />
+              <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
             </div>
           </div>
         </div>
@@ -467,12 +362,7 @@ watch(
           <div class="section-title">Standard</div>
           <div class="form-row">
             <label class="form-label">Standard Number</label>
-            <input
-              v-model="draft!.standardNumber"
-              type="text"
-              placeholder="Standard number"
-              class="form-input"
-            />
+            <input v-model="draft!.standardNumber" type="text" placeholder="Standard number" class="form-input" />
           </div>
         </div>
 
@@ -480,12 +370,7 @@ watch(
           <div class="section-title">Patent</div>
           <div class="form-row">
             <label class="form-label">Patent Number</label>
-            <input
-              v-model="draft!.patentNumber"
-              type="text"
-              placeholder="Patent number"
-              class="form-input"
-            />
+            <input v-model="draft!.patentNumber" type="text" placeholder="Patent number" class="form-input" />
           </div>
         </div>
 
@@ -493,12 +378,7 @@ watch(
           <div class="section-title">Online</div>
           <div class="form-row">
             <label class="form-label">Accessed</label>
-            <input
-              v-model="draft!.accessed"
-              type="text"
-              placeholder="YYYY-MM-DD"
-              class="form-input"
-            />
+            <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" class="form-input" />
           </div>
         </div>
 
@@ -507,48 +387,23 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Journal</label>
-              <input
-                v-model="draft!.journal"
-                type="text"
-                placeholder="Journal name"
-                class="form-input"
-              />
+              <input v-model="draft!.journal" type="text" placeholder="Journal name" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Conference</label>
-              <input
-                v-model="draft!.conference"
-                type="text"
-                placeholder="Conference name"
-                class="form-input"
-              />
+              <input v-model="draft!.conference" type="text" placeholder="Conference name" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Publisher</label>
-              <input
-                v-model="draft!.publisher"
-                type="text"
-                placeholder="Publisher"
-                class="form-input"
-              />
+              <input v-model="draft!.publisher" type="text" placeholder="Publisher" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Place</label>
-              <input
-                v-model="draft!.place"
-                type="text"
-                placeholder="City"
-                class="form-input"
-              />
+              <input v-model="draft!.place" type="text" placeholder="City" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Pages</label>
-              <input
-                v-model="draft!.pages"
-                type="text"
-                placeholder="123-130"
-                class="form-input"
-              />
+              <input v-model="draft!.pages" type="text" placeholder="123-130" class="form-input" />
             </div>
           </div>
         </div>
@@ -558,30 +413,16 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">URL</label>
-              <input
-                v-model="draft!.url"
-                type="text"
-                placeholder="https://..."
-                class="form-input"
-              />
+              <input v-model="draft!.url" type="text" placeholder="https://..." class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">DOI</label>
-              <input
-                v-model="draft!.doi"
-                type="text"
-                placeholder="10.xxxx/xxxxx"
-                class="form-input"
-              />
+              <input v-model="draft!.doi" type="text" placeholder="10.xxxx/xxxxx" class="form-input" />
             </div>
           </div>
         </div>
 
-        <button
-          class="metadata-advanced-toggle"
-          type="button"
-          @click="showAdvanced = !showAdvanced"
-        >
+        <button class="metadata-advanced-toggle" type="button" @click="showAdvanced = !showAdvanced">
           {{ showAdvanced ? "Hide advanced fields" : "Show advanced fields" }}
         </button>
 
@@ -590,59 +431,30 @@ watch(
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Language</label>
-              <CustomSelect
-                :model-value="draft!.language ?? ''"
-                :options="languageOptions"
-                @update:model-value="
-                  (value: string) => (draft!.language = value)
-                "
-                placeholder="Select language"
-              />
+              <CustomSelect :model-value="draft!.language ?? ''" :options="languageOptions" @update:model-value="
+                (value: string) => (draft!.language = value)
+              " placeholder="Select language" />
             </div>
             <div class="form-row">
               <label class="form-label">Subtitle</label>
-              <input
-                v-model="draft!.subtitle"
-                type="text"
-                placeholder="Subtitle (optional)"
-                class="form-input"
-              />
+              <input v-model="draft!.subtitle" type="text" placeholder="Subtitle (optional)" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Date</label>
-              <input
-                v-model="draft!.date"
-                type="text"
-                placeholder="YYYY-MM-DD"
-                class="form-input"
-              />
+              <input v-model="draft!.date" type="text" placeholder="YYYY-MM-DD" class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">Organization</label>
-              <input
-                v-model="draft!.organization"
-                type="text"
-                placeholder="Institution or group author"
-                class="form-input"
-              />
+              <input v-model="draft!.organization" type="text" placeholder="Institution or group author"
+                class="form-input" />
             </div>
             <div class="form-row">
               <label class="form-label">DOI Status</label>
-              <input
-                v-model="draft!.doiStatus"
-                type="text"
-                placeholder="missing/verified"
-                class="form-input"
-              />
+              <input v-model="draft!.doiStatus" type="text" placeholder="missing/verified" class="form-input" />
             </div>
             <div class="form-row" v-if="!isOnline">
               <label class="form-label">Accessed</label>
-              <input
-                v-model="draft!.accessed"
-                type="text"
-                placeholder="YYYY-MM-DD"
-                class="form-input"
-              />
+              <input v-model="draft!.accessed" type="text" placeholder="YYYY-MM-DD" class="form-input" />
             </div>
           </div>
         </div>
@@ -653,11 +465,7 @@ watch(
 
     <template #footer>
       <button class="btn-secondary" @click="handleClose">Cancel</button>
-      <button
-        class="btn-secondary"
-        :disabled="isExtracting"
-        @click="handleExtract"
-      >
+      <button class="btn-secondary" :disabled="isExtracting" @click="handleExtract">
         {{ isExtracting ? "Extracting..." : "Extract Metadata" }}
       </button>
       <button class="btn-primary" :disabled="isSaving" @click="handleSave">
@@ -689,8 +497,9 @@ watch(
 }
 
 .section-title {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+  border-bottom: 6px solid var(--border-color);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-secondary);

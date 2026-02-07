@@ -276,3 +276,40 @@ async def extract_file_metadata(rel_path: str, force: bool = False):
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to update metadata.")
     return {"bibliography": updated.bibliography}
+
+
+@router.get("/api/files/{rel_path:path}/references")
+async def get_file_references(rel_path: str):
+    """Extract citations/references from a file (PDF only)."""
+    from refminer.analysis.citations import ReferenceParser, CitationItem
+    
+    resolved_path = resolve_rel_path(rel_path)
+    entries = load_manifest_entries()
+    entry = next((e for e in entries if e.rel_path == resolved_path), None)
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
+        
+    if entry.file_type != "pdf":
+        raise HTTPException(
+            status_code=400, detail="Reference extraction is only supported for PDFs."
+        )
+
+    ref_dir, _ = get_bank_paths()
+    file_path = ref_dir / resolved_path
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
+
+    # Extract text on fly
+    # Note: We could cache this, but for now live extraction is acceptable for single user
+    try:
+        extracted = extract_document(Path(file_path), entry.file_type)
+        full_text = "\n".join(extracted.text_blocks)
+        
+        parser = ReferenceParser()
+        references = parser.extract_references(full_text)
+        
+        return {"references": [asdict(ref) for ref in references]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract references: {str(e)}")

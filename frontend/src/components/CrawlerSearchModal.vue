@@ -458,20 +458,10 @@ async function confirmDownload() {
 </script>
 
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
-    title="Search Online"
-    size="xlarge"
-    :close-on-esc="!isSearching"
-    :close-on-click-outside="!isSearching"
-  >
+  <BaseModal :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)" title="Search Online"
+    size="xlarge" :close-on-esc="!isSearching" :close-on-click-outside="!isSearching">
     <template #header-actions>
-      <button
-        class="configure-btn"
-        @click="emit('openSettings')"
-        title="Configure crawler settings"
-      >
+      <button class="configure-btn" @click="emit('openSettings')" title="Configure crawler settings">
         <Settings :size="14" />
         Configure
       </button>
@@ -482,19 +472,10 @@ async function confirmDownload() {
         <div class="search-input-row">
           <div class="search-input-wrapper">
             <Search :size="16" class="search-icon" />
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search for papers..."
-              class="search-input"
-              @keyup.enter="handleSearch"
-            />
+            <input v-model="searchQuery" type="text" placeholder="Search for papers..." class="search-input"
+              @keyup.enter="handleSearch" />
           </div>
-          <button
-            class="btn-primary search-btn"
-            @click="handleSearch"
-            :disabled="isSearching"
-          >
+          <button class="btn-primary search-btn" @click="handleSearch" :disabled="isSearching">
             <span v-if="isSearching">Searching...</span>
             <span v-else>Search</span>
           </button>
@@ -505,11 +486,7 @@ async function confirmDownload() {
         <div class="search-options">
           <div class="search-options-header">
             <div class="section-title">Search Options</div>
-            <button
-              class="advanced-toggle"
-              type="button"
-              @click="showAdvanced = !showAdvanced"
-            >
+            <button class="advanced-toggle" type="button" @click="showAdvanced = !showAdvanced">
               {{ showAdvanced ? "Hide advanced" : "Show advanced" }}
             </button>
           </div>
@@ -520,35 +497,19 @@ async function confirmDownload() {
               <div v-if="isLoadingEngines" class="engine-empty">
                 Loading engines...
               </div>
-              <div
-                v-else-if="availableEngines.length === 0"
-                class="engine-empty"
-              >
+              <div v-else-if="availableEngines.length === 0" class="engine-empty">
                 No engines available. Check Settings → Web Crawler.
               </div>
               <div v-else class="engine-checkboxes">
-                <div
-                  class="engine-card"
-                  :class="{
-                    selected: selectedEngines.size === availableEngines.length,
-                  }"
-                  @click="toggleAllEngines"
-                >
+                <div class="engine-card" :class="{
+                  selected: selectedEngines.size === availableEngines.length,
+                }" @click="toggleAllEngines">
                   <span>All</span>
                 </div>
-                <div
-                  v-for="engine in availableEngines"
-                  :key="engine"
-                  class="engine-card"
-                  :class="{ selected: selectedEngines.has(engine) }"
-                  @click="toggleEngine(engine)"
-                >
-                  <img
-                    v-if="getEngineIcon(engine)"
-                    :src="getEngineIcon(engine)"
-                    :alt="`${engine} icon`"
-                    class="engine-icon"
-                  />
+                <div v-for="engine in availableEngines" :key="engine" class="engine-card"
+                  :class="{ selected: selectedEngines.has(engine) }" @click="toggleEngine(engine)">
+                  <img v-if="getEngineIcon(engine)" :src="getEngineIcon(engine)" :alt="`${engine} icon`"
+                    class="engine-icon" />
                   <span>{{ engine }}</span>
                 </div>
               </div>
@@ -556,13 +517,7 @@ async function confirmDownload() {
 
             <div class="form-row">
               <label class="form-label">Max Results per Engine</label>
-              <input
-                v-model.number="maxResults"
-                type="number"
-                min="5"
-                max="100"
-                class="form-input"
-              />
+              <input v-model.number="maxResults" type="number" min="5" max="100" class="form-input" />
             </div>
           </div>
 
@@ -570,31 +525,19 @@ async function confirmDownload() {
             <div class="form-row">
               <label class="form-label">Year Range</label>
               <div class="year-inputs">
-                <input
-                  :value="yearFrom ?? ''"
-                  @input="
-                    updateYearInput(
-                      'from',
-                      ($event.target as HTMLInputElement).value,
-                    )
-                  "
-                  type="number"
-                  placeholder="From"
-                  class="form-input year-input"
-                />
+                <input :value="yearFrom ?? ''" @input="
+                  updateYearInput(
+                    'from',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                  " type="number" placeholder="From" class="form-input year-input" />
                 <span class="year-separator">to</span>
-                <input
-                  :value="yearTo ?? ''"
-                  @input="
-                    updateYearInput(
-                      'to',
-                      ($event.target as HTMLInputElement).value,
-                    )
-                  "
-                  type="number"
-                  placeholder="To"
-                  class="form-input year-input"
-                />
+                <input :value="yearTo ?? ''" @input="
+                  updateYearInput(
+                    'to',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                  " type="number" placeholder="To" class="form-input year-input" />
               </div>
             </div>
 
@@ -607,15 +550,8 @@ async function confirmDownload() {
                     Enable citation expansion
                   </span>
                 </div>
-                <input
-                  v-if="deepCrawl"
-                  v-model.number="deepCrawlMaxPapers"
-                  type="number"
-                  min="10"
-                  max="500"
-                  placeholder="Max papers"
-                  class="form-input deep-crawl-input"
-                />
+                <input v-if="deepCrawl" v-model.number="deepCrawlMaxPapers" type="number" min="10" max="500"
+                  placeholder="Max papers" class="form-input deep-crawl-input" />
               </div>
             </div>
           </div>
@@ -628,10 +564,7 @@ async function confirmDownload() {
       </div>
 
       <!-- Results Section -->
-      <div
-        v-if="!isSearching && searchResults.length > 0"
-        class="results-section"
-      >
+      <div v-if="!isSearching && searchResults.length > 0" class="results-section">
         <div class="results-list">
           <div class="results-header">
             <div class="results-info">
@@ -641,10 +574,7 @@ async function confirmDownload() {
                   {{ searchResults.length }} papers
                 </span>
                 <span v-else> {{ searchResults.length }} papers found </span>
-                <span
-                  v-if="filteredPapersWithPdfs.length < filteredResults.length"
-                  class="pdf-hint"
-                >
+                <span v-if="filteredPapersWithPdfs.length < filteredResults.length" class="pdf-hint">
                   ({{ filteredPapersWithPdfs.length }} with PDFs)
                 </span>
               </div>
@@ -654,11 +584,7 @@ async function confirmDownload() {
               </div>
             </div>
             <div class="results-actions">
-              <button
-                class="btn-text"
-                @click="showFilters = !showFilters"
-                v-if="searchResults.length > 0"
-              >
+              <button class="btn-text" @click="showFilters = !showFilters" v-if="searchResults.length > 0">
                 {{ showFilters ? "Hide Filters" : "Show Filters" }}
                 <span v-if="activeFilterCount > 0" class="filter-badge">
                   {{ activeFilterCount }}
@@ -667,12 +593,8 @@ async function confirmDownload() {
               <button class="btn-text" @click="toggleAllSelection">
                 {{ allSelected ? "Deselect All" : "Select All" }}
               </button>
-              <button
-                class="btn-primary"
-                @click="confirmDownload"
-                :disabled="selectedCount === 0"
-                ref="downloadAllButtonRef"
-              >
+              <button class="btn-primary" @click="confirmDownload" :disabled="selectedCount === 0"
+                ref="downloadAllButtonRef">
                 Download Selected ({{ selectedCount }})
               </button>
             </div>
@@ -681,11 +603,7 @@ async function confirmDownload() {
           <div v-if="showFilters" class="filter-panel">
             <div class="filter-panel-header">
               <div class="section-title">Filter Results</div>
-              <button
-                v-if="activeFilterCount > 0"
-                class="btn-text"
-                @click="resetFilters"
-              >
+              <button v-if="activeFilterCount > 0" class="btn-text" @click="resetFilters">
                 Clear Filters
               </button>
             </div>
@@ -696,28 +614,15 @@ async function confirmDownload() {
                   No engines in results
                 </div>
                 <div v-else class="engine-checkboxes">
-                  <div
-                    class="engine-card"
-                    :class="{
-                      selected: filterEngines.size === resultEngines.length,
-                    }"
-                    @click="toggleAllFilterEngines"
-                  >
+                  <div class="engine-card" :class="{
+                    selected: filterEngines.size === resultEngines.length,
+                  }" @click="toggleAllFilterEngines">
                     <span>All</span>
                   </div>
-                  <div
-                    v-for="engine in resultEngines"
-                    :key="engine"
-                    class="engine-card"
-                    :class="{ selected: filterEngines.has(engine) }"
-                    @click="toggleFilterEngine(engine)"
-                  >
-                    <img
-                      v-if="getEngineIcon(engine)"
-                      :src="getEngineIcon(engine)"
-                      :alt="`${engine} icon`"
-                      class="engine-icon"
-                    />
+                  <div v-for="engine in resultEngines" :key="engine" class="engine-card"
+                    :class="{ selected: filterEngines.has(engine) }" @click="toggleFilterEngine(engine)">
+                    <img v-if="getEngineIcon(engine)" :src="getEngineIcon(engine)" :alt="`${engine} icon`"
+                      class="engine-icon" />
                     <span>{{ engine }}</span>
                   </div>
                 </div>
@@ -726,25 +631,14 @@ async function confirmDownload() {
               <div class="form-row">
                 <label class="form-label">PDF Availability</label>
                 <div class="engine-checkboxes">
-                  <div
-                    class="engine-card"
-                    :class="{ selected: filterPdfOnly === null }"
-                    @click="filterPdfOnly = null"
-                  >
+                  <div class="engine-card" :class="{ selected: filterPdfOnly === null }" @click="filterPdfOnly = null">
                     <span>All</span>
                   </div>
-                  <div
-                    class="engine-card"
-                    :class="{ selected: filterPdfOnly === true }"
-                    @click="filterPdfOnly = true"
-                  >
+                  <div class="engine-card" :class="{ selected: filterPdfOnly === true }" @click="filterPdfOnly = true">
                     <span>With PDF</span>
                   </div>
-                  <div
-                    class="engine-card"
-                    :class="{ selected: filterPdfOnly === false }"
-                    @click="filterPdfOnly = false"
-                  >
+                  <div class="engine-card" :class="{ selected: filterPdfOnly === false }"
+                    @click="filterPdfOnly = false">
                     <span>Without PDF</span>
                   </div>
                 </div>
@@ -753,72 +647,44 @@ async function confirmDownload() {
               <div class="form-row">
                 <label class="form-label">Year Range</label>
                 <div class="year-inputs">
-                  <input
-                    :value="filterYearRange?.[0]"
-                    @input="
-                      (e) => {
-                        if (!filterYearRange) filterYearRange = [0, 0];
-                        filterYearRange[0] = parseInt(
-                          (e.target as HTMLInputElement).value,
-                        );
-                      }
-                    "
-                    type="number"
-                    placeholder="From"
-                    class="form-input year-input"
-                  />
+                  <input :value="filterYearRange?.[0]" @input="
+                    (e) => {
+                      if (!filterYearRange) filterYearRange = [0, 0];
+                      filterYearRange[0] = parseInt(
+                        (e.target as HTMLInputElement).value,
+                      );
+                    }
+                  " type="number" placeholder="From" class="form-input year-input" />
                   <span class="year-separator">to</span>
-                  <input
-                    :value="filterYearRange?.[1]"
-                    @input="
-                      (e) => {
-                        if (!filterYearRange) filterYearRange = [0, 0];
-                        filterYearRange[1] = parseInt(
-                          (e.target as HTMLInputElement).value,
-                        );
-                      }
-                    "
-                    type="number"
-                    placeholder="To"
-                    class="form-input year-input"
-                  />
+                  <input :value="filterYearRange?.[1]" @input="
+                    (e) => {
+                      if (!filterYearRange) filterYearRange = [0, 0];
+                      filterYearRange[1] = parseInt(
+                        (e.target as HTMLInputElement).value,
+                      );
+                    }
+                  " type="number" placeholder="To" class="form-input year-input" />
                 </div>
               </div>
 
               <div class="form-row">
                 <label class="form-label">Min Citations</label>
-                <input
-                  v-model.number="filterMinCitations"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="form-input"
-                />
+                <input v-model.number="filterMinCitations" type="number" min="0" placeholder="0" class="form-input" />
               </div>
 
               <div class="form-row">
                 <label class="form-label">Keywords</label>
-                <input
-                  v-model="filterKeywords"
-                  type="text"
-                  placeholder="Search in title/abstract..."
-                  class="form-input"
-                />
+                <input v-model="filterKeywords" type="text" placeholder="Search in title/abstract..."
+                  class="form-input" />
               </div>
             </div>
           </div>
 
-          <div
-            v-for="item in filteredResults"
-            :key="item.key"
-            class="result-card"
-            :class="{
-              selected: selectedResults.has(item.key),
-              'no-pdf': !item.result.pdf_url,
-              clickable: !!item.result.pdf_url,
-            }"
-            @click="(e) => toggleSelection(item.key, !!item.result.pdf_url, e)"
-          >
+          <div v-for="item in filteredResults" :key="item.key" class="result-card" :class="{
+            selected: selectedResults.has(item.key),
+            'no-pdf': !item.result.pdf_url,
+            clickable: !!item.result.pdf_url,
+          }" @click="(e) => toggleSelection(item.key, !!item.result.pdf_url, e)">
             <div class="result-header">
               <div class="result-main">
                 <div class="result-badges">
@@ -827,21 +693,14 @@ async function confirmDownload() {
                   </div>
                   <div v-else class="no-pdf-badge">No PDF</div>
                   <span class="result-source">
-                    <img
-                      v-if="getEngineIcon(item.result.source)"
-                      :src="getEngineIcon(item.result.source)"
-                      :alt="`${item.result.source} icon`"
-                      class="result-source-icon"
-                    />
+                    <img v-if="getEngineIcon(item.result.source)" :src="getEngineIcon(item.result.source)"
+                      :alt="`${item.result.source} icon`" class="result-source-icon" />
                     {{ item.result.source }}
                   </span>
                 </div>
                 <h4 class="result-title">{{ item.result.title }}</h4>
                 <div class="result-meta">
-                  <span
-                    v-if="item.result.authors.length"
-                    class="result-authors"
-                  >
+                  <span v-if="item.result.authors.length" class="result-authors">
                     {{ formatAuthors(item.result.authors) }}
                   </span>
                   <span v-if="item.result.year" class="result-year">
@@ -855,31 +714,17 @@ async function confirmDownload() {
             </div>
 
             <div class="result-links">
-              <a
-                v-if="item.result.doi"
-                :href="`https://doi.org/${item.result.doi}`"
-                target="_blank"
-                class="result-link"
-              >
-                DOI <ExternalLink :size="12" />
+              <a v-if="item.result.doi" :href="`https://doi.org/${item.result.doi}`" target="_blank"
+                class="result-link">
+                DOI
+                <ExternalLink :size="12" />
               </a>
-              <a
-                v-if="item.result.url"
-                :href="item.result.url"
-                target="_blank"
-                class="result-link"
-              >
-                Source <ExternalLink :size="12" />
+              <a v-if="item.result.url" :href="item.result.url" target="_blank" class="result-link">
+                Source
+                <ExternalLink :size="12" />
               </a>
-              <button
-                v-if="item.result.pdf_url"
-                class="result-download-btn"
-                type="button"
-                :disabled="
-                  downloadQueueing.has(item.key) || downloadQueued.has(item.key)
-                "
-                @click.stop="queueSingleDownload(item.key, item.result, $event)"
-              >
+              <button v-if="item.result.pdf_url" class="result-download-btn" type="button" :disabled="downloadQueueing.has(item.key) || downloadQueued.has(item.key)
+                " @click.stop="queueSingleDownload(item.key, item.result, $event)">
                 <span v-if="downloadQueueing.has(item.key)"> Queueing... </span>
                 <span v-else-if="downloadQueued.has(item.key)">Queued</span>
                 <span v-else-if="downloadErrors[item.key]">Retry</span>
@@ -890,16 +735,15 @@ async function confirmDownload() {
               {{ downloadErrors[item.key] }}
             </div>
 
-            <div
-              v-if="item.result.abstract"
-              class="result-abstract"
-              :class="{ expanded: expandedAbstracts.has(item.key) }"
-            >
+            <div v-if="item.result.abstract" class="result-abstract"
+              :class="{ expanded: expandedAbstracts.has(item.key) }">
               <button class="abstract-toggle" @click="toggleAbstract(item.key)">
                 <span v-if="expandedAbstracts.has(item.key)">
                   <ChevronUp :size="14" /> Hide Abstract
                 </span>
-                <span v-else> <ChevronDown :size="14" /> Show Abstract </span>
+                <span v-else>
+                  <ChevronDown :size="14" /> Show Abstract
+                </span>
               </button>
               <p v-if="expandedAbstracts.has(item.key)" class="abstract-text">
                 {{ item.result.abstract }}
@@ -909,15 +753,12 @@ async function confirmDownload() {
         </div>
       </div>
 
-      <div
-        v-if="
-          !isSearching &&
-          hasSearched &&
-          searchResults.length === 0 &&
-          !searchError
-        "
-        class="empty-state"
-      >
+      <div v-if="
+        !isSearching &&
+        hasSearched &&
+        searchResults.length === 0 &&
+        !searchError
+      " class="empty-state">
         <div class="empty-title">No results found</div>
         <div class="empty-hint">
           Try broader keywords or select more engines.
@@ -929,6 +770,7 @@ async function confirmDownload() {
 
 <style scoped>
 .crawler-modal {
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
