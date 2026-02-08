@@ -26,6 +26,46 @@ DEFAULT_MODELS = {
     "custom": "gpt-4o-mini",
 }
 
+OCR_MODELS = {
+    "paddle-mobile": {
+        "label": "PaddleOCR Mobile (v4)",
+        "size": "15MB",
+        "overhead": "Low",
+        "download_url": "https://paddleocr.bj.bcebos.com/PP-OCRv4/english/en_PP-OCRv4_rec_infer.tar",
+        "filename": "en_PP-OCRv4_rec_infer.tar",
+        "is_downloadable": True,
+    },
+    "deepseek-ocr-2": {
+        "label": "DeepSeek-OCR 2",
+        "size": "6.78GB",
+        "overhead": "High (16GB VRAM)",
+        "hf_repo_id": "deepseek-ai/DeepSeek-OCR2",
+        "is_downloadable": True,
+    },
+    "glm-ocr": {
+        "label": "GLM-OCR",
+        "size": "2.65GB",
+        "overhead": "Medium (8GB VRAM)",
+        "hf_repo_id": "zai-org/GLM-OCR",
+        "is_downloadable": True,
+    },
+    "crnn-light": {
+        "label": "CRNN Lightweight",
+        "size": "10MB",
+        "overhead": "Very Low",
+        # Using specific crnn model or placeholder if not available. fallback to mobile
+        "download_url": "https://paddleocr.bj.bcebos.com/PP-OCRv3/english/en_PP-OCRv3_rec_infer.tar",
+        "filename": "en_PP-OCRv3_rec_infer.tar",
+        "is_downloadable": True,
+    },
+    "external": {
+        "label": "External API (Custom)",
+        "size": "N/A",
+        "overhead": "Network Latency",
+        "is_downloadable": False,
+    },
+}
+
 
 @dataclass
 class ChatCompletionsConfig:
@@ -249,3 +289,19 @@ class SettingsManager:
         crawler_config = self.get_crawler_config()
         crawler_config["auto_download"] = enabled
         self.set_crawler_config(crawler_config)
+
+    def get_ocr_config(self) -> dict:
+        """Get OCR configuration."""
+        ocr_settings = self._settings.get("ocr")
+        if not isinstance(ocr_settings, dict):
+            return {
+                "model": "paddle-mobile",  # Default to lightweight
+                "base_url": "",
+                "api_key": "",
+            }
+        return ocr_settings
+
+    def set_ocr_config(self, config: dict) -> None:
+        """Save OCR configuration."""
+        self._settings["ocr"] = config
+        self._save()

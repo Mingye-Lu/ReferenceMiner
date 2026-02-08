@@ -95,4 +95,11 @@ class QueueJobCreateRequest(BaseModel):
     rel_path: Optional[str] = None
     status: Optional[str] = None
     phase: Optional[str] = None
-    progress: Optional[int] = None
+class OcrSettingsRequest(BaseModel):
+    model: str
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+class OcrDownloadModelRequest(BaseModel):
+    model: str

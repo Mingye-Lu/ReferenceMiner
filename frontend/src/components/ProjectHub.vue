@@ -22,6 +22,14 @@ import {
   fetchUpdateCheck,
   saveCitationCopyFormat,
   fetchCrawlerConfig,
+  downloadOcrModelStatus,
+  fetchOcrSettings,
+  saveOcrSettings,
+  downloadOcrModel,
+  deleteOcrModel,
+  cancelOcrDownload,
+  pauseOcrDownload,
+  resumeOcrDownload,
 } from "../api/client";
 import type {
   Project,
@@ -32,6 +40,8 @@ import type {
   CitationCopyFormat,
   BibliographyAuthor,
   CrawlerConfig,
+  OcrConfig,
+  OcrModelInfo,
 } from "../types";
 import ProjectCard from "./ProjectCard.vue";
 import FileUploader from "./FileUploader.vue";
@@ -119,6 +129,14 @@ const isValidating = ref(false);
 const isResetting = ref(false);
 const showResetConfirm = ref(false);
 const showReprocessConfirm = ref(false);
+
+// Generic Confirmation Modal
+const showConfirmModal = ref(false);
+const confirmTitle = ref("");
+const confirmMessage = ref("");
+const confirmText = ref("Confirm");
+
+const handleConfirm = ref<() => void>(() => { });
 const validationStatus = ref<"none" | "valid" | "invalid">("none");
 const validationError = ref("");
 const balanceInfos = ref<BalanceInfo[]>([]);
@@ -138,6 +156,12 @@ const currentVersion = ref<string>("");
 // Crawler Settings
 const showCrawlerModal = ref(false);
 const crawlerConfig = ref<CrawlerConfig | null>(null);
+
+// OCR Settings
+const ocrConfig = ref<OcrConfig>({ model: "paddle-mobile" });
+const ocrModels = ref<Record<string, OcrModelInfo>>({});
+const isSavingOcr = ref(false);
+const isDownloadingOcr = ref(false);
 
 // Display Settings
 const filesPerPage = ref(7);
@@ -926,9 +950,241 @@ async function handleCitationFormatChange(format: string) {
       }),
     );
   } catch (e) {
-    console.error("Failed to save citation format:", e);
-  } finally {
     isSavingCitation.value = false;
+  }
+}
+
+async function loadOcrSettings(updateConfig = true) {
+  try {
+    const data = await fetchOcrSettings();
+    if (updateConfig) {
+      ocrConfig.value = data.config;
+      currentOcrModel.value = data.config.model; // Sync initial model
+    }
+    // Always update models list to get latest installation status
+    ocrModels.value = data.models;
+  } catch (e) {
+    console.error("Failed to load OCR settings", e);
+  }
+}
+
+async function handleSaveOcrSettings(config: OcrConfig) {
+  isSavingOcr.value = true;
+  try {
+    const res = await saveOcrSettings(config);
+    ocrConfig.value = res.config;
+  } catch (e) {
+    console.error("Failed to save OCR settings", e);
+  } finally {
+    isSavingOcr.value = false;
+  }
+}
+
+const downloadProgress = ref<number | null>(null);
+const downloadState = ref<string>("idle"); // idle, downloading, paused, cancelled, completed
+const currentOcrModel = ref<string>("");
+let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+}
+
+async function startPolling(model: string) {
+  stopPolling(); // Clear existing interval first
+
+  // Poll for progress
+  const intervalId = setInterval(async () => {
+    try {
+      // Check if polling was stopped or restarted (stale interval)
+      if (pollInterval !== intervalId) return;
+
+      const data = await downloadOcrModelStatus(model);
+
+      // Check again after await
+      if (pollInterval !== intervalId) return;
+
+      const progress = data.progress;
+      const state = data.state || "idle";
+
+      downloadState.value = state;
+
+      if (state === "paused") {
+        stopPolling();
+        return;
+      }
+
+      if (progress === null) {
+        // Not started yet or unknown
+        return;
+      }
+
+      if (progress === -1) {
+        // Error
+        stopPolling();
+        isDownloadingOcr.value = false;
+        downloadProgress.value = null;
+        downloadState.value = "idle";
+        console.error("Download failed on server");
+        return;
+      }
+
+      if (progress === -2) {
+        // Cancelled
+        stopPolling();
+        isDownloadingOcr.value = false;
+        downloadProgress.value = null;
+        downloadState.value = "idle";
+        return;
+      }
+
+      downloadProgress.value = progress;
+
+      if (progress >= 100) {
+        stopPolling();
+        isDownloadingOcr.value = false;
+        downloadState.value = "completed";
+        // Keep downloadProgress at 100% to show completion, will be cleared on model switch
+        // Refresh models list only, don't reset config
+        await loadOcrSettings(false);
+      }
+    } catch (e) {
+      console.error("Failed to poll download status", e);
+      // Don't stop polling immediately on one error, could be transient network issue
+    }
+  }, 500); // Poll every 0.5s
+
+  pollInterval = intervalId;
+}
+
+async function handleDownloadOcrModel(model: string) {
+  isDownloadingOcr.value = true;
+  downloadProgress.value = 0;
+  downloadState.value = "downloading";
+
+  try {
+    await downloadOcrModel(model);
+    startPolling(model);
+  } catch (e) {
+    console.error("Failed to start download", e);
+    isDownloadingOcr.value = false;
+    downloadProgress.value = null;
+    downloadState.value = "idle";
+  }
+}
+
+// Clear download state when model selection changes
+async function handleOcrModelChange(model: string) {
+  if (model === currentOcrModel.value) return;
+
+  // Update active model tracker
+  currentOcrModel.value = model;
+
+  stopPolling();
+  downloadProgress.value = null;
+  downloadState.value = "idle";
+  isDownloadingOcr.value = false;
+
+  if (!model || model === "external") return;
+
+  // Check if there is an active download for this model to restore state
+  try {
+    const data = await downloadOcrModelStatus(model);
+
+    // Check if user switched away while waiting
+    if (currentOcrModel.value !== model) return;
+
+    const state = data.state;
+    // Restore state if active
+    if (state === "downloading" || state === "paused") {
+      downloadState.value = state;
+      downloadProgress.value = data.progress;
+      isDownloadingOcr.value = true;
+
+      if (state === "downloading") {
+        startPolling(model);
+      }
+    } else if (state === "completed") {
+      // Optional: show completed state? 
+      // Usually we just show "Delete" button which logic handles via 'installed' flag.
+      // But if we want to show "100%", we can set it.
+      // For now, adhere to standard behavior (idle/installed).
+    }
+  } catch (error) {
+    // Ignore error
+  }
+}
+
+// OCR Deletion Logic
+const showOcrDeleteModal = ref(false);
+const ocrModelToDelete = ref("");
+
+async function handleDeleteOcrModel(model: string) {
+  ocrModelToDelete.value = model;
+  showOcrDeleteModal.value = true;
+}
+
+async function confirmDeleteOcrModel() {
+  if (!ocrModelToDelete.value) return;
+
+  try {
+    await deleteOcrModel(ocrModelToDelete.value);
+
+    // If we deleted the currently viewing model, clear its download state
+    if (ocrModelToDelete.value === currentOcrModel.value) {
+      stopPolling();
+      downloadProgress.value = null;
+      downloadState.value = "idle";
+      isDownloadingOcr.value = false;
+    }
+
+    // Refresh models list only, don't reset config
+    await loadOcrSettings(false);
+    showOcrDeleteModal.value = false;
+    ocrModelToDelete.value = "";
+  } catch (e) {
+    console.error("Failed to delete model", e);
+    alert("Failed to delete model"); // Keep fallback or add toast if available
+  }
+}
+
+// Old simple handler removed, replaced by the one above handleDownloadOcrModel
+
+// Pause download
+async function handlePauseOcrDownload(model: string) {
+  try {
+    await pauseOcrDownload(model);
+    downloadState.value = "paused";
+    stopPolling();
+  } catch (e) {
+    console.error("Failed to pause download", e);
+  }
+}
+
+// Resume download
+async function handleResumeOcrDownload(model: string) {
+  try {
+    await resumeOcrDownload(model);
+    downloadState.value = "downloading";
+    startPolling(model);
+  } catch (e) {
+    console.error("Failed to resume download", e);
+  }
+}
+
+// Cancel ongoing download
+async function handleCancelOcrDownload(model: string) {
+  try {
+    stopPolling();
+    await cancelOcrDownload(model);
+    downloadProgress.value = null;
+    downloadState.value = "idle";
+    isDownloadingOcr.value = false;
+    await loadOcrSettings(false);
+  } catch (e) {
+    console.error("Failed to cancel download", e);
   }
 }
 
@@ -973,9 +1229,13 @@ onMounted(async () => {
   } finally {
     isLoadingSettings.value = false;
   }
+
+  loadOcrSettings();
 });
 
-onUnmounted(() => {});
+onUnmounted(() => {
+  stopPolling();
+});
 </script>
 
 <template>
@@ -983,14 +1243,7 @@ onUnmounted(() => {});
     <header class="hub-header">
       <div class="header-left">
         <div class="logo">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
           <span>ReferenceMiner</span>
@@ -1012,39 +1265,24 @@ onUnmounted(() => {});
     <!-- Tabs -->
     <div class="hub-tabs">
       <div class="tabs-left">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'projects' }"
-          @click="activeTab = 'projects'"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'projects' }" @click="activeTab = 'projects'">
           <Search :size="16" />
           <span>Projects</span>
         </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'bank' }"
-          @click="switchToBank"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'bank' }" @click="switchToBank">
           <FileText :size="16" />
           <span>Reference Bank</span>
         </button>
       </div>
       <div class="tabs-right">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'settings' }"
-          @click="activeTab = 'settings'"
-        >
+        <button class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
           <Settings :size="16" />
           <span>Settings</span>
         </button>
       </div>
     </div>
 
-    <main
-      class="hub-content"
-      :class="{ 'settings-active': activeTab === 'settings' }"
-    >
+    <main class="hub-content" :class="{ 'settings-active': activeTab === 'settings' }">
       <!-- Projects Tab -->
       <div v-if="activeTab === 'projects'">
         <div v-if="loading" class="loading-state">
@@ -1063,13 +1301,8 @@ onUnmounted(() => {});
         </div>
 
         <div v-else class="project-grid">
-          <ProjectCard
-            v-for="p in projects"
-            :key="p.id"
-            :project="p"
-            @open="openProject"
-            @delete="handleDeleteProject"
-          />
+          <ProjectCard v-for="p in projects" :key="p.id" :project="p" @open="openProject"
+            @delete="handleDeleteProject" />
 
           <div class="create-card" @click="showCreateModal = true">
             <div class="plus-icon">
@@ -1095,14 +1328,10 @@ onUnmounted(() => {});
               <Search :size="14" />
               <span>Search Online</span>
             </button>
-            <button
-              class="bank-action-btn"
-              :disabled="isReprocessing || bankLoading"
-              @click="
-                handleReprocessConfirm($event);
-                showReprocessConfirm = true;
-              "
-            >
+            <button class="bank-action-btn" :disabled="isReprocessing || bankLoading" @click="
+              handleReprocessConfirm($event);
+            showReprocessConfirm = true;
+            ">
               <Loader2 v-if="isReprocessing" class="spinner" :size="14" />
               <span>{{
                 isReprocessing ? "Reprocessing..." : "Reprocess All"
@@ -1111,65 +1340,41 @@ onUnmounted(() => {});
           </div>
         </div>
 
-        <FileUploader
-          upload-mode="bank"
-          @upload-complete="handleUploadComplete"
-        />
+        <FileUploader upload-mode="bank" @upload-complete="handleUploadComplete" />
 
         <!-- Search & Filter Section -->
         <div v-if="bankFiles.length > 0" class="bank-search-section">
           <div class="bank-search-wrapper">
             <Search :size="16" class="bank-search-icon" />
-            <input
-              v-model="bankSearchQuery"
-              type="text"
-              placeholder="Search by title, author, or filename..."
-              class="bank-search-input"
-            />
+            <input v-model="bankSearchQuery" type="text" placeholder="Search by title, author, or filename..."
+              class="bank-search-input" />
           </div>
 
           <!-- Filter Chips -->
           <div class="bank-filter-chips">
             <!-- File Type Chips -->
-            <button
-              v-for="type in availableBankTypes"
-              :key="type"
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.fileTypes.has(type) }"
-              @click="toggleBankFilter('fileTypes', type)"
-            >
+            <button v-for="type in availableBankTypes" :key="type" class="bank-filter-chip"
+              :class="{ active: bankFilters.fileTypes.has(type) }" @click="toggleBankFilter('fileTypes', type)">
               {{ type.toUpperCase() }}
             </button>
 
             <!-- Year Chips -->
-            <button
-              v-for="year in availableBankYears"
-              :key="year"
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.years.has(year) }"
-              @click="toggleBankFilter('years', year)"
-            >
+            <button v-for="year in availableBankYears" :key="year" class="bank-filter-chip"
+              :class="{ active: bankFilters.years.has(year) }" @click="toggleBankFilter('years', year)">
               {{ year }}
             </button>
 
             <!-- Language Toggle -->
-            <button
-              class="bank-filter-chip"
-              :class="{ active: bankFilters.language === 'zh' }"
-              @click="
-                bankFilters.language =
-                  bankFilters.language === 'zh' ? null : 'zh'
-              "
-            >
+            <button class="bank-filter-chip" :class="{ active: bankFilters.language === 'zh' }" @click="
+              bankFilters.language =
+              bankFilters.language === 'zh' ? null : 'zh'
+              ">
               中文
             </button>
 
             <!-- Clear All Filters -->
-            <button
-              v-if="hasActiveBankFilters || bankSearchQuery"
-              class="bank-filter-chip clear-filters"
-              @click="clearAllBankFilters"
-            >
+            <button v-if="hasActiveBankFilters || bankSearchQuery" class="bank-filter-chip clear-filters"
+              @click="clearAllBankFilters">
               <X :size="12" />
               Clear
             </button>
@@ -1179,11 +1384,7 @@ onUnmounted(() => {});
           <div class="bank-controls-row">
             <div class="bank-sort-controls">
               <span>Sort:</span>
-              <CustomSelect
-                v-model="bankSortBy"
-                :options="bankSortOptions"
-                class="bank-sort-select"
-              />
+              <CustomSelect v-model="bankSortBy" :options="bankSortOptions" class="bank-sort-select" />
             </div>
             <div class="bank-file-count">
               {{ sortedBankFiles.length }}
@@ -1206,27 +1407,13 @@ onUnmounted(() => {});
           <p>Upload files using the button above to get started.</p>
         </div>
 
-        <div
-          v-else-if="sortedBankFiles.length === 0"
-          class="empty-state empty-state-compact"
-        >
+        <div v-else-if="sortedBankFiles.length === 0" class="empty-state empty-state-compact">
           <FileText :size="36" class="empty-icon-svg" />
           <p>No files match your search or filters</p>
         </div>
 
-        <TransitionGroup
-          v-else
-          name="file-list"
-          tag="div"
-          class="file-grid"
-          @before-leave="handleBeforeLeave"
-        >
-          <div
-            v-for="file in sortedBankFiles"
-            :key="file.relPath"
-            class="file-card"
-            @click="handlePreview(file)"
-          >
+        <TransitionGroup v-else name="file-list" tag="div" class="file-grid" @before-leave="handleBeforeLeave">
+          <div v-for="file in sortedBankFiles" :key="file.relPath" class="file-card" @click="handlePreview(file)">
             <div class="file-icon">
               <FileText :size="24" />
             </div>
@@ -1234,24 +1421,15 @@ onUnmounted(() => {});
               <div class="file-name" :title="getFileName(file.relPath)">
                 {{ getFileName(file.relPath) }}
               </div>
-              <div
-                v-if="file.bibliography?.title"
-                class="file-title"
-                :title="file.bibliography.title"
-              >
+              <div v-if="file.bibliography?.title" class="file-title" :title="file.bibliography.title">
                 {{ truncateText(file.bibliography.title, 60) }}
               </div>
-              <div
-                v-if="file.bibliography?.authors || file.bibliography?.year"
-                class="file-authors"
-              >
+              <div v-if="file.bibliography?.authors || file.bibliography?.year" class="file-authors">
                 {{ formatAuthors(file.bibliography?.authors) }}
-                <span
-                  v-if="
-                    formatAuthors(file.bibliography?.authors) &&
-                    file.bibliography?.year
-                  "
-                >
+                <span v-if="
+                  formatAuthors(file.bibliography?.authors) &&
+                  file.bibliography?.year
+                ">
                   ·
                 </span>
                 {{ file.bibliography?.year }}
@@ -1259,10 +1437,7 @@ onUnmounted(() => {});
               <div class="file-meta">
                 {{ file.fileType }} ·
                 {{ Math.round((file.sizeBytes || 0) / 1024) }}KB
-                <span
-                  v-if="bankFileStats[file.relPath]?.usage_count"
-                  class="usage-badge"
-                >
+                <span v-if="bankFileStats[file.relPath]?.usage_count" class="usage-badge">
                   {{ bankFileStats[file.relPath].usage_count }} project{{
                     bankFileStats[file.relPath].usage_count > 1 ? "s" : ""
                   }}
@@ -1270,18 +1445,11 @@ onUnmounted(() => {});
               </div>
             </div>
             <div class="file-actions">
-              <button
-                class="btn-icon tooltip"
-                data-tooltip="Reprocess file"
-                @click.stop="handleReprocessFile(file, $event)"
-              >
+              <button class="btn-icon tooltip" data-tooltip="Reprocess file"
+                @click.stop="handleReprocessFile(file, $event)">
                 <RefreshCw :size="16" />
               </button>
-              <button
-                class="btn-icon delete tooltip"
-                data-tooltip="Delete file"
-                @click.stop="requestDelete(file)"
-              >
+              <button class="btn-icon delete tooltip" data-tooltip="Delete file" @click.stop="requestDelete(file)">
                 <Trash2 :size="16" />
               </button>
             </div>
@@ -1293,27 +1461,18 @@ onUnmounted(() => {});
       <div v-else-if="activeTab === 'settings'" class="settings-container">
         <aside class="settings-sidebar">
           <nav class="settings-nav">
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'preferences' }"
-              @click="settingsSection = 'preferences'"
-            >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'preferences' }"
+              @click="settingsSection = 'preferences'">
               <Settings :size="18" />
               <span>Preferences</span>
             </button>
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'crawler' }"
-              @click="settingsSection = 'crawler'"
-            >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'crawler' }"
+              @click="settingsSection = 'crawler'">
               <Globe :size="18" />
               <span>Crawler</span>
             </button>
-            <button
-              class="settings-nav-item"
-              :class="{ active: settingsSection === 'advanced' }"
-              @click="settingsSection = 'advanced'"
-            >
+            <button class="settings-nav-item" :class="{ active: settingsSection === 'advanced' }"
+              @click="settingsSection = 'advanced'">
               <LayoutGrid :size="18" />
               <span>Advanced</span>
             </button>
@@ -1321,77 +1480,39 @@ onUnmounted(() => {});
         </aside>
 
         <main class="settings-content">
-          <SettingsPreferencesSection
-            v-if="settingsSection === 'preferences'"
-            :current-theme="currentTheme"
-            :theme-options="themeOptions"
-            :on-theme-change="setTheme"
-            :view-mode="viewMode"
-            :pdf-view-options="pdfViewOptions"
-            :on-view-mode-change="setViewMode"
-            :citation-copy-format="citationCopyFormat"
-            :citation-format-options="citationFormatOptions"
-            :is-saving-citation="isSavingCitation"
-            :on-citation-format-change="handleCitationFormatChange"
-            :files-per-page="filesPerPage"
-            :notes-per-page="notesPerPage"
-            :chats-per-page="chatsPerPage"
-            :on-display-setting-change="saveDisplaySetting"
-          />
+          <SettingsPreferencesSection v-if="settingsSection === 'preferences'" :current-theme="currentTheme"
+            :theme-options="themeOptions" :on-theme-change="setTheme" :view-mode="viewMode"
+            :pdf-view-options="pdfViewOptions" :on-view-mode-change="setViewMode"
+            :citation-copy-format="citationCopyFormat" :citation-format-options="citationFormatOptions"
+            :is-saving-citation="isSavingCitation" :on-citation-format-change="handleCitationFormatChange"
+            :files-per-page="filesPerPage" :notes-per-page="notesPerPage" :chats-per-page="chatsPerPage"
+            :on-display-setting-change="saveDisplaySetting" />
 
-          <SettingsCrawlerSection
-            v-else-if="settingsSection === 'crawler'"
-            :crawler-config="crawlerConfig"
-            :on-update="handleCrawlerConfigUpdate"
-          />
+          <SettingsCrawlerSection v-else-if="settingsSection === 'crawler'" :crawler-config="crawlerConfig"
+            :on-update="handleCrawlerConfigUpdate" />
 
-          <SettingsAdvancedSection
-            v-else-if="settingsSection === 'advanced'"
-            :is-loading-settings="isLoadingSettings"
-            :is-saving="isSaving"
-            :is-saving-llm="isSavingLlm"
-            :is-validating="isValidating"
-            :is-checking-update="isCheckingUpdate"
-            :is-resetting="isResetting"
-            :validation-status="validationStatus"
-            :validation-error="validationError"
-            :api-key-status-message="apiKeyStatusMessage"
-            :balance-infos="balanceInfos"
-            :balance-available="balanceAvailable"
-            :save-error="saveError"
-            :llm-save-error="llmSaveError"
-            :llm-save-success="llmSaveSuccess"
-            :reset-error="resetError"
-            :reset-success="resetSuccess"
-            :base-url-input="baseUrlInput"
-            :model-input="modelInput"
-            :update-info="updateInfo"
-            :update-error="updateError"
-            :current-version-label="currentVersionLabel"
-            :last-checked-label="lastCheckedLabel"
-            :update-badge-text="updateBadgeText"
-            :update-badge-class="updateBadgeClass"
-            :provider-options="providerOptions"
-            :selected-provider="selectedProvider"
-            :current-provider-link="currentProviderLink"
-            :current-provider-key="currentProviderKey"
-            :show-api-key="showApiKey"
-            :api-key-input="apiKeyInput"
-            :model-options="modelOptions"
-            :is-loading-models="isLoadingModels"
-            :on-set-provider="setProvider"
-            :on-validate="handleValidate"
-            :on-save-api-key="handleSave"
-            :on-delete-api-key="handleDeleteApiKey"
-            :on-load-models="handleLoadModels"
-            :on-save-llm-settings="handleSaveLlmSettings"
-            :on-update-check="handleUpdateCheck"
-            :on-reset-click="handleResetClick"
-            :on-toggle-show-api-key="toggleShowApiKey"
-            :on-api-key-input="updateApiKeyInput"
-            :on-base-url-input="updateBaseUrlInput"
-            :on-model-input="updateModelInput"
-          />
+          <SettingsAdvancedSection v-if="settingsSection === 'advanced'" :isLoadingSettings="isLoadingSettings"
+            :isSaving="isSaving" :isSavingLlm="isSavingLlm" :isValidating="isValidating"
+            :isCheckingUpdate="isCheckingUpdate" :isResetting="isResetting" :validationStatus="validationStatus"
+            :validationError="validationError" :apiKeyStatusMessage="apiKeyStatusMessage" :balanceInfos="balanceInfos"
+            :balanceAvailable="balanceAvailable" :saveError="saveError" :llmSaveError="llmSaveError"
+            :llmSaveSuccess="llmSaveSuccess" :resetError="resetError" :resetSuccess="resetSuccess"
+            :baseUrlInput="baseUrlInput" :modelInput="modelInput" :updateInfo="updateInfo" :updateError="updateError"
+            :currentVersionLabel="currentVersionLabel" :lastCheckedLabel="lastCheckedLabel"
+            :updateBadgeText="updateBadgeText" :updateBadgeClass="updateBadgeClass" :providerOptions="providerOptions"
+            :selectedProvider="selectedProvider" :currentProviderLink="currentProviderLink"
+            :currentProviderKey="currentProviderKey" :showApiKey="showApiKey" :apiKeyInput="apiKeyInput"
+            :modelOptions="modelOptions" :isLoadingModels="isLoadingModels" :onSetProvider="setProvider"
+            :onValidate="handleValidate" :onSaveApiKey="handleSave" :onDeleteApiKey="handleDeleteApiKey"
+            :onLoadModels="handleLoadModels" :onSaveLlmSettings="handleSaveLlmSettings"
+            :onUpdateCheck="handleUpdateCheck" :onResetClick="handleResetClick" :onToggleShowApiKey="toggleShowApiKey"
+            :onApiKeyInput="updateApiKeyInput" :onBaseUrlInput="updateBaseUrlInput" :onModelInput="updateModelInput"
+            :ocrConfig="ocrConfig" :ocrModels="ocrModels" :isSavingOcr="isSavingOcr"
+            :isDownloadingOcr="isDownloadingOcr" :downloadProgress="downloadProgress" :downloadState="downloadState"
+            :onSaveOcrSettings="handleSaveOcrSettings" :onDownloadOcrModel="handleDownloadOcrModel"
+            :onDeleteOcrModel="handleDeleteOcrModel" :onPauseOcrDownload="handlePauseOcrDownload"
+            :onResumeOcrDownload="handleResumeOcrDownload" :onCancelOcrDownload="handleCancelOcrDownload"
+            :onOcrModelChange="handleOcrModelChange" />
         </main>
       </div>
     </main>
@@ -1399,28 +1520,16 @@ onUnmounted(() => {});
 
   <!-- Create Modal -->
   <Transition name="fade">
-    <div
-      v-if="showCreateModal"
-      class="modal-mask"
-      @click.self="showCreateModal = false"
-    >
+    <div v-if="showCreateModal" class="modal-mask" @click.self="showCreateModal = false">
       <div class="modal-container">
         <h2>Create New Study</h2>
         <div class="form-group">
           <label>Project Name</label>
-          <input
-            v-model="newProjectName"
-            placeholder="e.g. Photovoltaic Research"
-            autofocus
-          />
+          <input v-model="newProjectName" placeholder="e.g. Photovoltaic Research" autofocus />
         </div>
         <div class="form-group">
           <label>Description (Optional)</label>
-          <textarea
-            v-model="newProjectDesc"
-            placeholder="What is this study about?"
-            rows="3"
-          ></textarea>
+          <textarea v-model="newProjectDesc" placeholder="What is this study about?" rows="3"></textarea>
         </div>
         <div class="form-group">
           <label>Initial Content (Optional)</label>
@@ -1440,11 +1549,7 @@ onUnmounted(() => {});
           <button class="btn-secondary" @click="showCreateModal = false">
             Cancel
           </button>
-          <button
-            class="btn-primary"
-            :disabled="!newProjectName.trim() || creating"
-            @click="handleCreate"
-          >
+          <button class="btn-primary" :disabled="!newProjectName.trim() || creating" @click="handleCreate">
             <Loader2 v-if="creating" class="spinner" :size="16" />
             <span>{{ creating ? "Creating..." : "Create Project" }}</span>
           </button>
@@ -1457,70 +1562,46 @@ onUnmounted(() => {});
   <FilePreviewModal v-model="showPreviewModal" :file="previewFile" />
 
   <!-- Delete Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showDeleteModal"
-    title="Delete File?"
-    :message="
-      fileToDelete
-        ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
-        : ''
-    "
-    confirmText="Delete"
-    @confirm="confirmDelete"
-    @cancel="cancelDelete"
-  />
+  <ConfirmationModal v-model="showDeleteModal" title="Delete File?" :message="fileToDelete
+    ? `Delete '${getFileName(fileToDelete.relPath)}'? This will remove it from all projects. This action cannot be undone.`
+    : ''
+    " confirmText="Delete" @confirm="confirmDelete" @cancel="cancelDelete" />
 
   <!-- Delete Project Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showDeleteProjectModal"
-    title="Delete Project?"
-    :message="
-      projectToDelete
-        ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
-        : ''
-    "
-    confirmText="Delete"
-    @confirm="confirmDeleteProject"
-    @cancel="cancelDeleteProject"
-  />
+  <ConfirmationModal v-model="showDeleteProjectModal" title="Delete Project?" :message="projectToDelete
+    ? `Delete '${projectToDelete.name}'? This will remove the project and all its notes. Files will remain in the Reference Bank.`
+    : ''
+    " confirmText="Delete" @confirm="confirmDeleteProject" @cancel="cancelDeleteProject" />
 
   <!-- Initial File Selector -->
-  <BankFileSelectorModal
-    v-model="showFileSelectorForCreate"
-    :selected-files="selectedFilesForCreate"
-    @confirm="handleInitialFilesSelected"
-  />
+  <BankFileSelectorModal v-model="showFileSelectorForCreate" :selected-files="selectedFilesForCreate"
+    @confirm="handleInitialFilesSelected" />
 
   <!-- Reset Confirmation Modal -->
-  <ConfirmationModal
-    v-model="showResetConfirm"
-    title="Clear All Data?"
+  <ConfirmationModal v-model="showResetConfirm" title="Clear All Data?"
     message="This will permanently delete all indexed chunks, search indexes, and chat sessions. Your files will remain in the reference folder. This action cannot be undone."
-    confirm-text="Clear All Data"
-    cancel-text="Cancel"
-    @confirm="handleResetConfirm"
-  />
+    confirm-text="Clear All Data" cancel-text="Cancel" @confirm="handleResetConfirm" />
 
   <!-- Reprocess Reference Bank -->
-  <ConfirmationModal
-    v-model="showReprocessConfirm"
-    title="Reprocess Reference Bank?"
+  <ConfirmationModal v-model="showReprocessConfirm" title="Reprocess Reference Bank?"
     message="This will delete all indexed data and rebuild from files in reference folder. Your files will remain untouched."
-    confirm-text="Reprocess"
-    cancel-text="Cancel"
-    @confirm="handleReprocessConfirm"
-    @cancel="showReprocessConfirm = false"
-  />
+    confirm-text="Reprocess" cancel-text="Cancel" @confirm="handleReprocessConfirm"
+    @cancel="showReprocessConfirm = false" />
+
+  <!-- Confirmation Modal -->
+  <ConfirmationModal :model-value="showConfirmModal" :title="confirmTitle" :message="confirmMessage"
+    :confirm-text="confirmText" @update:model-value="showConfirmModal = $event" @confirm="handleConfirm" />
+
+  <!-- OCR Delete Confirmation Modal -->
+  <ConfirmationModal :model-value="showOcrDeleteModal" title="Delete Model"
+    :message="`Are you sure you want to delete the model '${ocrModelToDelete}'?`" confirm-text="Delete"
+    @update:model-value="showOcrDeleteModal = $event" @confirm="confirmDeleteOcrModel" />
 
   <!-- Crawler Search Modal -->
-  <CrawlerSearchModal
-    v-model="showCrawlerModal"
-    @download-complete="handleCrawlerDownloadComplete"
-    @open-settings="
-      activeTab = 'settings';
-      settingsSection = 'crawler';
-    "
-  />
+  <CrawlerSearchModal v-model="showCrawlerModal" @download-complete="handleCrawlerDownloadComplete" @open-settings="
+    activeTab = 'settings';
+  settingsSection = 'crawler';
+  " />
 </template>
 
 <style scoped>

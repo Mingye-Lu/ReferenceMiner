@@ -394,3 +394,23 @@ export interface CrawlerStats {
 }
 
 export type ConnectionStatus = "unknown" | "testing" | "success" | "failed";
+
+// OCR types
+export interface OcrModelInfo {
+  label: string;
+  size: string;
+  overhead: string;
+  is_downloadable: boolean;
+  installed?: boolean;
+}
+
+export interface OcrConfig {
+  model: string;
+  base_url?: string;
+  api_key?: string;
+}
+
+export interface OcrSettingsResponse {
+  config: OcrConfig;
+  models: Record<string, OcrModelInfo>;
+}

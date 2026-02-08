@@ -20,6 +20,8 @@ import type {
   ValidateResult,
   QueueJob,
   Bibliography,
+  OcrConfig,
+  OcrSettingsResponse,
 } from "../types";
 import { getFileName } from "../utils";
 
@@ -956,6 +958,7 @@ export async function createProject(req: ProjectCreate): Promise<Project> {
   return mapProject(data);
 }
 
+
 export async function deleteProject(projectId: string): Promise<void> {
   await fetchJson(`/api/projects/${projectId}`, { method: "DELETE" });
 }
@@ -1762,3 +1765,96 @@ export async function fetchMetadata(
   );
   return data;
 }
+
+// =============================================================================
+// OCR API
+// =============================================================================
+
+export async function fetchOcrSettings(): Promise<OcrSettingsResponse> {
+  return await fetchJson<OcrSettingsResponse>(`/api/settings/ocr?t=${Date.now()}`);
+}
+
+export async function saveOcrSettings(
+  config: OcrConfig,
+): Promise<{ success: boolean; config: OcrConfig }> {
+  return await fetchJson<{ success: boolean; config: OcrConfig }>(
+    "/api/settings/ocr",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    },
+  );
+}
+
+export async function downloadOcrModel(
+  model: string,
+): Promise<{ success: boolean; message: string }> {
+  return await fetchJson<{ success: boolean; message: string }>(
+    "/api/settings/ocr/download",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    },
+  );
+}
+
+export async function downloadOcrModelStatus(
+  model: string,
+): Promise<{ progress: number | null; state: string }> {
+  return await fetchJson<{ progress: number | null; state: string }>(
+    `/api/settings/ocr/download/status?model=${encodeURIComponent(model)}`,
+  );
+}
+
+export async function deleteOcrModel(
+  model: string,
+): Promise<{ success: boolean; message: string }> {
+  return await fetchJson<{ success: boolean; message: string }>(
+    `/api/settings/ocr/models/${encodeURIComponent(model)}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function pauseOcrDownload(
+  model: string,
+): Promise<{ success: boolean; message: string }> {
+  return await fetchJson<{ success: boolean; message: string }>(
+    "/api/settings/ocr/download/pause",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    },
+  );
+}
+
+export async function resumeOcrDownload(
+  model: string,
+): Promise<{ success: boolean; message: string }> {
+  return await fetchJson<{ success: boolean; message: string }>(
+    "/api/settings/ocr/download/resume",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    },
+  );
+}
+
+export async function cancelOcrDownload(
+  model: string,
+): Promise<{ success: boolean; message: string }> {
+  return await fetchJson<{ success: boolean; message: string }>(
+    "/api/settings/ocr/download/cancel",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    },
+  );
+}
+
