@@ -9,6 +9,7 @@ from typing import Optional
 
 PROVIDERS = {"deepseek", "openai", "gemini", "anthropic", "custom"}
 CITATION_COPY_FORMATS = ("apa", "mla", "chicago", "gbt7714", "numeric")
+DEFAULT_OCR_BASE_URL = "https://huggingface.co"
 
 DEFAULT_BASE_URLS = {
     "deepseek": "https://api.deepseek.com",
@@ -296,9 +297,11 @@ class SettingsManager:
         if not isinstance(ocr_settings, dict):
             return {
                 "model": "paddle-mobile",  # Default to lightweight
-                "base_url": "",
+                "base_url": DEFAULT_OCR_BASE_URL,
                 "api_key": "",
             }
+        if not ocr_settings.get("base_url"):
+            ocr_settings = {**ocr_settings, "base_url": DEFAULT_OCR_BASE_URL}
         return ocr_settings
 
     def set_ocr_config(self, config: dict) -> None:

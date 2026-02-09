@@ -28,7 +28,7 @@ from refminer.server.models import (
     OcrSettingsRequest,
     OcrDownloadModelRequest,
 )
-from refminer.settings.manager import OCR_MODELS
+from refminer.settings.manager import OCR_MODELS, DEFAULT_OCR_BASE_URL
 from refminer.server.utils import clear_bank_indexes
 from refminer.utils.versioning import (
     get_local_version,
@@ -375,7 +375,7 @@ async def save_ocr_settings(req: OcrSettingsRequest):
     """Save OCR configuration."""
     config = {
         "model": req.model,
-        "base_url": req.base_url,
+        "base_url": (req.base_url or DEFAULT_OCR_BASE_URL).strip() or DEFAULT_OCR_BASE_URL,
         "api_key": req.api_key,
     }
     settings_manager.set_ocr_config(config)
@@ -655,6 +655,8 @@ async def download_ocr_model(
         # HF models use custom downloader in background task
         background_tasks.add_task(_hf_download_worker, model_key, hf_repo_id, ocr_dir)
     else:
+        if not isinstance(download_url, str) or not download_url:
+            raise HTTPException(status_code=400, detail="Invalid model download URL")
         # Direct URL download
         filename = model_info.get("filename", "model.tar")
         target_file = ocr_dir / filename
