@@ -138,7 +138,14 @@ class PDFDownloader:
 
         try:
             client = await self._get_client()
-            response = await client.get(pdf_url)
+            headers = None
+            if result.source == "cnki":
+                referer = result.url or pdf_url
+                headers = {
+                    "Referer": referer,
+                    "Origin": "https://kns.cnki.net",
+                }
+            response = await client.get(pdf_url, headers=headers)
             response.raise_for_status()
 
             content_type = response.headers.get("content-type", "").lower()
@@ -156,7 +163,7 @@ class PDFDownloader:
                     response.text, pdf_url
                 )
                 if extracted_pdf:
-                    pdf_response = await client.get(extracted_pdf)
+                    pdf_response = await client.get(extracted_pdf, headers=headers)
                     pdf_response.raise_for_status()
                     output_path.write_bytes(pdf_response.content)
                     logger.info(f"[PDFDownloader] Downloaded (extracted): {filename}")
@@ -252,7 +259,7 @@ class PDFDownloader:
                 if location:
                     if location.endswith(".pdf"):
                         return location
-                    
+
                     if "arxiv.org/abs/" in location:
                         return location.replace("/abs/", "/pdf/") + ".pdf"
 
