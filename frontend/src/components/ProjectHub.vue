@@ -163,6 +163,13 @@ const ocrModels = ref<Record<string, OcrModelInfo>>({});
 const isSavingOcr = ref(false);
 const isDownloadingOcr = ref(false);
 
+const isOcrReady = computed(() => {
+  const model = ocrConfig.value.model;
+  if (model === "external") return true;
+  const info = ocrModels.value[model];
+  return !!info?.installed;
+});
+
 // Display Settings
 const filesPerPage = ref(7);
 const notesPerPage = ref(4);
@@ -1489,7 +1496,7 @@ onUnmounted(() => {
             :on-display-setting-change="saveDisplaySetting" />
 
           <SettingsCrawlerSection v-else-if="settingsSection === 'crawler'" :crawler-config="crawlerConfig"
-            :on-update="handleCrawlerConfigUpdate" />
+            :on-update="handleCrawlerConfigUpdate" :is-ocr-ready="isOcrReady" />
 
           <SettingsAdvancedSection v-if="settingsSection === 'advanced'" :isLoadingSettings="isLoadingSettings"
             :isSaving="isSaving" :isSavingLlm="isSavingLlm" :isValidating="isValidating"

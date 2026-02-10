@@ -15,12 +15,14 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
+  ScanText,
 } from "lucide-vue-next";
 import BaseToggle from "./BaseToggle.vue";
 
 const props = defineProps<{
   crawlerConfig: CrawlerConfig | null;
   onUpdate: (config: CrawlerConfig) => void;
+  isOcrReady: boolean;
 }>();
 
 const localConfig = ref<CrawlerConfig | null>(
@@ -370,9 +372,11 @@ const totalEngineCount = computed(() => {
               :class="{ disabled: !engineConfig.enabled }">
               <div class="col-engine">
                 <div class="engine-info">
-                  <BaseToggle :model-value="engineConfig.enabled" @update:model-value="
-                    toggleEngine(engineName as string, $event)
-                    " @click.stop />
+                  <div class="engine-toggle">
+                    <BaseToggle :model-value="engineConfig.enabled" @update:model-value="
+                      toggleEngine(engineName as string, $event)
+                      " @click.stop />
+                  </div>
                   <div class="engine-details">
                     <span class="engine-name">{{ engineName }}</span>
                     <p class="engine-desc">
@@ -425,6 +429,54 @@ const totalEngineCount = computed(() => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reference Identification Mode -->
+      <section class="settings-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <ScanText :size="16" />
+          </div>
+          <div>
+            <h4 class="section-title">Reference Identification</h4>
+            <p class="section-description">
+              How to identify reference entries from documents
+            </p>
+          </div>
+        </div>
+
+        <div class="section-content">
+          <div class="radio-group-vertical">
+            <label class="radio-option">
+              <input type="radio" name="refIdentMode" value="string_only"
+                :checked="localConfig.ref_ident_mode === 'string_only'"
+                @change="localConfig.ref_ident_mode = 'string_only'; markAsCustom()" />
+              <div class="radio-option-content">
+                <span class="radio-option-label">String Search Only</span>
+                <span class="radio-option-desc">Only character-based pattern matching to identify references</span>
+              </div>
+            </label>
+            <label class="radio-option" :class="{ disabled: !isOcrReady }">
+              <input type="radio" name="refIdentMode" value="string_then_ocr"
+                :checked="localConfig.ref_ident_mode === 'string_then_ocr'" :disabled="!isOcrReady"
+                @change="localConfig.ref_ident_mode = 'string_then_ocr'; markAsCustom()" />
+              <div class="radio-option-content">
+                <span class="radio-option-label">String Search + OCR Fallback</span>
+                <span class="radio-option-desc">Use string search first, then OCR when entries are unclear</span>
+              </div>
+            </label>
+            <label class="radio-option" :class="{ disabled: !isOcrReady }">
+              <input type="radio" name="refIdentMode" value="ocr_only"
+                :checked="localConfig.ref_ident_mode === 'ocr_only'" :disabled="!isOcrReady"
+                @change="localConfig.ref_ident_mode = 'ocr_only'; markAsCustom()" />
+              <div class="radio-option-content">
+                <span class="radio-option-label">OCR Only</span>
+                <span class="radio-option-desc">Use optical character recognition exclusively for all
+                  identification</span>
+              </div>
+            </label>
           </div>
         </div>
       </section>
@@ -537,7 +589,6 @@ const totalEngineCount = computed(() => {
 .engine-row {
   display: grid;
   grid-template-columns: 1fr 80px 100px 100px;
-  gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-card);
 }
@@ -572,6 +623,7 @@ const totalEngineCount = computed(() => {
 .col-engine {
   overflow: hidden;
   display: flex;
+  gap: 12px;
   align-items: center;
 }
 
@@ -642,7 +694,6 @@ const totalEngineCount = computed(() => {
   grid-column: 1 / -1;
   padding: 12px 0 0 0;
   border-top: 1px solid var(--border-color);
-  margin-top: 8px;
 }
 
 .advanced-row {

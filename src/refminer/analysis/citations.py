@@ -51,8 +51,10 @@ class ReferenceParser:
         (r'^\((\d+)\)', 'paren'),         # (1), (2), ...
     ]
     
-    # Title extraction patterns
-    QUOTED_TITLE = re.compile(r'["""]([^"""]+)["""]')
+    # Title extraction patterns — covers straight, curly, guillemet quotes
+    QUOTED_TITLE = re.compile(r'["“”«»‘’‚„]([^"“”«»‘’‚„]{10,})["“”«»‘’‚„]')
+    # IEEE-style: comma followed by space and a quoted title
+    IEEE_COMMA_TITLE = re.compile(r',\s*["“”«‘]([^"“”»’]{10,})["“”»’]')
     ITALIC_MARKER = re.compile(r'\*([^*]+)\*|_([^_]+)_')
     
     # Patterns to filter out (not actual references)
@@ -282,41 +284,55 @@ class ReferenceParser:
     def _extract_title(self, text: str) -> Optional[str]:
         """Extracts the title from a reference string."""
         title = None
-        
-        # Try quoted title first (most reliable)
+
+        # 1. Try quoted title (most reliable for IEEE / APA styles)
         quoted = self.QUOTED_TITLE.search(text)
         if quoted:
             title = quoted.group(1).strip()
         else:
-            # Try italic markers
+            # 1b. Try IEEE comma-quote pattern: , "Title,"
+            ieee = self.IEEE_COMMA_TITLE.search(text)
+            if ieee:
+                title = ieee.group(1).strip()
+
+        # 2. Try italic markers (*Title* or _Title_)
+        if not title:
             italic = self.ITALIC_MARKER.search(text)
             if italic:
                 title = (italic.group(1) or italic.group(2)).strip()
-            else:
-                # Heuristic: split by periods and find likely title
-                # Usually: Authors. Title. Journal/Conference, Year.
-                parts = re.split(r'\.\s+', text)
-                
-                if len(parts) >= 2:
-                    # First part is usually authors, second is often title
-                    potential_title = parts[1].strip()
-                    # Title should be reasonably long and not look like a journal
-                    if len(potential_title) > 10 and not self._looks_like_venue(potential_title):
-                        title = potential_title
-                    # Try the first part if second looks like venue
-                    elif len(parts[0]) > 15:
-                        # Check if first part contains author-like patterns
-                        if not re.match(r'^[A-Z][a-z]+,\s*[A-Z]', parts[0]):
-                            title = parts[0].strip()
-                
-                # Fallback: first 100 chars
-                if not title:
-                    title = text[:100].strip() + "..." if len(text) > 100 else text.strip()
-        
+
+        # 3. Heuristic: skip author initials, find first long sentence segment
+        if not title:
+            # Split by sentence-ending periods (skip single-letter initials)
+            # Pattern: period followed by space, where preceding char is NOT
+            # a single uppercase letter (author initial like "R." or "D.")
+            parts = re.split(r'(?<![A-Z])\.\s+', text)
+
+            for part in parts:
+                part = part.strip()
+                if len(part) < 15:
+                    continue
+                # Skip parts that look like author lists
+                if re.match(r'^[A-Z]\.\s', part):
+                    continue
+                if self._looks_like_venue(part):
+                    continue
+                # Skip parts that are mostly short comma-separated tokens (author names)
+                tokens = part.split(', ')
+                avg_token_len = sum(len(t) for t in tokens) / max(len(tokens), 1)
+                if len(tokens) > 3 and avg_token_len < 12:
+                    continue
+                title = part
+                break
+
+        # 4. Fallback: first 120 chars
+        if not title:
+            title = text[:120].strip() + "..." if len(text) > 120 else text.strip()
+
         # Clean up trailing punctuation (keep ? and !)
         if title:
             title = re.sub(r'[,.:;]+$', '', title).strip()
-        
+
         return title
 
     def _looks_like_venue(self, text: str) -> bool:
@@ -392,46 +408,37 @@ class ReferenceParser:
         Classifies the citation's source type and availability.
         Returns (source_type, availability, possibly_modified_title).
         
-        New logic:
-        - If LINK or SEARCH has no authors AND no year:
-          - If has [Online] tag -> treat as website, use domain as title
-          - If LINK without [Online] -> downgrade to SEARCH
-          - If SEARCH without author/year -> mark as unavailable
+        Availability tiers (highest to lowest):
+        arXiv / DOI -> downloadable
+        PDF URL     -> downloadable
+        URL         -> link_only
+        Good title  -> searchable
+        Fallback    -> unavailable
         """
-        missing_metadata = (not authors or len(authors) == 0)
-        
         # arXiv: highest priority, always downloadable
         if arxiv_id:
             return "arxiv", "downloadable", title
-        
+
         # DOI: can often resolve to PDF
         if doi:
             return "doi", "downloadable", title
-        
+
         # Direct URL (especially PDF URLs)
         if url:
             if url.lower().endswith('.pdf'):
                 return "url", "downloadable", title
-            
+
             # URL without PDF extension
-            # URL without PDF extension
-            # Even if metadata is missing, preserve the link.
-            # Only fallback to domain title if current title is missing or suspicious/short
             if not title or len(title) < 15:
                 domain_title = self._extract_domain_title(url)
                 return "url", "link_only", domain_title
-                
+
             return "url", "link_only", title
-            
-            return "url", "link_only", title
-        
-        # Has title but no links: searchable
+
+        # Has a usable title: mark as searchable regardless of author metadata
         if title and len(title) > 20:
-            if missing_metadata:
-                # SEARCH without author/year -> mark as unavailable
-                return "text", "unavailable", title
             return "text", "searchable", title
-        
+
         # Nothing useful
         return "text", "unavailable", title
     

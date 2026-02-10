@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
+RefIdentMode = Literal["string_only", "string_then_ocr", "ocr_only"]
+
 from pydantic import BaseModel, Field
 
 
@@ -121,6 +123,9 @@ class CrawlerConfig(BaseModel):
         },
         description="Per-engine configurations",
     )
+    ref_ident_mode: RefIdentMode = Field(
+        "string_only", description="Reference identification mode"
+    )
 
     def get_engine_config(self, engine_name: str) -> EngineConfig:
         """Get configuration for a specific engine."""
@@ -162,4 +167,5 @@ class CrawlerConfig(BaseModel):
             timeout_seconds=data.get("timeout_seconds", 30),
             preset=data.get("preset", "balanced"),
             engines=engines,
+            ref_ident_mode=data.get("ref_ident_mode", "string_only"),
         )

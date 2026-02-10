@@ -16,7 +16,7 @@ from refminer.ingest.bibliography import (
 )
 from refminer.ingest.incremental import remove_file_from_index
 from refminer.ingest.registry import load_registry, check_duplicate
-from refminer.server.globals import project_manager, get_bank_paths
+from refminer.server.globals import project_manager, get_bank_paths, settings_manager
 from refminer.server.models import (
     FileSelectionRequest,
     BatchDeleteRequest,
@@ -281,15 +281,15 @@ async def extract_file_metadata(rel_path: str, force: bool = False):
 @router.get("/api/files/{rel_path:path}/references")
 async def get_file_references(rel_path: str):
     """Extract citations/references from a file (PDF only)."""
-    from refminer.analysis.citations import ReferenceParser, CitationItem
-    
+    from refminer.analysis.citations import ReferenceParser
+
     resolved_path = resolve_rel_path(rel_path)
     entries = load_manifest_entries()
     entry = next((e for e in entries if e.rel_path == resolved_path), None)
-    
+
     if not entry:
         raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
-        
+
     if entry.file_type != "pdf":
         raise HTTPException(
             status_code=400, detail="Reference extraction is only supported for PDFs."
@@ -297,19 +297,52 @@ async def get_file_references(rel_path: str):
 
     ref_dir, _ = get_bank_paths()
     file_path = ref_dir / resolved_path
-    
+
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {resolved_path}")
 
-    # Extract text on fly
-    # Note: We could cache this, but for now live extraction is acceptable for single user
+    # Determine identification mode from crawler config
+    from refminer.crawler.models import CrawlerConfig
+
+    crawler_data = settings_manager.get_crawler_config()
+    crawler_cfg = CrawlerConfig.from_dict(crawler_data) if crawler_data else CrawlerConfig()
+    mode = crawler_cfg.ref_ident_mode  # "string_only" | "string_then_ocr" | "ocr_only"
+
     try:
-        extracted = extract_document(Path(file_path), entry.file_type)
-        full_text = "\n".join(extracted.text_blocks)
-        
         parser = ReferenceParser()
+
+        if mode == "ocr_only":
+            full_text = _ocr_extract_text(file_path)
+        else:
+            # String-based extraction first
+            extracted = extract_document(Path(file_path), entry.file_type)
+            full_text = "\n".join(extracted.text_blocks)
+
+            if mode == "string_then_ocr":
+                # Fallback: if text extraction yields poor results, try OCR
+                string_refs = parser.extract_references(full_text)
+                if len(string_refs) <= 2:
+                    full_text = _ocr_extract_text(file_path)
+
         references = parser.extract_references(full_text)
-        
+
         return {"references": [asdict(ref) for ref in references]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to extract references: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to extract references: {str(e)}"
+        )
+
+
+def _ocr_extract_text(file_path: Path) -> str:
+    """Render all PDF pages to images and run OCR to get full text."""
+    from refminer.analysis.ocr import OcrEngine
+
+    # Resolve OCR model directory from settings
+    ocr_config = settings_manager.get_ocr_config()
+    model_key = ocr_config.get("model", "paddle-mobile")
+    model_dir = settings_manager.index_dir / "models" / "ocr" / model_key
+
+    engine = OcrEngine(model_dir if model_dir.is_dir() else None)
+    page_texts = engine.recognize_pdf_pages(file_path)
+    return "\n".join(page_texts)
+

@@ -324,6 +324,8 @@ export interface CrawlerEngineConfig {
   timeout: number;
 }
 
+export type RefIdentMode = "string_only" | "string_then_ocr" | "ocr_only";
+
 export interface CrawlerConfig {
   enabled: boolean;
   auto_download: boolean;
@@ -331,6 +333,7 @@ export interface CrawlerConfig {
   timeout_seconds: number;
   preset: CrawlerPresetName;
   engines: Record<string, CrawlerEngineConfig>;
+  ref_ident_mode: RefIdentMode;
 }
 
 export interface CrawlerSearchResult {
