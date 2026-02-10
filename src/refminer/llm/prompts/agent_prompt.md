@@ -42,7 +42,6 @@ List available documents with metadata. **Use first** when you need to understan
 | ------------- | ------ | ----------------------------------------------- |
 | file_type     | string | Filter: "pdf", "docx", "text", "image", "table" |
 | pattern       | string | Case-insensitive filename/title search          |
-| only_selected | bool   | Limit to project selection (default: false)     |
 
 ### 2. rag_search
 

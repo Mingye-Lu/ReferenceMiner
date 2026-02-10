@@ -380,6 +380,7 @@ def execute_list_files_tool(
     idx_dir = index_dir or get_index_dir(None)
     file_type_filter = (args.get("file_type") or "").strip().lower()
     pattern = (args.get("pattern") or "").strip().lower()
+    corpus_paths = set(context or [])
 
     retrieve_start = perf_counter()
     manifest = load_manifest(index_dir=idx_dir)
@@ -387,6 +388,9 @@ def execute_list_files_tool(
     # Apply filters
     filtered: list[ManifestEntry] = []
     for entry in manifest:
+        # Strict corpus scope: never list outside selected corpus files.
+        if entry.rel_path not in corpus_paths:
+            continue
         # Filter by file type if specified
         if file_type_filter and entry.file_type != file_type_filter:
             continue
@@ -395,10 +399,6 @@ def execute_list_files_tool(
             name_match = pattern in entry.rel_path.lower()
             title_match = entry.title and pattern in entry.title.lower()
             if not (name_match or title_match):
-                continue
-        # Filter to only files in corpus
-        if context:
-            if entry.rel_path not in context:
                 continue
         filtered.append(entry)
 
@@ -432,6 +432,7 @@ def execute_list_files_tool(
         "file_type_filter": file_type_filter or None,
         "pattern": pattern or None,
         "total_in_bank": len(manifest),
+        "total_in_corpus": len(corpus_paths),
         "matched_count": len(filtered),
         "by_type": by_type,
         "retrieve_ms": retrieve_ms,

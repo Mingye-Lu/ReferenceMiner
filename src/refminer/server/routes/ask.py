@@ -17,7 +17,7 @@ from refminer.llm.client import (
     ChatCompletionsClient,
     _load_config,
 )
-from refminer.server.globals import get_bank_paths
+from refminer.server.globals import get_bank_paths, project_manager
 from refminer.server.models import AskRequest, SummarizeRequest
 from refminer.server.utils import (
     sse,
@@ -34,9 +34,15 @@ router = APIRouter(prefix="/api/projects/{project_id}", tags=["ask"])
 async def ask(project_id: str, req: AskRequest):
     """Non-streaming Q&A endpoint."""
     _, idx_dir = get_bank_paths()
+    corpus_files = project_manager.get_selected_files(project_id)
+    corpus_set = set(corpus_files)
+    if req.context:
+        context = [path for path in req.context if path in corpus_set]
+    else:
+        context = corpus_files
     result = run_agent(
         req.question,
-        context=req.context,
+        context=context,
         use_notes=req.use_notes,
         notes=req.notes,
         history=req.history,
@@ -90,10 +96,16 @@ async def ask(project_id: str, req: AskRequest):
 @router.post("/ask/stream")
 async def ask_stream(project_id: str, req: AskRequest) -> StreamingResponse:
     """Streaming Q&A endpoint using SSE."""
+    corpus_files = project_manager.get_selected_files(project_id)
+    corpus_set = set(corpus_files)
+    if req.context:
+        context = [path for path in req.context if path in corpus_set]
+    else:
+        context = corpus_files
     generator = stream_agent(
         project_id,
         req.question,
-        context=req.context,
+        context=context,
         use_notes=req.use_notes,
         notes=req.notes,
         history=req.history,
