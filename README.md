@@ -8,6 +8,15 @@ ReferenceMiner operates primarily on your local `references/` folder containing 
 
 ---
 
+## Documentation Map
+
+- `README.md` - product overview, architecture, startup flow
+- `ENDPOINTS.md` - complete backend API reference with payload examples
+- `CRAWLER.md` - crawler architecture, limits, and engine behavior
+- `docs/SELECTOR_STRATEGIES.md` - selector extraction strategies for document parsing
+
+---
+
 ## Core Capabilities
 
 - **Folder awareness** — Knows exactly what files exist in `references/`, their types, structure, and metadata.
@@ -419,6 +428,28 @@ VITE_API_URL=http://localhost:8000
 ```
 
 Open `http://localhost:5173` and configure your LLM provider in Settings.
+
+---
+
+## Development Verification
+
+Run these checks before opening a PR:
+
+```bash
+# Backend tests
+uv run python -m unittest discover tests
+
+# Frontend typecheck + production build
+cd frontend
+npm run build
+```
+
+If you only need frontend type-checking without a build artifact:
+
+```bash
+cd frontend
+npx vue-tsc --noEmit
+```
 
 ---
 

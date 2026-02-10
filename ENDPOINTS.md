@@ -11,8 +11,11 @@ This document provides a comprehensive reference for all API endpoints in Refere
 - [File Management](#file-management)
 - [File Upload & Deletion](#file-upload--deletion)
 - [Knowledge & Analysis](#knowledge--analysis)
+- [Queue Management](#queue-management)
 - [Data Structures](#data-structures)
+- [Supported File Types](#supported-file-types)
 - [Error Handling](#error-handling)
+- [SSE Format](#sse-format)
 
 ---
 
