@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -15,7 +16,12 @@ from refminer.crawler.models import SearchQuery, SearchResult
 
 
 async def _run(
-    query: str, max_results: int, engines: list[str], include_all: bool
+    query: str,
+    max_results: int,
+    engines: list[str],
+    include_all: bool,
+    strict: bool,
+    debug_snippet: bool,
 ) -> int:
     async with CrawlerManager() as manager:
         available = manager.list_engines()
@@ -38,7 +44,13 @@ async def _run(
             return 1
 
         search_query = SearchQuery(
-            query=query, max_results=max_results, include_abstract=False
+            query=query,
+            engines=[],
+            max_results=max_results,
+            year_from=None,
+            year_to=None,
+            include_abstract=False,
+            fields=None,
         )
         tasks = []
         for engine_name in selected:
@@ -51,8 +63,10 @@ async def _run(
 
     overall_total = 0
     overall_pdf = 0
+    had_error = False
     for engine_name, results, error in results_by_engine:
         if error is not None:
+            had_error = True
             print(
                 "engine={engine} error={error}".format(engine=engine_name, error=error)
             )
@@ -71,6 +85,16 @@ async def _run(
                 ratio=ratio,
             )
         )
+        if debug_snippet and total == 0:
+            snippet = await _build_zero_result_debug_snippet(
+                manager.get_engine(engine_name), search_query
+            )
+            if snippet:
+                print(
+                    "engine={engine} debug_snippet={snippet}".format(
+                        engine=engine_name, snippet=snippet
+                    )
+                )
 
     if len(results_by_engine) > 1:
         overall_ratio = (overall_pdf / overall_total) if overall_total else 0
@@ -79,7 +103,73 @@ async def _run(
                 total=overall_total, pdf_count=overall_pdf, ratio=overall_ratio
             )
         )
+    if strict and had_error:
+        return 1
     return 0
+
+
+def _sanitize_snippet(raw_text: str, limit: int = 160) -> str:
+    text = re.sub(r"<[^>]+>", " ", raw_text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > limit:
+        return f"{text[:limit]}..."
+    return text
+
+
+async def _build_zero_result_debug_snippet(
+    engine: BaseCrawler | None, query: SearchQuery
+) -> str | None:
+    if engine is None:
+        return None
+
+    target_url: str | None = None
+    build_search_url = getattr(engine, "_build_search_url", None)
+    if callable(build_search_url):
+        try:
+            url_value = build_search_url(query, 1)
+            if isinstance(url_value, str) and url_value.strip():
+                target_url = url_value
+        except Exception:
+            target_url = None
+
+    if target_url is None:
+        base_url = getattr(engine, "base_url", None)
+        if isinstance(base_url, str) and base_url.strip():
+            target_url = base_url
+
+    if target_url is None:
+        return None
+
+    try:
+        response = await engine._fetch(target_url)
+    except Exception as exc:
+        return _sanitize_snippet(f"fetch_error: {exc}")
+
+    decode_fn = getattr(engine, "_decode_response", None)
+    html_text: str
+    if callable(decode_fn):
+        try:
+            decoded = decode_fn(response)
+            html_text = decoded if isinstance(decoded, str) else ""
+        except Exception:
+            html_text = response.text
+    else:
+        html_text = response.text
+
+    title_match = re.search(
+        r"<title[^>]*>(.*?)</title>", html_text, flags=re.IGNORECASE | re.DOTALL
+    )
+    if title_match:
+        title_text = _sanitize_snippet(title_match.group(1))
+        if title_text:
+            return title_text
+
+    body_match = re.search(
+        r"<body[^>]*>(.*?)</body>", html_text, flags=re.IGNORECASE | re.DOTALL
+    )
+    body_text = body_match.group(1) if body_match else html_text
+    snippet = _sanitize_snippet(body_text)
+    return snippet or None
 
 
 def _normalize_engine_list(raw_engines: list[str]) -> list[str]:
@@ -125,6 +215,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="List available engines and exit",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero if any selected engine errors",
+    )
+    parser.add_argument(
+        "--debug-snippet",
+        action="store_true",
+        help="Print short sanitized snippet when an engine returns total=0",
+    )
     return parser
 
 
@@ -145,7 +245,16 @@ def main() -> int:
             )
         )
         return 0
-    return asyncio.run(_run(args.query, args.max_results, args.engine or [], args.all))
+    return asyncio.run(
+        _run(
+            args.query,
+            args.max_results,
+            args.engine or [],
+            args.all,
+            args.strict,
+            args.debug_snippet,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -5,12 +5,16 @@ import re
 from pathlib import Path
 from typing import Any
 
-try:
-    import pdf2bib
+_pdf2bib: Any | None = None
 
-    PDF2BIB_AVAILABLE = True
+try:
+    import pdf2bib as _pdf2bib_module
+
+    _pdf2bib = _pdf2bib_module
 except (ImportError, Exception):
-    PDF2BIB_AVAILABLE = False
+    _pdf2bib = None
+
+PDF2BIB_AVAILABLE = _pdf2bib is not None
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +209,10 @@ def _is_author_line(line: str) -> bool:
         return True
     if line.count(",") >= 2:
         return True
+    if line.count(",") == 1 and not _contains_cjk(line):
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) == 2 and all(re.search(r"[A-Za-z]", part) for part in parts):
+            return True
     return False
 
 
@@ -440,6 +448,8 @@ def extract_pdf_bibliography(
 
     flattened = [line for lines in block_lines for line in lines]
     combined_text = "\n".join(flattened)
+    early_flattened = [line for lines in block_lines[:5] for line in lines]
+    has_cjk_in_early_blocks = any(_contains_cjk(line) for line in early_flattened)
 
     # Check if passed title looks like a header (junk from PDF metadata)
     title_from_param = title
@@ -459,8 +469,7 @@ def extract_pdf_bibliography(
         # Skip header blocks
         if _is_header_block(first_line):
             continue
-        # Skip English title blocks (usually subtitle)
-        if not _contains_cjk(first_line) and len(first_line) > 10:
+        if has_cjk_in_early_blocks and not _contains_cjk(first_line) and len(first_line) > 10:
             continue
         # Skip affiliation blocks (contain location/university info)
         if re.search(r"[（(].*?大学|学院|研究院|北京|上海|广州", first_line):
@@ -483,8 +492,7 @@ def extract_pdf_bibliography(
                 continue
             if LABEL_RE.match(line.lower()):
                 continue
-            # Skip non-CJK lines, affiliations, abstracts
-            if not _contains_cjk(line):
+            if has_cjk_in_early_blocks and not _contains_cjk(line):
                 continue
             if re.search(r"[（(].*?大学|学院|研究院", line):
                 continue
@@ -663,7 +671,7 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
 
     Returns None if pdf2bib is not available or extraction fails.
     """
-    if not PDF2BIB_AVAILABLE:
+    if not PDF2BIB_AVAILABLE or _pdf2bib is None:
         return None
 
     # Try decrypting if needed (pdf2bib/PyPDF2 can't handle encrypted PDFs)
@@ -672,11 +680,16 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
 
     try:
         # pdf2bib.pdf2bib returns a dict with 'metadata' key containing the bibliographic info
-        result = pdf2bib.pdf2bib(str(work_path))
-        if not result or not result.get("metadata"):
+        result_raw = _pdf2bib.pdf2bib(str(work_path))
+        if not isinstance(result_raw, dict):
+            return None
+        meta_raw = result_raw.get("metadata")
+        if not isinstance(meta_raw, dict):
             return None
 
-        meta = result["metadata"]
+        result = result_raw
+        meta = meta_raw
+
         bibliography: dict[str, Any] = {}
 
         # Map pdf2bib fields to our format
@@ -722,7 +735,12 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
             issued = meta["issued"]
             if isinstance(issued, dict) and issued.get("date-parts"):
                 date_parts = issued["date-parts"]
-                if date_parts and date_parts[0]:
+                if (
+                    isinstance(date_parts, list)
+                    and date_parts
+                    and isinstance(date_parts[0], list)
+                    and date_parts[0]
+                ):
                     try:
                         bibliography["year"] = int(date_parts[0][0])
                     except (ValueError, TypeError, IndexError):
@@ -795,9 +813,11 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
                 "thesis": "D",
                 "dissertation": "D",
             }
-            doc_type = type_map.get(meta["type"].lower())
-            if doc_type:
-                bibliography["doc_type"] = doc_type
+            meta_type = meta["type"]
+            if isinstance(meta_type, str):
+                doc_type = type_map.get(meta_type.lower())
+                if doc_type:
+                    bibliography["doc_type"] = doc_type
 
         if bibliography:
             extraction_info: dict[str, Any] = {
@@ -808,9 +828,10 @@ def _extract_with_pdf2bib(pdf_path: Path) -> dict[str, Any] | None:
                 extraction_info["identifier_type"] = result["identifier_type"]
             bibliography["extraction"] = extraction_info
             # Detect language from title
-            if bibliography.get("title"):
+            title_value = bibliography.get("title")
+            if isinstance(title_value, str):
                 bibliography["language"] = (
-                    "zh" if _contains_cjk(bibliography["title"]) else "en"
+                    "zh" if _contains_cjk(title_value) else "en"
                 )
 
         return bibliography if bibliography else None
