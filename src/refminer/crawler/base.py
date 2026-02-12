@@ -10,6 +10,7 @@ from typing import Any, Optional
 
 import httpx
 
+from refminer.crawler.auth import build_auth_headers
 from refminer.crawler.models import (
     CrawlerConfig,
     EngineConfig,
@@ -43,10 +44,15 @@ class RateLimiter:
 class BaseCrawler(abc.ABC):
     """Abstract base class for crawler engines."""
 
-    def __init__(self, config: Optional[EngineConfig] = None) -> None:
+    def __init__(
+        self,
+        config: Optional[EngineConfig] = None,
+        auth_profile: Optional[dict[str, Any]] = None,
+    ) -> None:
         self.config = config or EngineConfig()
         self.rate_limiter = RateLimiter(self.config.rate_limit)
         self._client: Optional[httpx.AsyncClient] = None
+        self.auth_profile = auth_profile or {}
 
     @property
     @abc.abstractmethod
@@ -78,13 +84,15 @@ class BaseCrawler(abc.ABC):
 
     def _get_headers(self) -> dict[str, str]:
         """Get default headers for requests."""
-        return {
+        headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
         }
+        headers.update(build_auth_headers(self.auth_profile))
+        return headers
 
     async def _fetch(
         self,

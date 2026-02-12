@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Callable, Optional
+from urllib.parse import urlencode, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
+from refminer.crawler.auth import build_auth_headers
 from refminer.crawler.models import SearchResult
 from refminer.crawler.selector_engine import (
     FieldSelector,
@@ -49,6 +52,24 @@ PDF_LINK_SELECTORS = FieldSelector(
             priority=50,
             description="Download link",
         ),
+        SelectorStrategy(
+            selector="#pdfDown",
+            selector_type=SelectorType.CSS,
+            priority=45,
+            description="CNKI PDF download button",
+        ),
+        SelectorStrategy(
+            selector="li.btn-download-pdf a",
+            selector_type=SelectorType.CSS,
+            priority=40,
+            description="CNKI PDF download list item",
+        ),
+        SelectorStrategy(
+            selector="a[onclick*='download']",
+            selector_type=SelectorType.CSS,
+            priority=35,
+            description="Download onclick handler",
+        ),
     ],
     required=False,
 )
@@ -86,9 +107,11 @@ class PDFDownloader:
         self,
         references_dir: Path,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        crawler_auth: Optional[dict[str, dict[str, Any]]] = None,
     ) -> None:
         self.references_dir = references_dir
         self.progress_callback = progress_callback
+        self.crawler_auth = crawler_auth or {}
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -124,6 +147,12 @@ class PDFDownloader:
             logger.info(f"[PDFDownloader] File already exists: {filename}")
             return output_path
 
+        if result.source == "cnki":
+            cnki_path = await self._download_cnki(result, output_path)
+            if cnki_path:
+                return cnki_path
+            return None
+
         if result.source == "airiti":
             airiti_info = result.metadata.get("airiti_download")
             if isinstance(airiti_info, dict):
@@ -138,19 +167,14 @@ class PDFDownloader:
 
         try:
             client = await self._get_client()
-            headers = None
-            if result.source == "cnki":
-                referer = result.url or pdf_url
-                headers = {
-                    "Referer": referer,
-                    "Origin": "https://kns.cnki.net",
-                }
-            response = await client.get(pdf_url, headers=headers)
+            headers = self._build_engine_headers(result.source, referer=result.url)
+            request_headers = headers or None
+            response = await client.get(pdf_url, headers=request_headers)
             response.raise_for_status()
 
             content_type = response.headers.get("content-type", "").lower()
 
-            if "application/pdf" in content_type:
+            if self._looks_like_pdf(response):
                 output_path.write_bytes(response.content)
                 logger.info(f"[PDFDownloader] Downloaded: {filename}")
                 return output_path
@@ -163,11 +187,21 @@ class PDFDownloader:
                     response.text, pdf_url
                 )
                 if extracted_pdf:
-                    pdf_response = await client.get(extracted_pdf, headers=headers)
+                    pdf_headers = self._build_engine_headers(
+                        result.source,
+                        referer=pdf_url,
+                    )
+                    pdf_response = await client.get(
+                        extracted_pdf,
+                        headers=pdf_headers or request_headers,
+                    )
                     pdf_response.raise_for_status()
-                    output_path.write_bytes(pdf_response.content)
-                    logger.info(f"[PDFDownloader] Downloaded (extracted): {filename}")
-                    return output_path
+                    if self._looks_like_pdf(pdf_response):
+                        output_path.write_bytes(pdf_response.content)
+                        logger.info(
+                            f"[PDFDownloader] Downloaded (extracted): {filename}"
+                        )
+                        return output_path
 
             logger.warning(f"[PDFDownloader] Unexpected content type: {content_type}")
             return None
@@ -285,24 +319,240 @@ class PDFDownloader:
             if pdf_links:
                 href_value = pdf_links[0].get("href")
                 href = href_value if isinstance(href_value, str) else ""
-                if href.startswith("http"):
-                    return href
-                if href.startswith("/"):
-                    from urllib.parse import urlparse
-
-                    parsed = urlparse(base_url)
-                    return f"{parsed.scheme}://{parsed.netloc}{href}"
+                if href:
+                    return urljoin(base_url, href)
 
             meta_pdf = engine.find_element(CITATION_PDF_META)
             if meta_pdf:
                 content = meta_pdf.get("content")
                 return content if isinstance(content, str) else None
 
+            match = re.search(r"(https?://[^\"'\s]+\.pdf[^\"'\s]*)", html)
+            if match:
+                return match.group(1)
+            match = re.search(r"(https?://[^\"'\s]+download[^\"'\s]*)", html)
+            if match:
+                return match.group(1)
+
             return None
 
         except Exception as e:
             logger.debug(f"[PDFDownloader] Failed to extract PDF from HTML: {e}")
             return None
+
+    def _looks_like_pdf(self, response: httpx.Response) -> bool:
+        content_type = response.headers.get("content-type", "").lower()
+        if "application/pdf" in content_type:
+            return True
+        if "application/octet-stream" in content_type:
+            return response.content.startswith(b"%PDF")
+        if "binary/octet-stream" in content_type:
+            return response.content.startswith(b"%PDF")
+        content_disposition = response.headers.get("content-disposition", "").lower()
+        if ".pdf" in content_disposition:
+            return True
+        return response.content.startswith(b"%PDF")
+
+    async def _download_cnki(
+        self, result: SearchResult, output_path: Path
+    ) -> Optional[Path]:
+        client = await self._get_client()
+
+        candidate_urls = self._build_cnki_candidate_urls(result)
+
+        if result.url:
+            detail_headers = self._build_cnki_headers(result, result.url)
+            try:
+                detail_response = await client.get(result.url, headers=detail_headers)
+                if detail_response.status_code < 400:
+                    detail_html = detail_response.text
+                    if not self._is_cnki_login_html(detail_html):
+                        extracted = await self._extract_pdf_from_html(
+                            detail_html, result.url
+                        )
+                        if extracted:
+                            candidate_urls.insert(0, extracted)
+                        detail_metadata = self._extract_cnki_metadata_from_html(
+                            detail_html
+                        )
+                        if detail_metadata:
+                            candidate_urls.extend(
+                                self._build_cnki_candidate_urls(result, detail_metadata)
+                            )
+            except httpx.RequestError as exc:
+                logger.info(f"[PDFDownloader] CNKI detail warmup failed: {exc}")
+
+        seen: set[str] = set()
+        for url in candidate_urls:
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            headers = self._build_cnki_headers(result, url)
+            download_path = await self._try_download_url(
+                client, url, headers, output_path
+            )
+            if download_path:
+                return download_path
+
+        logger.info("[PDFDownloader] CNKI download blocked or requires authentication.")
+        return None
+
+    async def _try_download_url(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        headers: dict[str, str],
+        output_path: Path,
+    ) -> Optional[Path]:
+        try:
+            response = await client.get(url, headers=headers)
+        except httpx.RequestError as exc:
+            logger.info(f"[PDFDownloader] Request failed for {url}: {exc}")
+            return None
+
+        if response.status_code >= 400:
+            logger.info(
+                f"[PDFDownloader] Request blocked for {url}: {response.status_code}"
+            )
+            return None
+
+        if self._looks_like_pdf(response):
+            output_path.write_bytes(response.content)
+            logger.info(f"[PDFDownloader] Downloaded: {output_path.name}")
+            return output_path
+
+        content_type = response.headers.get("content-type", "").lower()
+        if "text/html" in content_type:
+            html = response.text
+            if self._is_cnki_login_html(html):
+                return None
+            extracted_pdf = await self._extract_pdf_from_html(html, url)
+            if extracted_pdf:
+                new_headers = headers
+                parsed_current = urlparse(url)
+                parsed_next = urlparse(extracted_pdf)
+                if parsed_next.netloc and parsed_next.netloc != parsed_current.netloc:
+                    new_headers = dict(headers)
+                    new_headers["Referer"] = url
+                    new_headers["Origin"] = (
+                        f"{parsed_next.scheme}://{parsed_next.netloc}"
+                        if parsed_next.scheme
+                        else new_headers.get("Origin", "")
+                    )
+                return await self._try_download_url(
+                    client, extracted_pdf, new_headers, output_path
+                )
+
+        return None
+
+    def _build_cnki_candidate_urls(
+        self, result: SearchResult, override: Optional[dict[str, str]] = None
+    ) -> list[str]:
+        metadata = dict(result.metadata)
+        if override:
+            metadata.update(override)
+
+        filename = metadata.get("filename")
+        db_code = metadata.get("db_code") or metadata.get("dbcode")
+        db_name = metadata.get("db_name") or metadata.get("dbname")
+        tablename = metadata.get("tablename")
+
+        candidates: list[str] = []
+        if result.pdf_url:
+            candidates.append(result.pdf_url)
+
+        if filename and tablename:
+            params = urlencode({"filename": filename, "tablename": tablename})
+            candidates.extend(
+                [
+                    f"https://kns.cnki.net/KNS8/download?{params}",
+                    f"https://oversea.cnki.net/KNS8/download?{params}",
+                    f"https://o.oversea.cnki.net/KNS8/download?{params}",
+                ]
+            )
+
+        if filename and db_code:
+            params = {"filename": filename, "dbcode": db_code}
+            if db_name:
+                params["dbname"] = db_name
+            query = urlencode(params)
+            candidates.extend(
+                [
+                    f"https://kns.cnki.net/kcms2/download?{query}",
+                    f"https://kns.cnki.net/kcms/download?{query}",
+                    f"https://oversea.cnki.net/kcms2/download?{query}",
+                    f"https://o.oversea.cnki.net/kcms2/download?{query}",
+                ]
+            )
+
+        return candidates
+
+    def _build_cnki_headers(self, result: SearchResult, url: str) -> dict[str, str]:
+        parsed = urlparse(url)
+        origin = ""
+        if parsed.scheme and parsed.netloc:
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        headers = {
+            "Referer": result.url or url,
+            "Accept": "application/pdf,application/octet-stream,*/*;q=0.8",
+        }
+        if origin:
+            headers["Origin"] = origin
+
+        headers.update(build_auth_headers(self._get_engine_auth_profile("cnki")))
+
+        cookie = self._get_cnki_cookie_header()
+        if cookie and "Cookie" not in headers:
+            headers["Cookie"] = cookie
+
+        return headers
+
+    def _get_engine_auth_profile(self, engine_name: str) -> dict[str, Any]:
+        profile = self.crawler_auth.get(engine_name)
+        if isinstance(profile, dict):
+            return profile
+        return {}
+
+    def _build_engine_headers(
+        self,
+        engine_name: Optional[str],
+        referer: Optional[str] = None,
+    ) -> dict[str, str]:
+        if not engine_name:
+            return {}
+        profile = self._get_engine_auth_profile(engine_name)
+        headers = build_auth_headers(profile)
+        if referer:
+            headers.setdefault("Referer", referer)
+        return headers
+
+    def _get_cnki_cookie_header(self) -> Optional[str]:
+        return os.getenv("CNKI_COOKIE") or os.getenv("CNKI_COOKIES")
+
+    def _is_cnki_login_html(self, html: str) -> bool:
+        lowered = html.lower()
+        for token in ("loginwrapper", "logini18n.css", "loginform", "userlogin"):
+            if token in lowered:
+                return True
+        return False
+
+    def _extract_cnki_metadata_from_html(self, html: str) -> dict[str, str]:
+        soup = BeautifulSoup(html, "html.parser")
+        metadata: dict[str, str] = {}
+        for key, selector in (
+            ("db_code", "input#param-dbcode"),
+            ("db_name", "input#param-dbname"),
+            ("filename", "input#param-filename"),
+            ("tablename", "input[name='tablename']"),
+        ):
+            elem = soup.select_one(selector)
+            if not elem:
+                continue
+            value = elem.get("value")
+            if isinstance(value, str) and value.strip():
+                metadata[key] = value.strip()
+        return metadata
 
     async def download_batch(
         self,

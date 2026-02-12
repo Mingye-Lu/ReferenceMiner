@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+from refminer.crawler.auth import (
+    SUPPORTED_CRAWLER_AUTH_TYPES,
+    build_auth_headers,
+    mask_secret,
+    normalize_crawler_auth_profile,
+)
 
 PROVIDERS = {"deepseek", "openai", "gemini", "anthropic", "custom"}
 CITATION_COPY_FORMATS = ("apa", "mla", "chicago", "gbt7714", "numeric")
@@ -268,6 +276,109 @@ class SettingsManager:
         """Save crawler configuration."""
         self._settings["crawler"] = config
         self._save()
+
+    def get_crawler_auth_profiles(self) -> dict[str, dict]:
+        """Get raw per-engine crawler auth profiles including secrets."""
+        raw = self._settings.get("crawler_auth")
+        if not isinstance(raw, dict):
+            return {}
+
+        profiles: dict[str, dict] = {}
+        for engine, profile in raw.items():
+            if not isinstance(engine, str) or not engine.strip():
+                continue
+            normalized = normalize_crawler_auth_profile(profile)
+            if (
+                normalized["auth_type"] == "none"
+                and not normalized["secret"]
+                and not normalized["headers"]
+            ):
+                continue
+            profiles[engine.strip().lower()] = normalized
+        return profiles
+
+    def get_crawler_auth_public(self) -> dict[str, dict]:
+        """Get per-engine crawler auth profiles with secrets masked."""
+        profiles = self.get_crawler_auth_profiles()
+        public_profiles: dict[str, dict] = {}
+        for engine, profile in profiles.items():
+            secret = profile.get("secret")
+            public_profiles[engine] = {
+                "auth_type": profile.get("auth_type", "none"),
+                "has_secret": bool(secret),
+                "masked_secret": mask_secret(secret),
+                "header_names": sorted(profile.get("headers", {}).keys()),
+                "updated_at": profile.get("updated_at"),
+            }
+        return public_profiles
+
+    def get_crawler_engine_auth(self, engine: str) -> dict:
+        """Get raw auth profile for one engine."""
+        key = engine.strip().lower()
+        if not key:
+            return normalize_crawler_auth_profile({})
+        profiles = self.get_crawler_auth_profiles()
+        return profiles.get(key, normalize_crawler_auth_profile({}))
+
+    def get_crawler_engine_auth_headers(self, engine: str) -> dict[str, str]:
+        """Get computed auth headers for one engine."""
+        profile = self.get_crawler_engine_auth(engine)
+        return build_auth_headers(profile)
+
+    def set_crawler_engine_auth(
+        self,
+        engine: str,
+        auth_type: str,
+        secret: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+        api_key_header: Optional[str] = None,
+    ) -> None:
+        """Save auth profile for one crawler engine."""
+        engine_key = engine.strip().lower()
+        if not engine_key:
+            raise ValueError("Engine name cannot be empty")
+
+        normalized_auth_type = auth_type.strip().lower()
+        if normalized_auth_type not in SUPPORTED_CRAWLER_AUTH_TYPES:
+            raise ValueError("Unsupported crawler auth type")
+
+        payload: dict[str, object] = {
+            "auth_type": normalized_auth_type,
+            "secret": secret,
+            "headers": headers or {},
+            "api_key_header": api_key_header or "X-API-Key",
+            "updated_at": int(time.time()),
+        }
+        normalized = normalize_crawler_auth_profile(payload)
+
+        store = self._settings.get("crawler_auth")
+        crawler_auth = dict(store) if isinstance(store, dict) else {}
+
+        should_clear = (
+            normalized["auth_type"] == "none"
+            and not normalized["secret"]
+            and not normalized["headers"]
+        )
+        if should_clear:
+            if engine_key in crawler_auth:
+                del crawler_auth[engine_key]
+        else:
+            crawler_auth[engine_key] = normalized
+
+        self._settings["crawler_auth"] = crawler_auth
+        self._save()
+
+    def clear_crawler_engine_auth(self, engine: str) -> None:
+        """Remove saved auth profile for one crawler engine."""
+        engine_key = engine.strip().lower()
+        if not engine_key:
+            return
+        store = self._settings.get("crawler_auth")
+        crawler_auth = dict(store) if isinstance(store, dict) else {}
+        if engine_key in crawler_auth:
+            del crawler_auth[engine_key]
+            self._settings["crawler_auth"] = crawler_auth
+            self._save()
 
     def is_crawler_enabled(self) -> bool:
         """Check if crawler is enabled."""

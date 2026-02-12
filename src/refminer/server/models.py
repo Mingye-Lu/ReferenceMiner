@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel
 
 
@@ -95,6 +95,8 @@ class QueueJobCreateRequest(BaseModel):
     rel_path: Optional[str] = None
     status: Optional[str] = None
     phase: Optional[str] = None
+
+
 class OcrSettingsRequest(BaseModel):
     model: str
     base_url: Optional[str] = None
@@ -103,3 +105,20 @@ class OcrSettingsRequest(BaseModel):
 
 class OcrDownloadModelRequest(BaseModel):
     model: str
+
+
+CrawlerAuthType = Literal[
+    "none",
+    "cookie_header",
+    "bearer",
+    "api_key",
+    "custom_headers",
+]
+
+
+class CrawlerEngineAuthRequest(BaseModel):
+    engine: str
+    auth_type: CrawlerAuthType = "none"
+    secret: Optional[str] = None
+    headers: Optional[dict[str, str]] = None
+    api_key_header: Optional[str] = None

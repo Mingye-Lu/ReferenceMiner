@@ -683,9 +683,19 @@ def execute_keyword_search_tool(
         meta=meta,
     )
 
+
 from refminer.crawler.manager import CrawlerManager
 from refminer.crawler.models import SearchQuery
+from refminer.settings.manager import SettingsManager
 import asyncio
+
+
+def _load_crawler_auth_profiles() -> dict[str, dict[str, Any]]:
+    """Load crawler auth profiles from persisted local settings."""
+    try:
+        return SettingsManager().get_crawler_auth_profiles()
+    except Exception:
+        return {}
 
 
 def execute_search_papers_tool(
@@ -714,7 +724,8 @@ def execute_search_papers_tool(
     retrieve_start = perf_counter()
 
     async def _do_search():
-        async with CrawlerManager() as manager:
+        auth_profiles = _load_crawler_auth_profiles()
+        async with CrawlerManager(auth_profiles=auth_profiles) as manager:
             search_query = SearchQuery(
                 query=query_str,
                 max_results=limit,
@@ -738,12 +749,12 @@ def execute_search_papers_tool(
     # Format results
     formatted_lines: list[str] = []
     evidence: list[EvidenceChunk] = []
-    
+
     for i, res in enumerate(results):
         authors = ", ".join(res.authors[:3])
         if len(res.authors) > 3:
             authors += " et al."
-        
+
         content = (
             f"Title: {res.title}\n"
             f"Year: {res.year or 'N/A'}\n"
@@ -752,7 +763,7 @@ def execute_search_papers_tool(
             f"Source: {res.source}\n"
             f"Abstract: {res.abstract or 'No abstract available.'}"
         )
-        
+
         chunk_id = f"search_result:{i}"
         evidence.append(
             EvidenceChunk(
@@ -765,14 +776,14 @@ def execute_search_papers_tool(
                 bbox=None,
             )
         )
-        
+
         formatted_lines.append(
-            f"{i+1}. **{res.title}** ({res.year or 'N/A'})\n"
+            f"{i + 1}. **{res.title}** ({res.year or 'N/A'})\n"
             f"   {authors} | {res.source} | [DOI: {res.doi or 'N/A'}]"
         )
 
     summary = f"Found {len(results)} papers for '{query_str}'"
-    
+
     meta = {
         "tool": "search_papers",
         "query": query_str,
@@ -798,7 +809,7 @@ def execute_download_paper_tool(
     doi = args.get("doi")
     title = args.get("title")
     engine = args.get("engine")
-    
+
     if not doi and not title:
         return ToolResult(
             evidence=[],
@@ -811,33 +822,40 @@ def execute_download_paper_tool(
     retrieve_start = perf_counter()
 
     async def _do_download():
-        async with CrawlerManager() as manager:
+        auth_profiles = _load_crawler_auth_profiles()
+        async with CrawlerManager(auth_profiles=auth_profiles) as manager:
             if doi:
                 query_str = doi if doi else title
-                
+
                 target = None
                 if doi and "arxiv" in doi.lower() and "10.48550" in doi:
                     try:
                         arxiv_id = doi.split("arXiv.")[-1]
                         from refminer.crawler.models import SearchResult
+
                         target = SearchResult(
                             title=title or f"ArXiv Paper {arxiv_id}",
                             url=f"https://arxiv.org/abs/{arxiv_id}",
                             pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
                             source="arxiv_direct",
-                            doi=doi
+                            doi=doi,
                         )
                     except Exception:
                         pass
-                
+
                 if not target:
                     search_query = SearchQuery(query=query_str, max_results=3)
                     results = await manager.search(search_query)
-                    
+
                     if not results:
                         return None, "Paper not found."
-                    
-                    filtered = [r for r in results if "google_scholar" not in r.source or "/citations?user=" not in r.url]
+
+                    filtered = [
+                        r
+                        for r in results
+                        if "google_scholar" not in r.source
+                        or "/citations?user=" not in r.url
+                    ]
                     if filtered:
                         target = filtered[0]
                     else:
@@ -845,40 +863,45 @@ def execute_download_paper_tool(
 
                 from refminer.crawler.downloader import PDFDownloader
                 from refminer.utils.paths import get_references_dir
-                
+
                 references_dir = get_references_dir()
-                downloader = PDFDownloader(references_dir=references_dir)
+                downloader = PDFDownloader(
+                    references_dir=references_dir,
+                    crawler_auth=auth_profiles,
+                )
 
                 filepath = await downloader.download(target)
                 return filepath, target.title, target.url
-    
+
     from refminer.crawler.downloader import PDFDownloader
     from refminer.utils.paths import get_references_dir
-    
+
     try:
         result_path, result_title, result_url = asyncio.run(_do_download())
     except Exception as e:
-         return ToolResult(
+        return ToolResult(
             evidence=[],
             analysis={"summary": f"Download failed: {str(e)}"},
             formatted_evidence=[f"Download failed: {str(e)}"],
             citations={},
             meta={"tool": "download_paper", "error": str(e)},
         )
-    
+
     retrieve_ms = (perf_counter() - retrieve_start) * 1000.0
-    
+
     if result_path:
         msg = f"Successfully downloaded '{result_title}' to {result_path.name}. It is now indexed in the Reference Bank."
-        evidence = [EvidenceChunk(
-            chunk_id="download_success",
-            path=str(result_path),
-            page=None,
-            section="system",
-            text=msg,
-            score=1.0,
-            bbox=None
-        )]
+        evidence = [
+            EvidenceChunk(
+                chunk_id="download_success",
+                path=str(result_path),
+                page=None,
+                section="system",
+                text=msg,
+                score=1.0,
+                bbox=None,
+            )
+        ]
     else:
         msg = f"Failed to download '{result_title}'. No PDF found or download failed."
         if result_url:
@@ -890,5 +913,9 @@ def execute_download_paper_tool(
         analysis={"summary": msg},
         formatted_evidence=[msg],
         citations={},
-        meta={"tool": "download_paper", "success": bool(result_path), "retrieve_ms": retrieve_ms},
+        meta={
+            "tool": "download_paper",
+            "success": bool(result_path),
+            "retrieve_ms": retrieve_ms,
+        },
     )

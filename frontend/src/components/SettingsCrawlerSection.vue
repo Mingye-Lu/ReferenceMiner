@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from "vue";
 import type {
+  CrawlerAuthType,
   CrawlerConfig,
+  CrawlerEngineAuthProfile,
   CrawlerPreset,
   CrawlerPresetName,
   ConnectionStatus,
 } from "../types";
-import { updateCrawlerConfig } from "../api/client";
+import {
+  deleteCrawlerEngineAuth,
+  fetchCrawlerAuthConfig,
+  saveCrawlerEngineAuth,
+  updateCrawlerConfig,
+} from "../api/client";
 import {
   Settings,
   Globe,
@@ -18,6 +25,7 @@ import {
   ScanText,
 } from "lucide-vue-next";
 import BaseToggle from "./BaseToggle.vue";
+import CustomSelect from "./CustomSelect.vue";
 
 const props = defineProps<{
   crawlerConfig: CrawlerConfig | null;
@@ -110,6 +118,41 @@ const isApplyingPreset = ref(false);
 const testingConnections = ref<Record<string, boolean>>({});
 const connectionStatus = ref<Record<string, ConnectionStatus>>({});
 const expandedEngine = ref<string | null>(null);
+const authTypes = ref<CrawlerAuthType[]>([
+  "none",
+  "cookie_header",
+  "bearer",
+  "api_key",
+  "custom_headers",
+]);
+const engineAuthProfiles = ref<Record<string, CrawlerEngineAuthProfile>>({});
+const authInputByEngine = ref<Record<string, string>>({});
+const authSavingByEngine = ref<Record<string, boolean>>({});
+const authErrorByEngine = ref<Record<string, string>>({});
+const authLoaded = ref(false);
+
+const authTypeLabels: Record<CrawlerAuthType, string> = {
+  none: "None",
+  cookie_header: "Cookie Header",
+  bearer: "Bearer Token",
+  api_key: "API Key",
+  custom_headers: "Custom Headers",
+};
+
+const authSecretPlaceholder: Record<CrawlerAuthType, string> = {
+  none: "No secret needed",
+  cookie_header: "Paste full Cookie header value",
+  bearer: "Paste bearer token (without 'Bearer')",
+  api_key: "Paste API key",
+  custom_headers: "Optional secret token",
+};
+
+const authTypeOptions = computed(() =>
+  authTypes.value.map((authType) => ({
+    value: authType,
+    label: authTypeLabels[authType] || authType,
+  })),
+);
 
 watch(
   () => props.crawlerConfig,
@@ -128,6 +171,32 @@ watch(
   { deep: true, immediate: true },
 );
 
+watch(
+  () => localConfig.value,
+  (config) => {
+    if (!config) return;
+    Object.keys(config.engines).forEach((engine) => {
+      if (!(engine in engineAuthProfiles.value)) {
+        engineAuthProfiles.value[engine] = {
+          authType: "none",
+          hasSecret: false,
+          maskedSecret: null,
+          headerNames: [],
+          updatedAt: null,
+        };
+      }
+      if (!(engine in authInputByEngine.value)) {
+        authInputByEngine.value[engine] = "";
+      }
+    });
+
+    if (!authLoaded.value) {
+      void loadCrawlerAuth();
+    }
+  },
+  { deep: true, immediate: true },
+);
+
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 async function autoSave(config: CrawlerConfig) {
@@ -136,6 +205,105 @@ async function autoSave(config: CrawlerConfig) {
     props.onUpdate(saved);
   } catch (error) {
     console.error("Failed to save crawler settings", error);
+  }
+}
+
+async function loadCrawlerAuth() {
+  try {
+    const data = await fetchCrawlerAuthConfig();
+    authTypes.value = data.authTypes;
+    const nextProfiles: Record<string, CrawlerEngineAuthProfile> = {
+      ...engineAuthProfiles.value,
+    };
+    Object.entries(data.engines).forEach(([engine, profile]) => {
+      nextProfiles[engine] = profile;
+    });
+    engineAuthProfiles.value = nextProfiles;
+  } catch (error) {
+    console.error("Failed to load crawler auth settings", error);
+  } finally {
+    authLoaded.value = true;
+  }
+}
+
+function authProfile(engineName: string): CrawlerEngineAuthProfile {
+  return (
+    engineAuthProfiles.value[engineName] ?? {
+      authType: "none",
+      hasSecret: false,
+      maskedSecret: null,
+      headerNames: [],
+      updatedAt: null,
+    }
+  );
+}
+
+function authInput(engineName: string): string {
+  return authInputByEngine.value[engineName] ?? "";
+}
+
+function setAuthInput(engineName: string, value: string) {
+  authInputByEngine.value[engineName] = value;
+}
+
+function setAuthType(engineName: string, authType: CrawlerAuthType) {
+  const profile = authProfile(engineName);
+  engineAuthProfiles.value[engineName] = {
+    ...profile,
+    authType,
+  };
+}
+
+async function saveEngineAuth(engineName: string) {
+  const profile = authProfile(engineName);
+  const secret = authInput(engineName).trim();
+  authSavingByEngine.value[engineName] = true;
+  authErrorByEngine.value[engineName] = "";
+  try {
+    if (profile.authType === "none" && !secret) {
+      await deleteCrawlerEngineAuth(engineName);
+      engineAuthProfiles.value[engineName] = {
+        authType: "none",
+        hasSecret: false,
+        maskedSecret: null,
+        headerNames: [],
+        updatedAt: null,
+      };
+    } else {
+      const response = await saveCrawlerEngineAuth(
+        engineName,
+        profile.authType,
+        secret || undefined,
+      );
+      engineAuthProfiles.value[engineName] = response.profile;
+    }
+    authInputByEngine.value[engineName] = "";
+  } catch (error) {
+    authErrorByEngine.value[engineName] =
+      error instanceof Error ? error.message : "Failed to save auth settings";
+  } finally {
+    authSavingByEngine.value[engineName] = false;
+  }
+}
+
+async function clearEngineAuth(engineName: string) {
+  authSavingByEngine.value[engineName] = true;
+  authErrorByEngine.value[engineName] = "";
+  try {
+    await deleteCrawlerEngineAuth(engineName);
+    engineAuthProfiles.value[engineName] = {
+      authType: "none",
+      hasSecret: false,
+      maskedSecret: null,
+      headerNames: [],
+      updatedAt: null,
+    };
+    authInputByEngine.value[engineName] = "";
+  } catch (error) {
+    authErrorByEngine.value[engineName] =
+      error instanceof Error ? error.message : "Failed to clear auth settings";
+  } finally {
+    authSavingByEngine.value[engineName] = false;
   }
 }
 
@@ -418,14 +586,99 @@ const totalEngineCount = computed(() => {
                 </button>
               </div>
               <div v-if="expandedEngine === engineName" class="engine-advanced">
-                <div class="advanced-row">
-                  <label class="form-label">Timeout (seconds)</label>
-                  <input type="number" :value="engineConfig.timeout" @input="
-                    updateEngineTimeout(
-                      engineName as string,
-                      Number(($event.target as HTMLInputElement).value),
-                    )
-                    " min="5" max="120" class="form-input" />
+                <div class="advanced-grid">
+                  <div class="advanced-field">
+                    <label class="form-label">Timeout (seconds)</label>
+                    <input
+                      type="number"
+                      :value="engineConfig.timeout"
+                      @input="
+                        updateEngineTimeout(
+                          engineName as string,
+                          Number(($event.target as HTMLInputElement).value),
+                        )
+                      "
+                      min="5"
+                      max="120"
+                      class="form-input advanced-input--short"
+                    />
+                  </div>
+                  <div class="advanced-field">
+                    <label class="form-label">Auth Type</label>
+                    <div class="auth-type-control">
+                      <CustomSelect
+                        :model-value="authProfile(engineName as string).authType"
+                        :options="authTypeOptions"
+                        @update:model-value="
+                          setAuthType(
+                            engineName as string,
+                            $event as CrawlerAuthType,
+                          )
+                        "
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="
+                    authProfile(engineName as string).authType !== 'none' ||
+                    authProfile(engineName as string).hasSecret ||
+                    authInput(engineName as string)
+                  "
+                  class="advanced-field auth-credential-field"
+                >
+                  <label class="form-label">Credential</label>
+                  <input
+                    type="password"
+                    class="form-input auth-secret-input"
+                    :placeholder="
+                      authSecretPlaceholder[
+                        authProfile(engineName as string).authType
+                      ]
+                    "
+                    :value="authInput(engineName as string)"
+                    @input="
+                      setAuthInput(
+                        engineName as string,
+                        ($event.target as HTMLInputElement).value,
+                      )
+                    "
+                  />
+                </div>
+
+                <p
+                  v-else
+                  class="auth-empty"
+                >
+                  No authentication configured for this engine.
+                </p>
+
+                <p
+                  v-if="authProfile(engineName as string).hasSecret"
+                  class="auth-masked"
+                >
+                  Saved credential: {{ authProfile(engineName as string).maskedSecret }}
+                </p>
+                <p v-if="authErrorByEngine[engineName]" class="auth-error">
+                  {{ authErrorByEngine[engineName] }}
+                </p>
+
+                <div class="advanced-row advanced-row--actions">
+                  <button
+                    class="btn-outline"
+                    :disabled="authSavingByEngine[engineName]"
+                    @click="saveEngineAuth(engineName as string)"
+                  >
+                    Save Auth
+                  </button>
+                  <button
+                    class="btn-outline"
+                    :disabled="authSavingByEngine[engineName]"
+                    @click="clearEngineAuth(engineName as string)"
+                  >
+                    Clear Auth
+                  </button>
                 </div>
               </div>
             </div>
@@ -692,17 +945,91 @@ const totalEngineCount = computed(() => {
 /* Expandable per-engine advanced settings */
 .engine-advanced {
   grid-column: 1 / -1;
-  padding: 12px 0 0 0;
+  margin-top: 8px;
+  padding: 16px 0 0 0;
   border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+}
+
+.advanced-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.advanced-field .form-label {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.advanced-input--short {
+  width: 120px;
+}
+
+.auth-type-control {
+  width: 100%;
+  max-width: 260px;
+}
+
+.auth-type-control :deep(.custom-select-wrapper) {
+  width: 100%;
+  min-width: 0;
+}
+
+.auth-type-control :deep(.custom-select-trigger) {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 10px;
+}
+
+.auth-type-control :deep(.custom-select-label) {
+  font-size: 13px;
+}
+
+.auth-credential-field {
+  margin-top: 2px;
+}
+
+.auth-secret-input {
+  width: min(560px, 100%) !important;
+}
+
+.auth-empty {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.auth-masked {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.auth-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-danger-600);
 }
 
 .advanced-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
-.advanced-row .form-input {
-  width: 100px;
+.advanced-row--actions {
+  margin-top: 2px;
 }
 </style>

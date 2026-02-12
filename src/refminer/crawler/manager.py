@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
+from typing import Any
 from typing import Optional
 
 from refminer.crawler.base import BaseCrawler
@@ -33,35 +34,85 @@ logger = logging.getLogger(__name__)
 class CrawlerManager:
     """Manager for coordinating multiple crawler engines."""
 
-    def __init__(self, config: Optional[CrawlerConfig] = None) -> None:
+    def __init__(
+        self,
+        config: Optional[CrawlerConfig] = None,
+        auth_profiles: Optional[dict[str, dict[str, Any]]] = None,
+    ) -> None:
         self.config = config or CrawlerConfig()
+        self.auth_profiles = auth_profiles or {}
         self._engines: dict[str, BaseCrawler] = {}
         self._initialize_engines()
+
+    def _engine_auth(self, name: str) -> dict[str, Any]:
+        profile = self.auth_profiles.get(name)
+        if isinstance(profile, dict):
+            return profile
+        return {}
 
     def _initialize_engines(self) -> None:
         """Initialize all available engines."""
         self._engines = {
-            "airiti": AiritiCrawler(self.config.get_engine_config("airiti")),
-            "chaoxing": ChaoxingCrawler(self.config.get_engine_config("chaoxing")),
-            "chinaxiv": ChinaXivCrawler(self.config.get_engine_config("chinaxiv")),
-            "cnki": CnkiCrawler(self.config.get_engine_config("cnki")),
+            "airiti": AiritiCrawler(
+                self.config.get_engine_config("airiti"),
+                self._engine_auth("airiti"),
+            ),
+            "chaoxing": ChaoxingCrawler(
+                self.config.get_engine_config("chaoxing"),
+                self._engine_auth("chaoxing"),
+            ),
+            "chinaxiv": ChinaXivCrawler(
+                self.config.get_engine_config("chinaxiv"),
+                self._engine_auth("chinaxiv"),
+            ),
+            "cnki": CnkiCrawler(
+                self.config.get_engine_config("cnki"),
+                self._engine_auth("cnki"),
+            ),
             "google_scholar": GoogleScholarCrawler(
-                self.config.get_engine_config("google_scholar")
+                self.config.get_engine_config("google_scholar"),
+                self._engine_auth("google_scholar"),
             ),
-            "pubmed": PubMedCrawler(self.config.get_engine_config("pubmed")),
+            "pubmed": PubMedCrawler(
+                self.config.get_engine_config("pubmed"),
+                self._engine_auth("pubmed"),
+            ),
             "semantic_scholar": SemanticScholarCrawler(
-                self.config.get_engine_config("semantic_scholar")
+                self.config.get_engine_config("semantic_scholar"),
+                self._engine_auth("semantic_scholar"),
             ),
-            "arxiv": ArXivCrawler(self.config.get_engine_config("arxiv")),
-            "crossref": CrossrefCrawler(self.config.get_engine_config("crossref")),
-            "openalex": OpenAlexCrawler(self.config.get_engine_config("openalex")),
-            "core": CoreCrawler(self.config.get_engine_config("core")),
-            "europe_pmc": EuropePmcCrawler(self.config.get_engine_config("europe_pmc")),
+            "arxiv": ArXivCrawler(
+                self.config.get_engine_config("arxiv"),
+                self._engine_auth("arxiv"),
+            ),
+            "crossref": CrossrefCrawler(
+                self.config.get_engine_config("crossref"),
+                self._engine_auth("crossref"),
+            ),
+            "openalex": OpenAlexCrawler(
+                self.config.get_engine_config("openalex"),
+                self._engine_auth("openalex"),
+            ),
+            "core": CoreCrawler(
+                self.config.get_engine_config("core"),
+                self._engine_auth("core"),
+            ),
+            "europe_pmc": EuropePmcCrawler(
+                self.config.get_engine_config("europe_pmc"),
+                self._engine_auth("europe_pmc"),
+            ),
             "biorxiv_medrxiv": BiorxivMedrxivCrawler(
-                self.config.get_engine_config("biorxiv_medrxiv")
+                self.config.get_engine_config("biorxiv_medrxiv"),
+                self._engine_auth("biorxiv_medrxiv"),
             ),
-            "nstl": NstlCrawler(self.config.get_engine_config("nstl")),
-            "wanfang": WanfangCrawler(self.config.get_engine_config("wanfang")),
+            "nstl": NstlCrawler(
+                self.config.get_engine_config("nstl"),
+                self._engine_auth("nstl"),
+            ),
+            "wanfang": WanfangCrawler(
+                self.config.get_engine_config("wanfang"),
+                self._engine_auth("wanfang"),
+            ),
         }
 
     def get_engine(self, name: str) -> Optional[BaseCrawler]:

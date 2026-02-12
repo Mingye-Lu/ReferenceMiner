@@ -24,8 +24,12 @@ class CnkiCrawler(BaseCrawler):
     RESULTS_PER_PAGE = 20
     ENRICH_LIMIT = 20
 
-    def __init__(self, config: Optional[EngineConfig] = None) -> None:
-        super().__init__(config)
+    def __init__(
+        self,
+        config: Optional[EngineConfig] = None,
+        auth_profile: Optional[dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(config, auth_profile)
         self._session_warmed = False
 
     @property
@@ -441,7 +445,7 @@ class CnkiCrawler(BaseCrawler):
         else:
             detail_url = None
 
-        detail_metadata = self._extract_metadata_from_detail_url(detail_url)
+        detail_metadata = self._extract_metadata_from_url(detail_url)
 
         # Extract authors
         authors = self._extract_authors(row)
@@ -473,12 +477,19 @@ class CnkiCrawler(BaseCrawler):
             metadata["filename"] = filename
 
         for key in ("db_code", "db_name", "filename"):
-            if key not in metadata and detail_metadata.get(key):
-                metadata[key] = detail_metadata[key]
+            detail_value = detail_metadata.get(key)
+            if detail_value:
+                metadata[key] = detail_value
 
         pdf_url = self._extract_pdf_link(row)
         if not pdf_url:
             pdf_url = self._build_pdf_url(metadata)
+        pdf_metadata = self._extract_metadata_from_url(pdf_url)
+        for key, value in pdf_metadata.items():
+            if key == "tablename":
+                metadata.setdefault(key, value)
+            elif key not in metadata and value:
+                metadata[key] = value
 
         return SearchResult(
             title=title,
@@ -896,20 +907,17 @@ class CnkiCrawler(BaseCrawler):
                 return urllib.parse.urljoin(self.base_url, href)
         return None
 
-    def _extract_metadata_from_detail_url(
-        self, detail_url: Optional[str]
-    ) -> dict[str, str]:
-        """Extract DB metadata from a detail URL query string."""
-        if not detail_url:
+    def _extract_metadata_from_url(self, url: Optional[str]) -> dict[str, str]:
+        """Extract DB metadata from a URL query string."""
+        if not url:
             return {}
 
-        parsed = urllib.parse.urlparse(detail_url)
+        parsed = urllib.parse.urlparse(url)
         params = urllib.parse.parse_qs(parsed.query)
+        normalized = {key.lower(): value for key, value in params.items()}
 
         def _get_param(name: str) -> str:
-            value = (
-                params.get(name) or params.get(name.lower()) or params.get(name.upper())
-            )
+            value = normalized.get(name.lower())
             if value:
                 return str(value[0])
             return ""
@@ -918,8 +926,9 @@ class CnkiCrawler(BaseCrawler):
             "db_code": _get_param("dbcode"),
             "db_name": _get_param("dbname"),
             "filename": _get_param("filename"),
+            "tablename": _get_param("tablename"),
         }
-        return {k: v for k, v in metadata.items() if v}
+        return {key: value for key, value in metadata.items() if value}
 
     def _build_pdf_url(self, metadata: dict[str, Any]) -> Optional[str]:
         """Build a CNKI PDF download URL from metadata."""

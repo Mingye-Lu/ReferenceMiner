@@ -324,6 +324,21 @@ export interface CrawlerEngineConfig {
   timeout: number;
 }
 
+export type CrawlerAuthType =
+  | "none"
+  | "cookie_header"
+  | "bearer"
+  | "api_key"
+  | "custom_headers";
+
+export interface CrawlerEngineAuthProfile {
+  authType: CrawlerAuthType;
+  hasSecret: boolean;
+  maskedSecret: string | null;
+  headerNames: string[];
+  updatedAt: number | null;
+}
+
 export type RefIdentMode = "string_only" | "string_then_ocr" | "ocr_only";
 
 export interface CrawlerConfig {

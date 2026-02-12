@@ -1614,10 +1614,86 @@ export async function updateChatMessage(
 // =============================================================================
 
 import type {
+  CrawlerAuthType,
   CrawlerConfig,
+  CrawlerEngineAuthProfile,
   CrawlerSearchQuery,
   CrawlerSearchResult,
 } from "../types";
+
+function mapCrawlerAuthProfile(item: any): CrawlerEngineAuthProfile {
+  return {
+    authType: (item?.auth_type ?? "none") as CrawlerAuthType,
+    hasSecret: item?.has_secret ?? false,
+    maskedSecret: item?.masked_secret ?? null,
+    headerNames: Array.isArray(item?.header_names) ? item.header_names : [],
+    updatedAt:
+      typeof item?.updated_at === "number" ? item.updated_at : null,
+  };
+}
+
+export async function fetchCrawlerAuthConfig(): Promise<{
+  engines: Record<string, CrawlerEngineAuthProfile>;
+  authTypes: CrawlerAuthType[];
+}> {
+  const data = await fetchJson<any>("/api/settings/crawler-auth");
+  const rawEngines = data?.engines ?? {};
+  const engines: Record<string, CrawlerEngineAuthProfile> = {};
+  Object.keys(rawEngines).forEach((engine) => {
+    engines[engine] = mapCrawlerAuthProfile(rawEngines[engine]);
+  });
+  const authTypes = Array.isArray(data?.auth_types)
+    ? (data.auth_types as CrawlerAuthType[])
+    : ([
+        "none",
+        "cookie_header",
+        "bearer",
+        "api_key",
+        "custom_headers",
+      ] as CrawlerAuthType[]);
+  return { engines, authTypes };
+}
+
+export async function saveCrawlerEngineAuth(
+  engine: string,
+  authType: CrawlerAuthType,
+  secret?: string,
+): Promise<{ success: boolean; engine: string; profile: CrawlerEngineAuthProfile }> {
+  const payload: Record<string, any> = {
+    engine,
+    auth_type: authType,
+  };
+  if (typeof secret === "string") {
+    payload.secret = secret;
+  }
+
+  const data = await fetchJson<any>("/api/settings/crawler-auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return {
+    success: data?.success ?? false,
+    engine: data?.engine ?? engine,
+    profile: mapCrawlerAuthProfile(data?.profile ?? {}),
+  };
+}
+
+export async function deleteCrawlerEngineAuth(
+  engine: string,
+): Promise<{ success: boolean; engine: string }> {
+  const data = await fetchJson<any>(
+    `/api/settings/crawler-auth?engine=${encodeURIComponent(engine)}`,
+    {
+      method: "DELETE",
+    },
+  );
+  return {
+    success: data?.success ?? false,
+    engine: data?.engine ?? engine,
+  };
+}
 
 export async function fetchCrawlerEngines(): Promise<{
   engines: string[];

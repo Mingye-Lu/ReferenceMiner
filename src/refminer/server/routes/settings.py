@@ -20,9 +20,7 @@ from refminer.server.models import (
     ApiKeyRequest,
     ApiKeyValidateRequest,
     CitationFormatRequest,
-    LlmSettingsRequest,
-    ApiKeyValidateRequest,
-    CitationFormatRequest,
+    CrawlerEngineAuthRequest,
     LlmSettingsRequest,
     ModelsListRequest,
     OcrSettingsRequest,
@@ -161,6 +159,62 @@ async def delete_api_key(provider: Optional[str] = None):
         "has_api_key": settings_manager.has_api_key(provider),
         "provider": provider,
     }
+
+
+@router.get("/crawler-auth")
+async def get_crawler_auth():
+    """Get crawler auth profiles with masked secrets."""
+    return {
+        "engines": settings_manager.get_crawler_auth_public(),
+        "auth_types": [
+            "none",
+            "cookie_header",
+            "bearer",
+            "api_key",
+            "custom_headers",
+        ],
+    }
+
+
+@router.post("/crawler-auth")
+async def save_crawler_auth(req: CrawlerEngineAuthRequest):
+    """Save auth profile for a crawler engine."""
+    engine = req.engine.strip().lower()
+    if not engine:
+        raise HTTPException(status_code=400, detail="Engine cannot be empty")
+
+    try:
+        settings_manager.set_crawler_engine_auth(
+            engine=engine,
+            auth_type=req.auth_type,
+            secret=req.secret,
+            headers=req.headers,
+            api_key_header=req.api_key_header,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    public = settings_manager.get_crawler_auth_public().get(
+        engine,
+        {
+            "auth_type": "none",
+            "has_secret": False,
+            "masked_secret": None,
+            "header_names": [],
+            "updated_at": None,
+        },
+    )
+    return {"success": True, "engine": engine, "profile": public}
+
+
+@router.delete("/crawler-auth")
+async def delete_crawler_auth(engine: str):
+    """Delete auth profile for a crawler engine."""
+    engine_key = engine.strip().lower()
+    if not engine_key:
+        raise HTTPException(status_code=400, detail="Engine cannot be empty")
+    settings_manager.clear_crawler_engine_auth(engine_key)
+    return {"success": True, "engine": engine_key}
 
 
 @router.post("/validate")
@@ -354,13 +408,13 @@ async def get_ocr_settings():
     for key, info in OCR_MODELS.items():
         # Create a copy to avoid mutating global state
         model_data = info.copy()
-        
+
         # Check if installed
         model_dir = ocr_base_dir / key
         # We consider it installed if the directory exists and has files
         # A more robust check might verify specific files, but this is sufficient for now
         is_installed = model_dir.exists() and any(model_dir.iterdir())
-        
+
         model_data["installed"] = is_installed
         models_info[key] = model_data
 
@@ -375,7 +429,8 @@ async def save_ocr_settings(req: OcrSettingsRequest):
     """Save OCR configuration."""
     config = {
         "model": req.model,
-        "base_url": (req.base_url or DEFAULT_OCR_BASE_URL).strip() or DEFAULT_OCR_BASE_URL,
+        "base_url": (req.base_url or DEFAULT_OCR_BASE_URL).strip()
+        or DEFAULT_OCR_BASE_URL,
         "api_key": req.api_key,
     }
     settings_manager.set_ocr_config(config)
@@ -394,9 +449,11 @@ async def _download_worker(
     try:
         download_progress[model_key] = 0
         download_state[model_key] = "downloading"
-        
+
         async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("GET", download_url, follow_redirects=True) as resp:
+            async with client.stream(
+                "GET", download_url, follow_redirects=True
+            ) as resp:
                 resp.raise_for_status()
                 total = int(resp.headers.get("Content-Length", 0))
                 downloaded = 0
@@ -406,18 +463,21 @@ async def _download_worker(
                         state = download_state.get(model_key, "downloading")
                         if state == "cancelled":
                             raise Exception("Download cancelled by user")
-                        
+
                         # Check for pause - wait until resumed
                         while download_state.get(model_key) == "paused":
                             import asyncio
+
                             await asyncio.sleep(0.5)
                             if download_state.get(model_key) == "cancelled":
                                 raise Exception("Download cancelled by user")
-                        
+
                         f.write(chunk)
                         downloaded += len(chunk)
                         if total:
-                            download_progress[model_key] = int((downloaded / total) * 90)
+                            download_progress[model_key] = int(
+                                (downloaded / total) * 90
+                            )
 
         # Check cancellation before extraction
         if download_state.get(model_key) == "cancelled":
@@ -447,11 +507,12 @@ async def _download_worker(
         if ocr_dir.exists():
             shutil.rmtree(ocr_dir, ignore_errors=True)
 
+
 def get_directory_size(path: Path) -> int:
     """Calculate total size of a directory recursively."""
     if not path.exists():
         return 0
-    return sum(p.stat().st_size for p in path.rglob('*') if p.is_file())
+    return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
 
 
 def _hf_download_worker(model_key: str, repo_id: str, ocr_dir: Path):
@@ -462,46 +523,52 @@ def _hf_download_worker(model_key: str, repo_id: str, ocr_dir: Path):
     import time
     import httpx
     from huggingface_hub import HfApi, hf_hub_url
-    
+
     try:
         download_progress[model_key] = 0  # Initialize at 0
         download_state[model_key] = "downloading"
-        
+
         # Get file list and sizes from HF API
         api = HfApi()
         try:
             # Try with files_metadata=True to get file sizes
             try:
-                repo_info = api.repo_info(repo_id=repo_id, repo_type="model", files_metadata=True)
+                repo_info = api.repo_info(
+                    repo_id=repo_id, repo_type="model", files_metadata=True
+                )
             except Exception:
                 # Fallback for older versions or if files_metadata is not supported
                 print("DEBUG: files_metadata=True failed, trying without")
                 repo_info = api.repo_info(repo_id=repo_id, repo_type="model")
-            
+
             files = repo_info.siblings  # List of RepoFile objects
         except Exception as e:
             print(f"Failed to get repo info: {e}")
             download_progress[model_key] = -1
             return
-        
+
         if not files:
             print("No files found in repository")
             download_progress[model_key] = -1
             return
-        
-        
+
         # Calculate total size
         total_size = sum(f.size or 0 for f in files)
         print(f"DEBUG: Repo total size: {total_size} bytes, files: {len(files)}")
-        
+
         # If total size is 0 (metadata missing), try to fetch via HEAD requests
         if total_size == 0 and files:
-            print("DEBUG: Total size is 0, attempting to fetch sizes via HEAD requests...")
+            print(
+                "DEBUG: Total size is 0, attempting to fetch sizes via HEAD requests..."
+            )
             import httpx
+
             with httpx.Client(timeout=10, follow_redirects=True) as client:
                 for f in files:
                     try:
-                        url = hf_hub_url(repo_id=repo_id, filename=f.rfilename, repo_type="model")
+                        url = hf_hub_url(
+                            repo_id=repo_id, filename=f.rfilename, repo_type="model"
+                        )
                         resp = client.head(url)
                         if "Content-Length" in resp.headers:
                             size = int(resp.headers["Content-Length"])
@@ -513,43 +580,45 @@ def _hf_download_worker(model_key: str, repo_id: str, ocr_dir: Path):
             print(f"DEBUG: New total size: {total_size}")
 
         downloaded_size = 0
-        
+
         # Create output directory
         ocr_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Download each file
         for file_info in files:
             # Check for cancellation
             if download_state.get(model_key) == "cancelled":
                 raise Exception("Download cancelled by user")
-            
+
             # Handle pause
             while download_state.get(model_key) == "paused":
                 time.sleep(0.5)
                 if download_state.get(model_key) == "cancelled":
                     raise Exception("Download cancelled by user")
-            
+
             filename = file_info.rfilename
             file_size = file_info.size or 0
             target_path = ocr_dir / filename
-            
+
             # Create parent directories if needed
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Skip if already fully downloaded
             if target_path.exists() and target_path.stat().st_size == file_size:
                 downloaded_size += file_size
                 if total_size > 0:
                     prog = int((downloaded_size / total_size) * 100)
                     download_progress[model_key] = min(prog, 99)
-                print(f"DEBUG: Skipping {filename} (already downloaded). Progress: {download_progress[model_key]}%")
+                print(
+                    f"DEBUG: Skipping {filename} (already downloaded). Progress: {download_progress[model_key]}%"
+                )
                 continue
-            
+
             print(f"DEBUG: Downloading {filename} (size: {file_size})")
-            
+
             # Get download URL
             url = hf_hub_url(repo_id=repo_id, filename=filename, repo_type="model")
-            
+
             # Download with resume support
             file_downloaded = 0
             if target_path.exists():
@@ -557,11 +626,11 @@ def _hf_download_worker(model_key: str, repo_id: str, ocr_dir: Path):
                 # Add existing partial size to total downloaded
                 downloaded_size += file_downloaded
                 print(f"DEBUG: Resuming {filename} from {file_downloaded} bytes")
-            
+
             headers = {}
             if file_downloaded > 0:
                 headers["Range"] = f"bytes={file_downloaded}-"
-            
+
             with httpx.Client(timeout=None, follow_redirects=True) as client:
                 with client.stream("GET", url, headers=headers) as resp:
                     if resp.status_code == 416:
@@ -569,13 +638,15 @@ def _hf_download_worker(model_key: str, repo_id: str, ocr_dir: Path):
                         if target_path.exists():
                             # Re-verify size to be sure, or just count what we have
                             current_size = target_path.stat().st_size
-                             # Fix up downloaded_size if needed (we already added file_downloaded)
-                            # Logic: we added file_downloaded. If 416, we add 0. 
+                            # Fix up downloaded_size if needed (we already added file_downloaded)
+                            # Logic: we added file_downloaded. If 416, we add 0.
                             # If file_downloaded < file_size, we are missing data but server says range invalid.
                             # Just continue.
-                            print(f"DEBUG: Range not satisfiable for {filename}, assuming complete.")
+                            print(
+                                f"DEBUG: Range not satisfiable for {filename}, assuming complete."
+                            )
                             pass
-                    
+
                     elif resp.status_code in (200, 206):
                         mode = "ab" if file_downloaded > 0 else "wb"
                         with open(target_path, mode) as f:
@@ -584,31 +655,33 @@ def _hf_download_worker(model_key: str, repo_id: str, ocr_dir: Path):
                                 # Check cancellation
                                 if download_state.get(model_key) == "cancelled":
                                     raise Exception("Download cancelled by user")
-                                
+
                                 # Handle pause
                                 while download_state.get(model_key) == "paused":
                                     time.sleep(0.5)
                                     if download_state.get(model_key) == "cancelled":
                                         raise Exception("Download cancelled by user")
-                                
+
                                 f.write(chunk)
                                 downloaded_size += len(chunk)
-                                
+
                                 # Update progress every 0.5s to avoid too many writes
                                 if time.time() - last_log_time > 0.5:
                                     if total_size > 0:
-                                        progress = int((downloaded_size / total_size) * 100)
+                                        progress = int(
+                                            (downloaded_size / total_size) * 100
+                                        )
                                         download_progress[model_key] = min(progress, 99)
                                     last_log_time = time.time()
-        
+
         # Final check for cancellation
         if download_state.get(model_key) == "cancelled":
             raise Exception("Download cancelled by user")
-        
+
         download_progress[model_key] = 100
         download_state[model_key] = "completed"
         print(f"DEBUG: Download completed for {model_key}")
-        
+
     except Exception as e:
         print(f"HF Download worker failed: {e}")
         if download_state.get(model_key) == "cancelled":
@@ -631,7 +704,7 @@ async def download_ocr_model(
     model_info = OCR_MODELS[model_key]
     download_url = model_info.get("download_url")
     hf_repo_id = model_info.get("hf_repo_id")
-    
+
     if not download_url and not hf_repo_id:
         raise HTTPException(
             status_code=400, detail="Model does not support direct download"
@@ -643,11 +716,11 @@ async def download_ocr_model(
         return {"success": True, "message": "Download already in progress"}
 
     ocr_dir = settings_manager.index_dir / "models" / "ocr" / model_key
-    
+
     # Clean start
     if ocr_dir.exists():
         shutil.rmtree(ocr_dir)
-        
+
     ocr_dir.mkdir(parents=True, exist_ok=True)
 
     # Start appropriate background task
@@ -677,7 +750,7 @@ async def delete_ocr_model(model_key: str):
         raise HTTPException(status_code=400, detail="Invalid model key")
 
     ocr_dir = settings_manager.index_dir / "models" / "ocr" / model_key
-    
+
     if not ocr_dir.exists():
         return {"success": True, "message": "Model not found (already deleted)"}
 
@@ -686,7 +759,7 @@ async def delete_ocr_model(model_key: str):
         # Also clear any progress
         if model_key in download_progress:
             del download_progress[model_key]
-            
+
         return {"success": True, "message": f"Deleted model {model_key}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete model: {str(e)}")
@@ -708,11 +781,11 @@ async def pause_ocr_download(req: OcrDownloadModelRequest):
     model_key = req.model
     if model_key not in OCR_MODELS:
         raise HTTPException(status_code=400, detail="Invalid model key")
-    
+
     current_state = download_state.get(model_key)
     if current_state != "downloading":
         return {"success": False, "message": "Download is not active"}
-    
+
     download_state[model_key] = "paused"
     return {"success": True, "message": f"Download paused for {model_key}"}
 
@@ -723,11 +796,11 @@ async def resume_ocr_download(req: OcrDownloadModelRequest):
     model_key = req.model
     if model_key not in OCR_MODELS:
         raise HTTPException(status_code=400, detail="Invalid model key")
-    
+
     current_state = download_state.get(model_key)
     if current_state != "paused":
         return {"success": False, "message": "Download is not paused"}
-    
+
     download_state[model_key] = "downloading"
     return {"success": True, "message": f"Download resumed for {model_key}"}
 
@@ -738,19 +811,20 @@ async def cancel_ocr_download(req: OcrDownloadModelRequest):
     model_key = req.model
     if model_key not in OCR_MODELS:
         raise HTTPException(status_code=400, detail="Invalid model key")
-    
+
     current_state = download_state.get(model_key)
     if current_state not in ("downloading", "paused"):
         return {"success": False, "message": "No active download to cancel"}
-    
+
     # Set cancellation state - the download worker will detect this and stop
     download_state[model_key] = "cancelled"
     download_progress[model_key] = -2
-    
+
     # Give the worker a moment to detect cancellation and cleanup
     import asyncio
+
     await asyncio.sleep(0.5)
-    
+
     # Immediately cleanup the download directory
     ocr_dir = settings_manager.index_dir / "models" / "ocr" / model_key
     if ocr_dir.exists():
@@ -758,5 +832,8 @@ async def cancel_ocr_download(req: OcrDownloadModelRequest):
             shutil.rmtree(ocr_dir, ignore_errors=True)
         except Exception as e:
             print(f"Failed to cleanup cancelled download: {e}")
-    
-    return {"success": True, "message": f"Download cancelled and cleaned up for {model_key}"}
+
+    return {
+        "success": True,
+        "message": f"Download cancelled and cleaned up for {model_key}",
+    }
