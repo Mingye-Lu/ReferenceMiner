@@ -781,11 +781,17 @@ const handleMouseUp = () => {
 };
 
 const handleWheel = (e: WheelEvent) => {
-  if (!isZoomMode.value || !pageContainerRef.value) return;
+  const container = pageContainerRef.value;
+  if (!container) return;
+
+  const isInsidePreview =
+    e.target instanceof Node && container.contains(e.target);
+  if (!isInsidePreview) return;
+
+  const isTrackpadPinch = e.ctrlKey || e.metaKey;
+  if (!isZoomMode.value && !isTrackpadPinch) return;
 
   e.preventDefault();
-
-  const container = pageContainerRef.value;
   const rect = container.getBoundingClientRect();
 
   // Get mouse position relative to container
