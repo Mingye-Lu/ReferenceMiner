@@ -254,6 +254,13 @@ export async function askQuestion(
 
 export type StreamEventHandler = (event: string, payload: any) => void;
 
+function encodeRelPath(relPath: string): string {
+  return relPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
 export async function streamAsk(
   projectId: string,
   question: string,
@@ -283,6 +290,62 @@ export async function streamAsk(
   if (!response.ok || !response.body) {
     const detail = await response.text();
     throw new Error(`API ${response.status}: ${detail || "Stream failed"}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const raw = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      let event = "message";
+      let data = "";
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event:")) {
+          event = line.replace("event:", "").trim();
+        } else if (line.startsWith("data:")) {
+          data += line.replace("data:", "").trim();
+        }
+      }
+
+      if (data) {
+        try {
+          onEvent(event, JSON.parse(data));
+        } catch {
+          onEvent(event, data);
+        }
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+}
+
+export async function streamRenameBankFile(
+  relPath: string,
+  newName: string,
+  onEvent: StreamEventHandler,
+): Promise<void> {
+  const encodedPath = encodeRelPath(relPath);
+  const response = await fetch(
+    `${API_BASE}/api/bank/files/${encodedPath}/rename/stream`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_name: newName }),
+    },
+  );
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text();
+    throw new Error(`API ${response.status}: ${detail || "Rename stream failed"}`);
   }
 
   const reader = response.body.getReader();
@@ -854,11 +917,7 @@ export async function checkDuplicate(
 }
 
 export function getFileUrl(_projectId: string, relPath: string): string {
-  // Encode each segment to handle special characters while preserving directory structure
-  const encodedPath = relPath
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  const encodedPath = encodeRelPath(relPath);
 
   // In development, bypass Vite proxy for files to avoid timeouts/limits with large files
   if (import.meta.env.DEV) {

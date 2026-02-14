@@ -221,6 +221,40 @@ function openPreview(file: ManifestEntry, highlights?: BoundingBox[]) {
   showPreviewModal.value = true;
 }
 
+async function handleFileRenamed(payload: {
+  oldRelPath: string;
+  newRelPath: string;
+}) {
+  try {
+    manifest.value = await fetchBankManifest();
+    const refreshedProjectFiles = await fetchProjectFiles(props.id);
+    projectFiles.value = new Set(refreshedProjectFiles);
+
+    if (selectedFiles.value.has(payload.oldRelPath)) {
+      const nextSelection = new Set(selectedFiles.value);
+      nextSelection.delete(payload.oldRelPath);
+      nextSelection.add(payload.newRelPath);
+      selectedFiles.value = nextSelection;
+    }
+
+    if (previewFile.value?.relPath === payload.oldRelPath) {
+      const updatedEntry =
+        manifest.value.find((entry) => entry.relPath === payload.newRelPath) ||
+        null;
+      previewFile.value = updatedEntry;
+    }
+
+    if (highlightedPaths.value.has(payload.oldRelPath)) {
+      const nextHighlighted = new Set(highlightedPaths.value);
+      nextHighlighted.delete(payload.oldRelPath);
+      nextHighlighted.add(payload.newRelPath);
+      highlightedPaths.value = nextHighlighted;
+    }
+  } catch (e) {
+    console.error("Failed to reconcile renamed file", e);
+  }
+}
+
 async function loadSessionMessages(sessionId: string) {
   if (chatStore[sessionId] && chatStore[sessionId].length > 0) {
     // Already loaded
@@ -503,7 +537,8 @@ watch(
     <RightDrawer :class="{ open: isDrawerOpen }" :is-open="isDrawerOpen" :tab="drawerTab" :evidence="activeEvidence"
       :related-evidence="activeRelatedEvidence" :highlight-note-id="targetNoteId" @close="toggleDrawer(false)" />
     <!-- File Preview Modal -->
-    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlight-groups="previewHighlightGroups" />
+    <FilePreviewModal v-model="showPreviewModal" :file="previewFile" :highlight-groups="previewHighlightGroups"
+      @renamed="handleFileRenamed" />
 
     <!-- Delete Confirmation Modal -->
     <ConfirmationModal v-model="showDeleteModal" title="Delete Chat?"

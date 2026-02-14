@@ -82,6 +82,8 @@ async function handleDismiss(item: QueueJob) {
 function formatQueuePhase(phase?: string): string {
   if (!phase) return "";
   switch (phase) {
+    case "starting":
+      return "Starting";
     case "uploading":
       return "Uploading";
     case "hashing":
@@ -100,6 +102,12 @@ function formatQueuePhase(phase?: string): string {
       return "Resetting";
     case "downloading":
       return "Downloading";
+    case "renaming":
+      return "Renaming";
+    case "removing":
+      return "Removing";
+    case "rebuilding_index":
+      return "Rebuilding Index";
     default:
       return phase.replace(/_/g, " ");
   }

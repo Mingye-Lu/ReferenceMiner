@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 from .models import Project
 
 
@@ -53,7 +53,7 @@ class ProjectManager:
         except Exception as e:
             print(f"Error loading projects: {e}")
 
-    def _save_projects_to_disk(self, data: dict):
+    def _save_projects_to_disk(self, data: Mapping[str, object]):
         with open(self.projects_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -153,3 +153,22 @@ class ProjectManager:
                 changed = True
         if changed:
             self._save_all()
+
+    def replace_file_in_all_projects(self, old_rel_path: str, new_rel_path: str) -> int:
+        changed_projects = 0
+        for project in self.projects.values():
+            replaced = False
+            updated: list[str] = []
+            for selected in project.selected_files:
+                if selected == old_rel_path:
+                    updated.append(new_rel_path)
+                    replaced = True
+                else:
+                    updated.append(selected)
+            if replaced:
+                project.selected_files = updated
+                project.file_count = len(updated)
+                changed_projects += 1
+        if changed_projects:
+            self._save_all()
+        return changed_projects

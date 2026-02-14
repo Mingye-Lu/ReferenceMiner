@@ -107,7 +107,15 @@ async def stream_queue_jobs(
             yield sse("ready", {"ok": True})
 
             while True:
-                item = await asyncio.to_thread(q.get)
+                # Use timeout to enable keepalive pings
+                try:
+                    # Use queue's built-in timeout instead of asyncio.wait_for
+                    item = await asyncio.to_thread(q.get, timeout=20.0)
+                except queue.Empty:
+                    # Send keepalive comment to prevent connection timeout
+                    yield ": keepalive\n\n"
+                    continue
+
                 payload = item.data
                 job_id = payload.get("id", "?")[:8]
                 phase = payload.get("phase", "none")

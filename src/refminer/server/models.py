@@ -44,16 +44,16 @@ class ChatSessionCreate(BaseModel):
 
 class ChatSessionUpdate(BaseModel):
     title: Optional[str] = None
-    messages: Optional[list[dict]] = None
+    messages: Optional[list[dict[str, object]]] = None
 
 
 class ChatMessageAdd(BaseModel):
-    message: dict
+    message: dict[str, object]
 
 
 class ChatMessageUpdate(BaseModel):
     message_id: str
-    updates: dict
+    updates: dict[str, object]
 
 
 # Ask models
@@ -61,12 +61,12 @@ class AskRequest(BaseModel):
     question: str
     context: Optional[list[str]] = None
     use_notes: bool = False
-    notes: Optional[list[dict]] = None
-    history: Optional[list[dict]] = None
+    notes: Optional[list[dict[str, object]]] = None
+    history: Optional[list[dict[str, object]]] = None
 
 
 class SummarizeRequest(BaseModel):
-    messages: list[dict]
+    messages: list[dict[str, object]]
 
 
 # File models
@@ -78,8 +78,12 @@ class BatchDeleteRequest(BaseModel):
     rel_paths: list[str]
 
 
+class RenameFileRequest(BaseModel):
+    new_name: str
+
+
 class FileMetadataUpdateRequest(BaseModel):
-    bibliography: Optional[dict] = None
+    bibliography: Optional[dict[str, object]] = None
 
 
 class CitationFormatRequest(BaseModel):

@@ -139,14 +139,16 @@ export type UploadStatus =
   | "duplicate";
 
 export type DeletePhase = "removing" | "rebuilding_index";
+export type RenamePhase = "starting" | "renaming";
 export type QueuePhase =
   | UploadPhase
   | DeletePhase
+  | RenamePhase
   | "scanning"
   | "resetting"
   | "downloading";
 export type QueueStatus = UploadStatus | "cancelled" | "dismissed";
-export type QueueType = "upload" | "reprocess" | "delete" | "crawler_download";
+export type QueueType = "upload" | "reprocess" | "delete" | "crawler_download" | "rename";
 export type QueueScope = "bank" | "project";
 
 export interface QueueJob {

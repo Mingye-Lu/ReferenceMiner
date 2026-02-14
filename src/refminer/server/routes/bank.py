@@ -7,10 +7,12 @@ from dataclasses import asdict
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 
+from refminer.server.models import RenameFileRequest
 from refminer.server.globals import project_manager
 from refminer.server.utils import load_manifest_entries
 from refminer.server.streaming.upload import stream_upload
 from refminer.server.streaming.reprocess import stream_reprocess, stream_reprocess_file
+from refminer.server.streaming.rename import stream_rename_file
 
 router = APIRouter(prefix="/api/bank", tags=["bank"])
 
@@ -70,4 +72,11 @@ async def reprocess_single_file_stream(rel_path: str):
     """Stream reprocess progress for a single file."""
     return StreamingResponse(
         stream_reprocess_file(rel_path), media_type="text/event-stream"
+    )
+
+
+@router.post("/files/{rel_path:path}/rename/stream")
+async def rename_single_file_stream(rel_path: str, request: RenameFileRequest):
+    return StreamingResponse(
+        stream_rename_file(rel_path, request.new_name), media_type="text/event-stream"
     )

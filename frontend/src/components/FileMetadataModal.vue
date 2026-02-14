@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import BaseModal from "./BaseModal.vue";
 import CustomSelect from "./CustomSelect.vue";
 import type { ManifestEntry, BibliographyAuthor } from "../types";
 import {
   extractFileMetadata,
   fetchFileMetadata,
+  streamRenameBankFile,
   updateFileMetadata,
 } from "../api/client";
 import { getFileName } from "../utils";
+import { useQueue } from "../composables/useQueue";
+
+const { launchQueueEject } = useQueue();
 
 const props = defineProps<{
   modelValue: boolean;
@@ -17,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "update:modelValue", value: boolean): void;
+  (event: "renamed", payload: { oldRelPath: string; newRelPath: string }): void;
 }>();
 
 type BibliographyDraft = NonNullable<ManifestEntry["bibliography"]>;
@@ -24,9 +29,17 @@ type BibliographyDraft = NonNullable<ManifestEntry["bibliography"]>;
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isExtracting = ref(false);
+const isRenaming = ref(false);
 const errorMessage = ref("");
+const renameName = ref("");
+const renamePhase = ref("");
 const draft = ref<BibliographyDraft>(emptyDraft());
 const showAdvanced = ref(false);
+const renameButtonRef = ref<HTMLButtonElement | null>(null);
+
+const currentFileName = computed(() =>
+  props.file ? getFileName(props.file.relPath) : "",
+);
 
 const docType = computed(() => draft.value?.docType ?? "");
 const isJournal = computed(() => docType.value === "J");
@@ -108,9 +121,12 @@ function normalizeDraft(
 async function loadMetadata() {
   if (!props.file) {
     draft.value = emptyDraft();
+    renameName.value = "";
     return;
   }
   showAdvanced.value = false;
+  renameName.value = getFileName(props.file.relPath);
+  renamePhase.value = "";
   isLoading.value = true;
   errorMessage.value = "";
   try {
@@ -217,6 +233,76 @@ async function handleExtract() {
   }
 }
 
+async function handleRename() {
+  if (!props.file) return;
+
+  const oldRelPath = props.file.relPath;
+  const nextName = renameName.value.trim();
+  if (!nextName || nextName === getFileName(oldRelPath)) {
+    return;
+  }
+
+  isRenaming.value = true;
+  renamePhase.value = "starting";
+  errorMessage.value = "";
+
+  let renamedOldRelPath = "";
+  let renamedNewRelPath = "";
+  let streamError: string | null = null;
+
+  try {
+    await streamRenameBankFile(oldRelPath, nextName, (event, payload) => {
+      if (event === "start") {
+        renamePhase.value = String(payload?.phase ?? "starting");
+        return;
+      }
+      if (event === "progress" || event === "file") {
+        renamePhase.value = String(payload?.phase ?? "processing");
+        return;
+      }
+      if (event === "complete") {
+        renamePhase.value = "complete";
+        renamedOldRelPath = String(payload?.old_rel_path ?? oldRelPath);
+        renamedNewRelPath = String(payload?.new_rel_path ?? "");
+
+        // Launch eject animation from rename button to queue FAB
+        nextTick(() => {
+          if (renameButtonRef.value) {
+            const rect = renameButtonRef.value.getBoundingClientRect();
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+            launchQueueEject(startX, startY);
+          }
+        });
+        return;
+      }
+      if (event === "error") {
+        streamError = String(payload?.message ?? "Failed to rename file.");
+      }
+    });
+
+    if (streamError) {
+      errorMessage.value = streamError;
+      return;
+    }
+
+    if (!renamedNewRelPath) {
+      errorMessage.value = "Rename did not complete successfully.";
+      return;
+    }
+
+    renameName.value = getFileName(renamedNewRelPath);
+    emit("renamed", {
+      oldRelPath: renamedOldRelPath || oldRelPath,
+      newRelPath: renamedNewRelPath,
+    });
+  } catch (error: any) {
+    errorMessage.value = error?.message || "Failed to rename file.";
+  } finally {
+    isRenaming.value = false;
+  }
+}
+
 function handleClose() {
   emit("update:modelValue", false);
 }
@@ -240,6 +326,24 @@ watch(
         Select a file to edit metadata.
       </div>
       <div v-else class="metadata-form">
+        <div class="form-section">
+          <div class="section-title">File</div>
+          <div class="form-row">
+            <label class="form-label">File Name</label>
+            <div class="rename-row">
+              <input v-model="renameName" type="text" placeholder="paper.pdf" class="form-input" />
+              <button
+                ref="renameButtonRef"
+                class="btn-secondary"
+                :disabled="isRenaming || !renameName.trim() || renameName.trim() === currentFileName"
+                @click="handleRename"
+              >
+                {{ isRenaming ? "Renaming..." : "Rename" }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="section-title">Core</div>
         <div class="form-row">
           <label class="form-label">Document Type</label>
@@ -524,6 +628,13 @@ watch(
   gap: 12px;
 }
 
+.rename-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .metadata-advanced-toggle {
   align-self: flex-start;
   border: 1px solid var(--border-card);
@@ -588,6 +699,10 @@ watch(
 
 @media (max-width: 840px) {
   .author-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rename-row {
     grid-template-columns: 1fr;
   }
 

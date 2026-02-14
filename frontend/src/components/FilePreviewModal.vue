@@ -18,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "update:modelValue", value: boolean): void;
   (event: "close"): void;
+  (event: "renamed", payload: { oldRelPath: string; newRelPath: string }): void;
 }>();
 
 const currentProject = inject<Ref<Project | null> | undefined>(
@@ -160,6 +161,10 @@ function handleClose() {
   emit("update:modelValue", false);
   emit("close");
 }
+
+function handleRenamed(payload: { oldRelPath: string; newRelPath: string }) {
+  emit("renamed", payload);
+}
 </script>
 
 <template>
@@ -193,7 +198,7 @@ function handleClose() {
         <p><a :href="fileUrl" target="_blank">Download File</a></p>
       </div>
     </div>
-    <FileMetadataModal v-model="showMetadataModal" :file="file" />
+    <FileMetadataModal v-model="showMetadataModal" :file="file" @renamed="handleRenamed" />
   </BaseModal>
 </template>
 
