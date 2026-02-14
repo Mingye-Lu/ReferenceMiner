@@ -65,6 +65,8 @@ const hasSearched = ref(false);
 const isSearching = ref(false);
 const searchError = ref<string | null>(null);
 const isLoadingEngines = ref(false);
+const loadEnginesRequestId = ref(0);
+const hasInitializedMaxResults = ref(false);
 
 const availableEngines = ref<string[]>([]);
 const enabledEngines = ref<string[]>([]);
@@ -201,47 +203,58 @@ watch(
   async (isOpen) => {
     if (isOpen) {
       await loadEngines();
-    } else {
-      resetState();
     }
   },
 );
 
 async function loadEngines() {
+  const requestId = loadEnginesRequestId.value + 1;
+  loadEnginesRequestId.value = requestId;
   isLoadingEngines.value = true;
   try {
     const config = await fetchCrawlerConfig();
-    availableEngines.value = Object.keys(config.engines);
-    enabledEngines.value = Object.keys(config.engines).filter(
+    if (requestId !== loadEnginesRequestId.value) return;
+
+    const nextAvailableEngines = Object.keys(config.engines);
+    const nextEnabledEngines = nextAvailableEngines.filter(
       (e) => config.engines[e].enabled,
     );
-    selectedEngines.value = new Set(enabledEngines.value);
-    maxResults.value = config.max_results_per_engine;
+
+    availableEngines.value = nextAvailableEngines;
+    enabledEngines.value = nextEnabledEngines;
     crawlerEnabled.value = config.enabled;
+
+    const availableSet = new Set(nextAvailableEngines);
+    const previousSelection = selectedEngines.value;
+    const hadPreviousSelection = previousSelection.size > 0;
+    const reconciledSelection = new Set(
+      Array.from(previousSelection).filter((engine) =>
+        availableSet.has(engine),
+      ),
+    );
+
+    if (!hadPreviousSelection || reconciledSelection.size === 0) {
+      selectedEngines.value = new Set(nextEnabledEngines);
+    } else {
+      selectedEngines.value = reconciledSelection;
+    }
+
+    if (
+      !hasInitializedMaxResults.value ||
+      !Number.isFinite(maxResults.value) ||
+      maxResults.value <= 0
+    ) {
+      maxResults.value = config.max_results_per_engine;
+      hasInitializedMaxResults.value = true;
+    }
   } catch (e) {
+    if (requestId !== loadEnginesRequestId.value) return;
     console.error("Failed to load engines:", e);
   } finally {
-    isLoadingEngines.value = false;
+    if (requestId === loadEnginesRequestId.value) {
+      isLoadingEngines.value = false;
+    }
   }
-}
-
-function resetState() {
-  searchQuery.value = "";
-  searchResults.value = [];
-  selectedResults.value.clear();
-  expandedAbstracts.value.clear();
-  downloadQueueing.value = new Set();
-  downloadQueued.value = new Set();
-  downloadErrors.value = {};
-  showAdvanced.value = false;
-  hasSearched.value = false;
-  isSearching.value = false;
-  searchError.value = null;
-  isLoadingEngines.value = false;
-  yearFrom.value = null;
-  yearTo.value = null;
-  crawlerEnabled.value = true;
-  resetFilters();
 }
 
 function resetFilters() {
