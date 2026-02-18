@@ -10,6 +10,7 @@ import {
 } from "vue";
 import * as pdfjsLib from "pdfjs-dist";
 import type { HighlightGroup } from "../types";
+import { fetchFileReferences } from "../api/client";
 import { usePdfSettings } from "../composables/usePdfSettings";
 import ReferenceListModal from "./ReferenceListModal.vue";
 import { BookOpen } from "lucide-vue-next";
@@ -72,10 +73,7 @@ const fetchReferences = async () => {
       return;
     }
 
-    const res = await fetch(`/api/files/${encodeURIComponent(relPath)}/references`);
-    if (!res.ok) throw new Error("Failed to fetch references");
-    const data = await res.json();
-    references.value = data.references || [];
+    references.value = await fetchFileReferences(relPath);
   } catch (e) {
     console.error("Error fetching references:", e);
   } finally {

@@ -8,6 +8,10 @@ from refminer.ingest.extract import extract_document
 from refminer.ingest.manifest import build_manifest, write_manifest
 from refminer.index.bm25 import build_bm25, save_bm25
 from refminer.index.chunk import chunk_text
+from refminer.index.references import (
+    refresh_reference_records_for_pdf,
+    references_index_path,
+)
 from refminer.index.vectors import build_vectors, save_vectors
 from refminer.utils.paths import get_index_dir, get_references_dir
 
@@ -23,6 +27,10 @@ def ingest_all(
 
     idx_dir = index_dir or get_index_dir(root)
     ref_dir = references_dir or get_references_dir(root)
+
+    refs_path = references_index_path(index_dir=idx_dir)
+    if refs_path.exists():
+        refs_path.unlink()
 
     if not manifest_entries:
         return {
@@ -40,6 +48,14 @@ def ingest_all(
         entry.abstract = extracted.abstract
         entry.page_count = extracted.page_count
         entry.title = extracted.title
+        if entry.file_type == "pdf":
+            refresh_reference_records_for_pdf(
+                file_path=path,
+                source_rel_path=entry.rel_path,
+                source_sha256=entry.sha256,
+                text_blocks=extracted.text_blocks,
+                index_dir=idx_dir,
+            )
         if extracted.text_blocks:
             chunks = chunk_text(
                 path=entry.rel_path,

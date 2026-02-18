@@ -25,6 +25,10 @@ from refminer.ingest.registry import (
     save_registry,
     unregister_file,
 )
+from refminer.index.references import (
+    refresh_reference_records_for_pdf,
+    remove_reference_records,
+)
 from refminer.index.bm25 import BM25Index, build_bm25, save_bm25
 from refminer.index.chunk import Chunk, chunk_text
 from refminer.utils.hashing import sha256_file
@@ -308,9 +312,10 @@ def remove_file_from_index(
     if chunks_path.exists():
         with _file_lock(lock_path):
             temp_path = idx_dir / "chunks.jsonl.tmp"
-            with chunks_path.open("r", encoding="utf-8") as src, temp_path.open(
-                "w", encoding="utf-8"
-            ) as dst:
+            with (
+                chunks_path.open("r", encoding="utf-8") as src,
+                temp_path.open("w", encoding="utf-8") as dst,
+            ):
                 for line in src:
                     try:
                         item = json.loads(line)
@@ -348,6 +353,9 @@ def remove_file_from_index(
     registry = load_registry(root, index_dir=idx_dir, references_dir=references_dir)
     unregister_file(rel_path, registry)
     save_registry(registry, root, index_dir=idx_dir, references_dir=references_dir)
+
+    # 6. Remove persisted references for this file
+    remove_reference_records(rel_path, root, index_dir=idx_dir)
 
     return removed
 
@@ -388,5 +396,16 @@ def full_ingest_single_file(
     registry = load_registry(root, index_dir=index_dir, references_dir=references_dir)
     register_file(entry.rel_path, entry.sha256, registry)
     save_registry(registry, root, index_dir=index_dir, references_dir=references_dir)
+
+    # 7. Update persisted references index for PDFs
+    if entry.file_type == "pdf":
+        extracted = extract_document(file_path, entry.file_type)
+        refresh_reference_records_for_pdf(
+            file_path=file_path,
+            source_rel_path=entry.rel_path,
+            source_sha256=entry.sha256,
+            text_blocks=extracted.text_blocks,
+            index_dir=index_dir or get_index_dir(root),
+        )
 
     return entry

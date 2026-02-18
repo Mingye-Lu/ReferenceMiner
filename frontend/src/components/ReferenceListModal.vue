@@ -4,22 +4,7 @@ import BaseModal from "./BaseModal.vue";
 import { downloadPapersQueueStream, searchPapers, fetchMetadata } from "../api/client";
 import { useQueue } from "../composables/useQueue";
 import { ExternalLink, Download, Search, Check, AlertCircle, Loader2 } from "lucide-vue-next";
-import type { CrawlerSearchResult } from "../types";
-
-// Match backend CitationItem structure
-interface CitationItem {
-    raw_text: string;
-    ref_number?: number;
-    title?: string;
-    authors?: string[];
-    year?: number;
-    doi?: string;
-    arxiv_id?: string;
-    url?: string;
-    source_type: string;
-    availability: "downloadable" | "link_only" | "searchable" | "unavailable";
-    needs_metadata_fetch?: boolean;
-}
+import type { CitationItem, CrawlerSearchResult } from "../types";
 
 const props = defineProps<{
     modelValue: boolean;

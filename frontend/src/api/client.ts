@@ -10,6 +10,7 @@ import type {
   IndexStatus,
   ManifestEntry,
   HighlightGroup,
+  CitationItem,
   UploadProgress,
   UploadResult,
   Project,
@@ -954,6 +955,17 @@ export async function fetchFileMetadata(
     `/api/files/${encodeURIComponent(relPath)}/metadata`,
   );
   return mapBibliography(data.bibliography);
+}
+
+export async function fetchFileReferences(
+  relPath: string,
+  refresh: boolean = false,
+): Promise<CitationItem[]> {
+  const query = refresh ? "?refresh=true" : "";
+  const data = await fetchJson<{ references?: CitationItem[] }>(
+    `/api/files/${encodeURIComponent(relPath)}/references${query}`,
+  );
+  return data.references ?? [];
 }
 
 export async function updateFileMetadata(

@@ -17,6 +17,7 @@ from refminer.ingest.bibliography import (
 from refminer.ingest.registry import HashRegistry, register_file, save_registry
 from refminer.index.bm25 import build_bm25, save_bm25
 from refminer.index.chunk import chunk_text
+from refminer.index.references import refresh_reference_records_for_pdf
 from refminer.index.vectors import build_vectors, save_vectors
 from refminer.server.globals import get_bank_paths, queue_store
 from refminer.server.utils import (
@@ -100,6 +101,14 @@ async def stream_reprocess() -> AsyncIterator[str]:
                 )
                 entry.bibliography = merge_bibliography(
                     entry.bibliography, extracted_bib
+                )
+                await asyncio.to_thread(
+                    refresh_reference_records_for_pdf,
+                    path,
+                    entry.rel_path,
+                    entry.sha256,
+                    extracted.text_blocks,
+                    idx_dir,
                 )
             if extracted.text_blocks:
                 chunks = await asyncio.to_thread(

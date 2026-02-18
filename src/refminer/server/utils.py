@@ -349,6 +349,7 @@ def clear_bank_indexes(index_dir: Path) -> None:
         "bm25.pkl",
         "vectors.faiss",
         "vectors.meta.npz",
+        "references.jsonl",
         "hash_registry.json",
     ]
     for filename in files_to_delete:
