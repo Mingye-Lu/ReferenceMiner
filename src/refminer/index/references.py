@@ -11,7 +11,7 @@ from refminer.settings import SettingsManager
 from refminer.utils.paths import get_index_dir
 
 REFERENCES_FILE = "references.jsonl"
-PARSER_VERSION = "reference_parser_v1"
+PARSER_VERSION = "reference_parser_v2"
 
 
 @dataclass
